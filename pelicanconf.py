@@ -3,15 +3,15 @@
 
 AUTHOR = 'toohsk'
 SITENAME = "Atsushi's blog"
-SITEURL = ''
+#SITEURL = 'https://toohsk.github.io/'
 
-GOOGLE_ANALYTICS = "274486548"
+GOOGLE_ANALYTICS = "274499967"
 
 PATH = 'content'
 
 TIMEZONE = 'Asia/Tokyo'
 
-DEFAULT_LANG = 'ja'
+DEFAULT_LANG = 'en'
 
 # Feed generation is usually not desired when developing
 FEED_ALL_ATOM = None
