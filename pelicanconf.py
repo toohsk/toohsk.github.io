@@ -5,6 +5,8 @@ AUTHOR = 'toohsk'
 SITENAME = "Atsushi's blog"
 SITEURL = ''
 
+GOOGLE_ANALYTICS = "274486548"
+
 PATH = 'content'
 
 TIMEZONE = 'Asia/Tokyo'
