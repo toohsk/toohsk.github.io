@@ -5,7 +5,7 @@ AUTHOR = 'toohsk'
 SITENAME = "Atsushi's blog"
 #SITEURL = 'https://toohsk.github.io/'
 
-GOOGLE_ANALYTICS = "274499967"
+GOOGLE_ANALYTICS = "G-LPJPPM82BE"
 
 PATH = 'content'
 
