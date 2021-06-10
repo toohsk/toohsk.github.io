@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom"><title>Atsushi's blog</title><link href="/" rel="alternate"></link><link href="/feeds/all.atom.xml" rel="self"></link><id>/</id><updated>2021-06-10T00:00:00+09:00</updated><entry><title>Fundamentals of Reinforcement Learning.</title><link href="/EeinforcementLearning.html" rel="alternate"></link><published>2021-06-10T00:00:00+09:00</published><updated>2021-06-10T00:00:00+09:00</updated><author><name>toohsk</name></author><id>tag:None,2021-06-10:/EeinforcementLearning.html</id><summary type="html">&lt;p&gt;Rough note of reinforcement learing.&lt;/p&gt;</summary><content type="html">&lt;h1&gt;Rough note of reinforcement learing.&lt;/h1&gt;
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Atsushi's blog - reinforcement learning, note</title><link href="/" rel="alternate"></link><link href="/feeds/reinforcement-learning-note.atom.xml" rel="self"></link><id>/</id><updated>2021-06-10T00:00:00+09:00</updated><entry><title>Fundamentals of Reinforcement Learning.</title><link href="/EeinforcementLearning.html" rel="alternate"></link><published>2021-06-10T00:00:00+09:00</published><updated>2021-06-10T00:00:00+09:00</updated><author><name>toohsk</name></author><id>tag:None,2021-06-10:/EeinforcementLearning.html</id><summary type="html">&lt;p&gt;Rough note of reinforcement learing.&lt;/p&gt;</summary><content type="html">&lt;h1&gt;Rough note of reinforcement learing.&lt;/h1&gt;
 &lt;p&gt;This is a note of the Udemy's &lt;a href="https://www.udemy.com/course/deep-q-learning-from-paper-to-code/"&gt;Modern Reinforcement Learning: Deep Q Learning in PyTorch course&lt;/a&gt;, chapter 2.&lt;br&gt;
 This note is just for helping my understanding so if you want correct information, please take a look above course.&lt;br&gt;
 It is hard and also I'm still in the path of this course but I highly recommend to take this!&lt;/p&gt;
@@ -116,15 +116,4 @@ At the boot strap using one estimate to update another.&lt;/p&gt;
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;li&gt;Decrease epsilon over time to minimum value.&lt;/li&gt;
-&lt;/ul&gt;</content><category term="reinforcement learning, note"></category><category term="reinforcement learning"></category></entry><entry><title>Hello, World!</title><link href="/FirstPost.html" rel="alternate"></link><published>2021-05-30T00:00:00+09:00</published><updated>2021-05-30T00:00:00+09:00</updated><author><name>toohsk</name></author><id>tag:None,2021-05-30:/FirstPost.html</id><summary type="html">&lt;p&gt;Introduction of my-self.&lt;/p&gt;</summary><content type="html">&lt;h1&gt;Hello, World!&lt;/h1&gt;
-&lt;p&gt;Hi there! Thanks for visiting my personal blog!&lt;br&gt;
-I'm Atsushi Hara from Japan.&lt;/p&gt;
-&lt;p&gt;I have been an engineer for about 8 years (since April, 2012) and specialize in data engineering and machine learning.&lt;br&gt;
-I have a strong interest in bringing MLOps, deep learning and reinforcement learning into the real world.&lt;/p&gt;
-&lt;p&gt;Probablly I'll write my carrer someday lol and put the link to this page.&lt;/p&gt;
-&lt;h1&gt;What's this blog about?&lt;/h1&gt;
-&lt;p&gt;I've decieded to start my new career at &lt;a href="https://nature.global/"&gt;Nature Inc.&lt;/a&gt; as a data engineer and data scientist, so I decied to start a new personal blog.&lt;br&gt;
-As I mentioned above, I'm really interested in bringing deep learning and reinforcement learning techniques into the real world, so I'll leave a note what I've studied or findings as a post.&lt;br&gt;
-I hope these notes will help somebody, someday, I hope these notes will help somebody, someday, somewhere!&lt;/p&gt;
-&lt;p&gt;And also I'll be posting about my hobbies as living proof.
-Of course, needless to say, this blog is my personal opinion and not the opinion of the company I belong to.&lt;/p&gt;</content><category term="self-introduction"></category><category term="self-introduction"></category></entry></feed>
+&lt;/ul&gt;</content><category term="reinforcement learning, note"></category><category term="reinforcement learning"></category></entry></feed>
