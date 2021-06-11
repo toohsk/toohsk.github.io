@@ -1,5 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom"><title>Atsushi's blog - reinforcement learning, note</title><link href="/" rel="alternate"></link><link href="/feeds/reinforcement-learning-note.atom.xml" rel="self"></link><id>/</id><updated>2021-06-10T00:00:00+09:00</updated><entry><title>Fundamentals of Reinforcement Learning.</title><link href="/EeinforcementLearning.html" rel="alternate"></link><published>2021-06-10T00:00:00+09:00</published><updated>2021-06-10T00:00:00+09:00</updated><author><name>toohsk</name></author><id>tag:None,2021-06-10:/EeinforcementLearning.html</id><summary type="html">&lt;p&gt;Rough note of reinforcement learing.&lt;/p&gt;</summary><content type="html">&lt;h1&gt;Rough note of reinforcement learing.&lt;/h1&gt;
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Atsushi's blog - reinforcement learning, note</title><link href="/" rel="alternate"></link><link href="/feeds/reinforcement-learning-note.atom.xml" rel="self"></link><id>/</id><updated>2021-06-11T00:00:00+09:00</updated><entry><title>Naive Deep Q Learning: Coding Deep Q Network with PyTorch</title><link href="/Naive%20Deep%20Q%20Learning.html" rel="alternate"></link><published>2021-06-11T00:00:00+09:00</published><updated>2021-06-11T00:00:00+09:00</updated><author><name>toohsk</name></author><id>tag:None,2021-06-11:/Naive Deep Q Learning.html</id><summary type="html">&lt;p&gt;Rough note of implementing deep q learning.&lt;/p&gt;</summary><content type="html">&lt;h1&gt;Naive Deep Q Learning: Coding Deep Q Network&lt;/h1&gt;
+&lt;p&gt;Implement Naive Deep Q Learning code, &lt;a href="https://github.com/toohsk/udemy-deep-q-learning-from-paper-to-code/tree/main/naive_deep_q_learning"&gt;here&lt;/a&gt;.
+And the learning result was like in the figure.&lt;/p&gt;
+&lt;p&gt;&lt;img alt="image of training result of deep q agent in cartpole environment" src="images/cartpole_naive_dqn.png"&gt;&lt;/p&gt;
+&lt;p&gt;As the result, after epsilon tends to minimum value, the agent starts to take actions and learn from it. But when you look closer to the score line, the wild fluctuations in the score became more and more severe after 6000 steps.
+Why this happen?&lt;/p&gt;
+&lt;h2&gt;Reason of score’s fluctuations&lt;/h2&gt;
+&lt;ol&gt;
+&lt;li&gt;Learning from a single example.
+    The agent  sees many thousands of steps, and this experience is effectively discarded each time.&lt;/li&gt;
+&lt;li&gt;Epsilon value
+    When epsilon is large, the agent could jump around in the highly dimensional space. But the epsilon slightly getting smaller, that makes the agent only look in the minimum local area.&lt;/li&gt;
+&lt;li&gt;Using the same network for evaluate and maximum action
+    The agent is choosing the maximum action but it’ll be updated at every step. So the agent will chasing the moving target. The maximum action is role of bias, but getting optimal bias need a lot of cost.&lt;/li&gt;
+&lt;/ol&gt;</content><category term="reinforcement learning, note"></category><category term="reinforcement learning"></category></entry><entry><title>Fundamentals of Reinforcement Learning.</title><link href="/ReinforcementLearning.html" rel="alternate"></link><published>2021-06-10T00:00:00+09:00</published><updated>2021-06-10T00:00:00+09:00</updated><author><name>toohsk</name></author><id>tag:None,2021-06-10:/ReinforcementLearning.html</id><summary type="html">&lt;p&gt;Rough note of reinforcement learing.&lt;/p&gt;</summary><content type="html">&lt;h1&gt;Rough note of reinforcement learing.&lt;/h1&gt;
 &lt;p&gt;This is a note of the Udemy's &lt;a href="https://www.udemy.com/course/deep-q-learning-from-paper-to-code/"&gt;Modern Reinforcement Learning: Deep Q Learning in PyTorch course&lt;/a&gt;, chapter 2.&lt;br&gt;
 This note is just for helping my understanding so if you want correct information, please take a look above course.&lt;br&gt;
 It is hard and also I'm still in the path of this course but I highly recommend to take this!&lt;/p&gt;

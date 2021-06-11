@@ -7,7 +7,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
 
-        <title>Fundamentals of Reinforcement Learning.</title>
+        <title>Naive Deep Q Learning: Coding Deep Q Network with PyTorch</title>
 
             <link href="/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Full Atom Feed" />
             <link href="/feeds/{slug}.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Categories Atom Feed" />
@@ -35,7 +35,7 @@
 
 
 
-        <meta name="description" content="Rough note of reinforcement learing.">
+        <meta name="description" content="Rough note of implementing deep q learning.">
 
         <meta name="author" content="toohsk">
 
@@ -46,22 +46,22 @@
 
 	<meta property="og:type" content="article">
             <meta property="article:author" content="/author/toohsk.html">
-	<meta property="og:url" content="/EeinforcementLearning.html">
-	<meta property="og:title" content="Fundamentals of Reinforcement Learning.">
-	<meta property="article:published_time" content="2021-06-10 00:00:00+09:00">
-            <meta property="og:description" content="Rough note of reinforcement learing.">
+	<meta property="og:url" content="/Naive Deep Q Learning.html">
+	<meta property="og:title" content="Naive Deep Q Learning: Coding Deep Q Network with PyTorch">
+	<meta property="article:published_time" content="2021-06-11 00:00:00+09:00">
+            <meta property="og:description" content="Rough note of implementing deep q learning.">
 
             <meta property="og:image" content="/images/blog_cover.jpg">
         <meta name="twitter:card" content="summary_large_image">
         <meta name="twitter:site" content="@toohsk">
-        <meta name="twitter:title" content="Fundamentals of Reinforcement Learning.">
+        <meta name="twitter:title" content="Naive Deep Q Learning: Coding Deep Q Network with PyTorch">
 
             <meta name="twitter:image" content="/images/blog_cover.jpg">
 
-            <meta name="twitter:description" content="Rough note of reinforcement learing.">
+            <meta name="twitter:description" content="Rough note of implementing deep q learning.">
 </head>
 
-<body class="article-EeinforcementLearning">
+<body class="article-Naive Deep Q Learning">
 
     <!-- Navigation -->
     <nav class="navbar navbar-default navbar-custom navbar-fixed-top">
@@ -94,10 +94,10 @@
             <div class="row">
                 <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
                     <div class="post-heading">
-                        <h1>Fundamentals of Reinforcement Learning.</h1>
+                        <h1>Naive Deep Q Learning: Coding Deep Q Network with PyTorch</h1>
                         <span class="meta">Posted by
                                 <a href="/author/toohsk.html">toohsk</a>
-                             on 木 10 6月 2021
+                             on 金 11 6月 2021
                         </span>
                         
                     </div>
@@ -112,124 +112,21 @@
             <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
     <!-- Post Content -->
     <article>
-        <h1>Rough note of reinforcement learing.</h1>
-<p>This is a note of the Udemy's <a href="https://www.udemy.com/course/deep-q-learning-from-paper-to-code/">Modern Reinforcement Learning: Deep Q Learning in PyTorch course</a>, chapter 2.<br>
-This note is just for helping my understanding so if you want correct information, please take a look above course.<br>
-It is hard and also I'm still in the path of this course but I highly recommend to take this!</p>
-<p>There are a lot of equations and I hand write them, but I won't upload them.</p>
-<p>And records of my studying is uploaded to <a href="https://github.com/toohsk/udemy-deep-q-learning-from-paper-to-code">GitHub repository</a>, so please stay tune.</p>
-<h1>Notes</h1>
-<h2>What's Reinforcement Learning?</h2>
-<p>Interactions between agent and environment.</p>
-<ul>
-<li>Agent learns and act(decision making)</li>
-<li>Environment gives states and rewards</li>
-<li>Rewards tell the agent what is good and bad</li>
-</ul>
-<p>The biggest difference between Reinforcement learning and Supervised learning is, in the Reinforcement learning agent also makes decisions from the action space based on the current state but it affect all future rewards.</p>
-<p>Actions cause state transitions</p>
-<div class="highlight"><pre><span></span><code>p(s&#39;, r | a, s) != 1
-</code></pre></div>
-
-<p>s: state
-r: reward
-a: action</p>
-<p>this equation defines probabilities of given next state (s’) and reward(r) when agent have taken an action (a) in the state (s).</p>
-<p>And summation of probabilities get 1.</p>
-<div class="highlight"><pre><span></span><code>Sigma( p(s&#39;, r | a, s) = 1
-</code></pre></div>
-
-<p>Total rewards are expression as G, and total rewards in time step t is expressed as</p>
-<div class="highlight"><pre><span></span><code>G_{t} = R_{t+1} + R_{t+2} + ... + R_{T}
-</code></pre></div>
-
-<p>In reinforcement learning, tasks are expected episodic, which it stands for there is final state in the task.
-But in some tasks continues to infinity means as forever. And in this case, rewards towards to infinity, too.<br>
-To deal with this problem, rewards are fixed by discounting.
-Discount factor is expressed with Gamma, γ.
-When gamma equals to 1, the agent values all future rewards equally and interests in play long game.
-When gamma equals to 0, the agent is interests in the short games, it place no values for all future rewards.<br>
-Gamma needs to be in the range of <code>0 &lt;= γ &lt;= 1</code>, and in the practice it is set in range of <code>0.95 &lt;= γ &lt;= 0.99</code>.
-And the discounted total rewards are expressed as</p>
-<div class="highlight"><pre><span></span><code>G_{t} = γ^0 * R_{t+1} + γ^1 * R_{t+2} + γ^2 * R_{t+3} + ... + γ^{T-1} * R_{T} = Sigma(γ^k * R_{t+k+1})
-</code></pre></div>
-
-<p>Policy is mapping of states to actions.
-And it represented as Pi, π.</p>
-<h2>Value Functions, Action Functions</h2>
-<ul>
-<li>Every policy has a v and q, and those obey the Bellman equation.</li>
-<li>Policies can be ranked with v and q.<ul>
-<li>better value is better policy</li>
-</ul>
-</li>
-<li>Bellman optimality equation is recursive<ul>
-<li>v and q functions has next state, s’, and next action, a’</li>
-</ul>
-</li>
-</ul>
-<h2>About Q Learning</h2>
-<p>Q Learning is based on model free approach.
-It is trying to estimate optimal p.</p>
-<p>For estimating optimal p, there are two approaches.</p>
+        <h1>Naive Deep Q Learning: Coding Deep Q Network</h1>
+<p>Implement Naive Deep Q Learning code, <a href="https://github.com/toohsk/udemy-deep-q-learning-from-paper-to-code/tree/main/naive_deep_q_learning">here</a>.
+And the learning result was like in the figure.</p>
+<p><img alt="image of training result of deep q agent in cartpole environment" src="images/cartpole_naive_dqn.png"></p>
+<p>As the result, after epsilon tends to minimum value, the agent starts to take actions and learn from it. But when you look closer to the score line, the wild fluctuations in the score became more and more severe after 6000 steps.
+Why this happen?</p>
+<h2>Reason of score’s fluctuations</h2>
 <ol>
-<li>model based approach</li>
-<li>model free approach</li>
+<li>Learning from a single example.
+    The agent  sees many thousands of steps, and this experience is effectively discarded each time.</li>
+<li>Epsilon value
+    When epsilon is large, the agent could jump around in the highly dimensional space. But the epsilon slightly getting smaller, that makes the agent only look in the minimum local area.</li>
+<li>Using the same network for evaluate and maximum action
+    The agent is choosing the maximum action but it’ll be updated at every step. So the agent will chasing the moving target. The maximum action is role of bias, but getting optimal bias need a lot of cost.</li>
 </ol>
-<p>The model free approach is the way to learn from trial and error, and figure out the best action to get best reward.</p>
-<h2>The Explore-Exploit Dilemma</h2>
-<p>Then How to learn &amp; get maximize rewards?</p>
-<p>Taking the best actions by the agent is known as greed.
-And taking sub optimal action is known as exploration.
-Balancing the two operations is a dilemma.</p>
-<p>For this solution is bring another parameter, called Epsilon Greedy.
-The epsilon greedy is a hyper parameter for selecting greedy actions or exploration actions.
-Epsilon would be decreased over time step, so that the agent would take random actions for first, but go through the steps greedy actions would be more selected by decreasing it.
-Epsilon must stay finite.
-For practice, epsilon settle on <code>0.01 &lt;= ε &lt;= 0.1</code>, and this means the agent spends from 1% to 10% chance to take exploratory actions.</p>
-<h2>Temporal Difference Learning</h2>
-<p>Estimate of value of the policy and needs to refine it.
-Temporal Difference Learning is online learning.
-At the boot strap using one estimate to update another.</p>
-<h2>Q Learning Algorithm</h2>
-<p>The Q Learning is a tabular and off policy method.</p>
-<p>Basic algorithm is shown as below.</p>
-<ol>
-<li>Initialize Q for all states s and action a</li>
-<li>Initialize parameters: alpha=0.001, gamma=0.9, epsilon_max=1.0, epsilon_min=0.01</li>
-<li>Repeat for n_episodes<ol>
-<li>Initialize state s</li>
-<li>For each step of episode<ol>
-<li>Choose action a with epsilon-greedy</li>
-<li>Perform action a, get new state s’ and reward r</li>
-<li>Apply Q function and update Q(s,a)</li>
-<li>update status s to s’ by s=s’</li>
-</ol>
-</li>
-</ol>
-</li>
-</ol>
-<p>Point to implement Q Learning</p>
-<ul>
-<li>Agent should be a class<ul>
-<li>Class has<ul>
-<li>Q table</li>
-<li>Learning rate</li>
-<li>discount factor</li>
-<li>epsilon</li>
-<li>initializing function the Q table</li>
-<li>choosing action function based on current state</li>
-</ul>
-</li>
-<li>Represent the Q table as a dictionary.<ul>
-<li>states and actions as the key</li>
-<li>reward would be value</li>
-</ul>
-</li>
-</ul>
-</li>
-<li>Decrease epsilon over time to minimum value.</li>
-</ul>
     </article>
 
         <div class="tags">
