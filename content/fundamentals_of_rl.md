@@ -2,7 +2,7 @@ Title: Fundamentals of Reinforcement Learning.
 Date: 06-10-2021
 Category: reinforcement learning, note
 Tags: reinforcement learning
-Slug: EeinforcementLearning
+Slug: ReinforcementLearning
 Authors: toohsk
 Summary: Rough note of reinforcement learing.
 
