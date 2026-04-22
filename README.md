@@ -15,6 +15,23 @@ My GitHub page. [Pelican](https://getpelican.com/) 製の静的サイトです�
 pipenv install
 ```
 
+## 依存関係の更新
+
+Pelican などのパッケージを更新するときは以下を実行します。
+
+```bash
+# 全パッケージを Pipfile の制約内で最新化し、Pipfile.lock を更新
+pipenv update
+
+# 特定のパッケージだけ更新する場合
+pipenv update pelican
+
+# Pipfile を編集せず lock ファイルだけ作り直す場合
+pipenv lock
+```
+
+更新後は `pipenv run make devserver` で表示崩れが無いか確認し、`Pipfile` と `Pipfile.lock` の両方をコミットしてください。
+
 ## ローカルで確認する
 
 `dev-blog` ブランチで記事を書き、以下のコマンドでプレビューできます。
