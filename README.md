@@ -9,10 +9,14 @@ My GitHub page. [Pelican](https://getpelican.com/) 製の静的サイトです�
 
 ## セットアップ
 
-依存関係は `Pipfile` で管理しています。初回のみ以下を実行します。
+依存関係は `Pipfile` で管理しています。`Pipfile` では Python 3.8 を想定しているため、初回セットアップ前に Python 3.8 を利用できる状態にしてください。既定の Python が 3.8 であればそのままインストールでき、異なる場合は使用する Python を明示してインストールします。
 
 ```bash
+# 既定の Python が 3.8 の場合
 pipenv install
+
+# 既定の Python バージョンが異なる場合
+pipenv --python 3.8 install
 ```
 
 ## 依存関係の更新
@@ -37,7 +41,7 @@ pipenv lock
 `dev-blog` ブランチで記事を書き、以下のコマンドでプレビューできます。
 
 ```bash
-# http://localhost:8000 でライブリロード付きサーバを起動
+# http://localhost:8000 でファイル変更時に自動再生成されるローカル確認用サーバを起動
 pipenv run make devserver
 
 # 生成物を削除
