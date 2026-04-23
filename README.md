@@ -19,6 +19,12 @@ pipenv install
 pipenv --python 3.8 install
 ```
 
+加えて、テーマ（`themes/clean-blog`）は git submodule として管理しています。クローン直後や submodule が未取得の場合は、以下を実行して取得してください。これを忘れるとテーマが空のままビルドされ、CSS や画像の無いリンクだけのサイトが公開されてしまいます。
+
+```bash
+git submodule update --init --recursive
+```
+
 ## 依存関係の更新
 
 Pelican などのパッケージを更新するときは以下を実行します。
