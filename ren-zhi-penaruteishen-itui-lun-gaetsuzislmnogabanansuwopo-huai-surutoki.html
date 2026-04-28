@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+            <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+        <title>認知ペナルティ：深い推論がエッジSLMのガバナンスを破壊するとき</title>
+
+            <link href="/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Full Atom Feed" />
+            <link href="/feeds/{slug}.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Categories Atom Feed" />
+        <!-- Bootstrap Core CSS -->
+        <link href="/theme/css/bootstrap.min.css" rel="stylesheet">
+
+        <!-- Custom CSS -->
+        <link href="/theme/css/clean-blog.min.css" rel="stylesheet">
+
+        <!-- Code highlight color scheme -->
+            <link href="/theme/css/code_blocks/github.css" rel="stylesheet">
+
+
+        <!-- Custom Fonts -->
+        <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+        <link href='https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+        <link href='https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/css'>
+
+        <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+        <!--[if lt IE 9]>
+            <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+            <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+
+
+        <meta name="description" content="Qwen-3.5-9Bに対する厳密なアブレーションにより、DAOガバナンスに使用するエッジSLMでSystem 2（拡張思考）推論が26.7%の認知崩壊率と17倍のレイテンシペナルティをもたらし、System 1（直接推論）が全安全指標で圧勝することが実証された。">
+
+        <meta name="author" content="toohsk">
+
+        <meta name="tags" content="SLM">
+        <meta name="tags" content="AI">
+        <meta name="tags" content="論文解説">
+
+	                <meta property="og:locale" content="">
+		<meta property="og:site_name" content="Atsushi's blog">
+
+	<meta property="og:type" content="article">
+            <meta property="article:author" content="/author/toohsk.html">
+	<meta property="og:url" content="/ren-zhi-penaruteishen-itui-lun-gaetsuzislmnogabanansuwopo-huai-surutoki.html">
+	<meta property="og:title" content="認知ペナルティ：深い推論がエッジSLMのガバナンスを破壊するとき">
+	<meta property="article:published_time" content="2026-04-28 00:00:00+09:00">
+            <meta property="og:description" content="Qwen-3.5-9Bに対する厳密なアブレーションにより、DAOガバナンスに使用するエッジSLMでSystem 2（拡張思考）推論が26.7%の認知崩壊率と17倍のレイテンシペナルティをもたらし、System 1（直接推論）が全安全指標で圧勝することが実証された。">
+
+            <meta property="og:image" content="/images/blog_cover.jpg">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:site" content="@toohsk">
+        <meta name="twitter:title" content="認知ペナルティ：深い推論がエッジSLMのガバナンスを破壊するとき">
+
+            <meta name="twitter:image" content="/images/blog_cover.jpg">
+
+            <meta name="twitter:description" content="Qwen-3.5-9Bに対する厳密なアブレーションにより、DAOガバナンスに使用するエッジSLMでSystem 2（拡張思考）推論が26.7%の認知崩壊率と17倍のレイテンシペナルティをもたらし、System 1（直接推論）が全安全指標で圧勝することが実証された。">
+</head>
+
+<body class="article-ren-zhi-penaruteishen-itui-lun-gaetsuzislmnogabanansuwopo-huai-surutoki">
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+        <div class="container-fluid">
+            <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header page-scroll">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="/">Atsushi's blog</a>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav navbar-right">
+
+                </ul>
+            </div>
+            <!-- /.navbar-collapse -->
+        </div>
+        <!-- /.container -->
+    </nav>
+
+    <!-- Page Header -->
+        <header class="intro-header" style="background-image: url('/images/blog_cover.jpg')">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <div class="post-heading">
+                        <h1>認知ペナルティ：深い推論がエッジSLMのガバナンスを破壊するとき</h1>
+                        <span class="meta">Posted by
+                                <a href="/author/toohsk.html">toohsk</a>
+                             on 火 28 4月 2026
+                        </span>
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+    <!-- Post Content -->
+    <article>
+        <h2>なぜこの研究が重要か</h2>
+<p>Chain-of-Thoughtが登場して以来、LLM文献において支配的な仮定は単純だった：<strong>推論を多くするほど答えは良くなる</strong>。モデルに考える余地を与えれば、より賢く考える。本論文は、この仮定を特定の文脈——<strong>Byzantine Fault Tolerance（BFT）制約下で動作するエッジネイティブSLM</strong>——において正面から反証する。</p>
+<p>分散型自律組織（DAO）は数十億ドルのオンチェーン資産を管理している。DAOはSLMを<strong>憲法的ファイアウォール</strong>として活用することに関心を持ち始めている。これはガバナンスのチェックポイントに配置された自律エージェントで、提案を審査し、意味的なソーシャルエンジニアリング（DAOの原則に違反しているが説得力ある文章で書かれた提案）を検出する。エッジネイティブであることが重要な理由：そのようなファイアウォールはクラウドの往復なしにバリデーターノードでローカルに動作しなければならない（遅延攻撃を防ぎ、分散性を維持するため）。</p>
+<p>ここで2つの問いが自然に生まれる：
+1. ガバナンスSLMはSystem 1（高速自己回帰）とSystem 2（拡張的な思考）のどちらを使うべきか？
+2. 敵対的な提案に対して「より深く考える」ほうが安全か？</p>
+<p>反直感的な発見：<strong>System 2推論は、この敵対的設定においてすべての安全指標で壊滅的に悪化する</strong>。</p>
+<h2>技術的なアプローチ</h2>
+<p>本論文は<strong>Sentinel-Bench</strong>を導入する——Qwen-3.5-9Bに対して<strong>厳密なモデル内アブレーション</strong>を実行する840推論の実証フレームワークだ。設計は慎重に制御されている：</p>
+<ul>
+<li><strong>同じモデル、同じウェイト</strong>：アブレーションは推論時の計算モードのみをトグルし、全パラメータを凍結したまま保持する。これにより、モデル容量の違いではなく推論の深さの効果を分離する。</li>
+<li><strong>敵対的データセット</strong>：Optimism DAOガバナンスデータセット。モデルに誤った判決を下させるよう設計されたリアルおよび合成の敵対的提案を含む。</li>
+<li><strong>テスト対象の2つのモード</strong>：</li>
+<li><strong>System 1</strong>：標準的な自己回帰生成 ── モデルは拡張的な内部推論なしに提案文から直接判決を生成</li>
+<li><strong>System 2</strong>：拡張潜在推論 ── モデルが判決を下す前に提案をステップバイステップで推論することが許可（または促進）される</li>
+</ul>
+<h3>主要指標</h3>
+<ul>
+<li><strong>敵対的ロバスト性</strong>：モデルは敵対的提案を正しく識別できるか？</li>
+<li><strong>法的整合性（Juridical Consistency）</strong>：同じ入力を2回与えたとき、同じ判決が出るか？</li>
+<li><strong>状態確定時間（State Finality Time）</strong>：モデルが判決にコミットするまでの時間</li>
+<li><strong>推論非収束率（Reasoning Non-Convergence Rate）</strong>：拡張推論がどのくらいの頻度で判決に収束できないか？</li>
+</ul>
+<h2>先行研究との比較</h2>
+<p>敵対的設定における推論の先行研究では、計算量が多いほどロバスト性が向上すると広く想定されていた。Chain-of-Thought、Tree-of-Thought、推論時スケーリングの研究は数学・コーディング・論理推論タスクで改善を示した。ここでの重要な違いは<strong>敵対的ガバナンス設定</strong>だ：入力がモデルの知識ではなく推論プロセス自体を悪用するために設計されている。</p>
+<p>Sentinel-Benchは第3の攻撃面を定義する：<strong>モデルの推論プロセス自体の悪用</strong> ── 拡張的な思考を引き起こすが最終的には収束失敗をもたらす敵対的提案による、コンセンサス拒否攻撃だ。</p>
+<h2>実験結果の読み方</h2>
+<p>結果は鮮明であり、注意深く読む価値がある：</p>
+<table>
+<thead>
+<tr>
+<th>指標</th>
+<th>System 1</th>
+<th>System 2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>敵対的ロバスト性</td>
+<td><strong>100%</strong></td>
+<td>劣化</td>
+</tr>
+<tr>
+<td>法的整合性</td>
+<td><strong>100%</strong></td>
+<td>72.6%</td>
+</tr>
+<tr>
+<td>推論非収束率</td>
+<td><strong>0%</strong></td>
+<td><strong>26.7%</strong></td>
+</tr>
+<tr>
+<td>状態確定時間</td>
+<td><strong>13秒未満</strong></td>
+<td>約220秒（17倍）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>26.7%の推論非収束（認知崩壊）率</strong>が中心的な知見だ。4件の敵対的提案に1件以上の割合で、System 2推論が明確な判決に到達できなかった。BFT観点から見ると致命的：バリデーターノードの1/3以上が収束に失敗すると、コンセンサスが崩壊する。</p>
+<p><strong>72.6%の法的整合性</strong>は、System 2が判決に達した場合でも、同じ提案を再提示したとき同じ判決を下すのは72.6%にすぎないことを意味する。同じ提案に対してタイミング次第で異なる判決を下すガバナンスシステムは信頼できない。</p>
+<p><strong>17倍のレイテンシオーバーヘッド</strong>は重大な脆弱性をもたらす：<strong>Governance Extractable Value（GEV）</strong>だ。攻撃者が敵対的提案が220秒の審議を引き起こし、通常の提案は13秒で処理されると知っていれば：
+1. 審議ウィンドウに合わせて他のガバナンスアクションをタイミングよく実行できる
+2. 複数の敵対的提案を提出してバリデーターのコンピュートを占有し、ガバナンスへのDoS攻撃を実行できる</p>
+<p><strong>推論誘発的なサイコファンシー（Reasoning-Induced Sycophancy）</strong>（敵対的試行の1.5%で観察）：拡張推論により、モデルが非常に長い内部モノローグ（平均25,750文字）を生成して、拒否すべき敵対的提案を<strong>受け入れる</strong>ことを合理化するケースが見られた。モデルが詳述を通じて「誤った答えを自分に言い聞かせる」 ── より多くの推論が達成すべきこととは正反対の結果だ。</p>
+<h2>アルゴリズムの重要部分の解説</h2>
+<h3>認知崩壊のメカニズム</h3>
+<p>認知崩壊（推論非収束）は、拡張推論が矛盾した部分的な論拠の間を循環し続け、収束できないときに発生する。形式的に、モデルの内部推論状態を系列 $R_1, R_2, \ldots, R_T$ と表すと、崩壊は以下のときに起こる：</p>
+<p>$$\nexists T^<em> : P(\text{verdict} \mid R_{T^</em>}) &gt; \tau$$</p>
+<p>トークンバジェット内で任意の合理的な閾値 $\tau$ を超える確信度で判決に達するタイムステップ $T^*$ が存在しない。モデルは、敵対的提案の論拠を永久に天秤にかけ続けながら、判決のための十分な確信の余裕に達することができない推論を生成し続ける。</p>
+<p>直感的なイメージ：System 1は訓練から得たパターンマッチングで「これは良い/悪いガバナンス提案のパターンだ」と即座に判定する。System 2は論拠を丁寧に検討しようとするが、敵対的提案は意図的に「どちらにも見える」よう設計されているため、どちらに決定すべきか判断できずに堂々巡りに陥る。</p>
+<h3>BFT制約がなぜこれを悪化させるか</h3>
+<p>BFTは、$f$ 個の障害ノードがあるシステムでは少なくとも $2f+1$ 個の誠実なノードが合意することを要求する。標準的なBFTプロトコルでは「障害」はByzantineアクターを意味する。本論文はこれを<strong>認知的障害ノード</strong> ── 推論非収束により判決を出せないノード ── に拡張する。</p>
+<p>敵対的提案で26.7%のノードが認知崩壊を経験し、敵対的なアクターがこのタイミングを最大化するよう提案のタイミングを合わせれば、実効的なBFT耐障害性は深刻に劣化する。論文はこれを、System 2推論においてのみ現れる<strong>体系的なガバナンス脆弱性</strong>として位置づける。</p>
+<h2>限界と課題</h2>
+<p>著者が適切に認めている点：</p>
+<ol>
+<li>
+<p><strong>単一モデル</strong>：アブレーションはQwen-3.5-9Bのみで実施。現象がLlama・Phi・Gemmaなど他のモデルファミリーで一般化するかは未検証。</p>
+</li>
+<li>
+<p><strong>単一データセット</strong>：Optimism DAOの敵対的データセットが全DAOガバナンスを代表しない可能性がある。</p>
+</li>
+<li>
+<p><strong>固定トークンバジェット</strong>：System 2は固定のトークンバジェットでテスト。適応的なバジェット（確信度達成で早期停止）なら崩壊率を下げられるかもしれない。</p>
+</li>
+<li>
+<p><strong>タスク特化のファインチューニングなし</strong>：どちらのモードもDAOガバナンス用に特化してファインチューニングされていない。</p>
+</li>
+<li>
+<p><strong>限られた敵対的多様性</strong>：敵対的提案は単一ソースから。モデルの反応から学習する真に適応的な攻撃者は異なる攻撃ベクターを見つけるかもしれない。</p>
+</li>
+</ol>
+<h2>今後の展望</h2>
+<p><strong>著者が示唆する方向：</strong>
+- 複数のモデルファミリーとDAOデータセットへのSentinel-Bench拡張
+- ハイブリッドアプローチの探索：初期スクリーニングはSystem 1、確信度が低い場合のみSystem 2
+- BFTガバナンスシステムにおけるGEV攻撃面の形式的分析</p>
+<p><strong>独自に考察する発展的な方向：</strong>
+- <strong>較正された推論起動</strong>：System 2推論が役立つ場面と害になる場面を判断する軽量分類器を学習し、選択的に熟慮推論を起動するメタコントローラーを構築する
+- <strong>敵対的ロバストなChain-of-Thought</strong>：System 2推論を有効にした状態で敵対的ガバナンスデータセットを用いて特化学習し、モデルの熟慮プロセスをよりロバストにする
+- <strong>マルチエージェント検証</strong>：単一モデルの一貫性に依存するのではなく、複数のSystem 1インスタンス間で高速コンセンサスプロトコルを実装し、敵対的提案を集合的に検出・処理する</p>
+<h2>エッジ・オンデバイスへの示唆</h2>
+<p>本論文の知見はDAOガバナンスを超えた直接的な含意を持つ：</p>
+<ul>
+<li>
+<p><strong>コンセンサスを必要とする任意のBFTエッジ展開</strong>では、レイテンシと一貫性のためにSystem 1推論を選ぶべきだ。System 2の17倍のオーバーヘッドはリアルタイムコンセンサスプロトコルと両立しない。</p>
+</li>
+<li>
+<p><strong>敵対的入力の検出</strong>はまずSystem 1モードで実行すべきだ。入力が拡張的な熟慮を引き起こすなら、それ自体が入力が敵対的に作られているシグナルかもしれない。</p>
+</li>
+<li>
+<p><strong>エッジSLMのリソース計画</strong>：System 1の13秒未満の確定性により予測可能なコンピュートバジェットが可能になる。System 2の220秒という最悪ケースは制約のあるハードウェアでのリソース計画を不可能にする。</p>
+</li>
+<li>
+<p><strong>「より多く推論すれば良い」という誤謬</strong>：エッジガバナンスエージェントを構築する開発者は、拡張推論が安全性を向上させるという直感に抵抗すべきだ。BFT制約下の敵対的設定では、経験的に逆が真だ。</p>
+</li>
+</ul>
+<p>より広い教訓：<strong>推論時スケーリングはコンテキスト依存の安全性特性を持つ</strong>。良性の推論タスクでは役立つが、敵対的ガバナンスシナリオでは攻撃面を積極的に作り出す。</p>
+<h2>原文リンク</h2>
+<p><a href="https://hf.co/papers/2604.16913">Original Paper</a></p>
+    </article>
+
+        <div class="tags">
+            <p>tags: <a href="/tag/slm.html">SLM</a>, <a href="/tag/ai.html">AI</a>, <a href="/tag/lun-wen-jie-shuo.html">論文解説</a></p>
+        </div>
+
+    <hr>
+
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <ul class="list-inline text-center">
+                            <li>
+                                <a href="http://twitter.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-twitter fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="http://github.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-github fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                    </ul>
+<p class="copyright text-muted">
+    Blog powered by <a href="http://getpelican.com">Pelican</a>,
+    which takes great advantage of <a href="http://python.org">Python</a>. <br />        &copy;  toohsk
+</p>                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- jQuery -->
+    <script src="/theme/js/jquery.min.js"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="/theme/js/bootstrap.min.js"></script>
+
+        <!-- Custom Theme JavaScript -->
+        <script src="/theme/js/clean-blog.min.js"></script>
+
+<script>
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+        (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+        m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+    ga('create', 'UA-198541380-1', 'auto');
+    ga('send', 'pageview');
+</script>
+</body>
+
+</html>

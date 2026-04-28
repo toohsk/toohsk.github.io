@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+            <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+        <title>DR-Venus: Frontier Deep Research at 4B Parameters with Only 10K Training Examples</title>
+
+            <link href="/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Full Atom Feed" />
+            <link href="/feeds/{slug}.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Categories Atom Feed" />
+        <!-- Bootstrap Core CSS -->
+        <link href="/theme/css/bootstrap.min.css" rel="stylesheet">
+
+        <!-- Custom CSS -->
+        <link href="/theme/css/clean-blog.min.css" rel="stylesheet">
+
+        <!-- Code highlight color scheme -->
+            <link href="/theme/css/code_blocks/github.css" rel="stylesheet">
+
+
+        <!-- Custom Fonts -->
+        <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+        <link href='https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+        <link href='https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/css'>
+
+        <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+        <!--[if lt IE 9]>
+            <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+            <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+
+
+        <meta name="description" content="DR-Venus is a 4B-parameter deep research agent for edge deployment that outperforms all sub-9B agentic models using only ~10K open...">
+
+        <meta name="author" content="toohsk">
+
+        <meta name="tags" content="SLM">
+        <meta name="tags" content="AI">
+        <meta name="tags" content="paper-review">
+
+	                <meta property="og:locale" content="">
+		<meta property="og:site_name" content="Atsushi's blog">
+
+	<meta property="og:type" content="article">
+            <meta property="article:author" content="/author/toohsk.html">
+	<meta property="og:url" content="/dr-venus-frontier-deep-research-at-4b-parameters-with-only-10k-training-examples.html">
+	<meta property="og:title" content="DR-Venus: Frontier Deep Research at 4B Parameters with Only 10K Training Examples">
+	<meta property="article:published_time" content="2026-04-28 00:00:00+09:00">
+            <meta property="og:description" content="DR-Venus is a 4B-parameter deep research agent for edge deployment that outperforms all sub-9B agentic models using only ~10K open...">
+
+            <meta property="og:image" content="/images/blog_cover.jpg">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:site" content="@toohsk">
+        <meta name="twitter:title" content="DR-Venus: Frontier Deep Research at 4B Parameters with Only 10K Training Examples">
+
+            <meta name="twitter:image" content="/images/blog_cover.jpg">
+
+            <meta name="twitter:description" content="DR-Venus is a 4B-parameter deep research agent for edge deployment that outperforms all sub-9B agentic models using only ~10K open...">
+</head>
+
+<body class="article-dr-venus-frontier-deep-research-at-4b-parameters-with-only-10k-training-examples">
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+        <div class="container-fluid">
+            <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header page-scroll">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="/">Atsushi's blog</a>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav navbar-right">
+
+                </ul>
+            </div>
+            <!-- /.navbar-collapse -->
+        </div>
+        <!-- /.container -->
+    </nav>
+
+    <!-- Page Header -->
+        <header class="intro-header" style="background-image: url('/images/blog_cover.jpg')">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <div class="post-heading">
+                        <h1>DR-Venus: Frontier Deep Research at 4B Parameters with Only 10K Training Examples</h1>
+                        <span class="meta">Posted by
+                                <a href="/author/toohsk.html">toohsk</a>
+                             on 火 28 4月 2026
+                        </span>
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+    <!-- Post Content -->
+    <article>
+        <h2>Why This Paper Matters</h2>
+<p>Deep research — the ability to autonomously plan multi-step information gathering, synthesize findings across sources, and produce structured research reports — has been the exclusive domain of large LLMs (70B+) running in cloud environments. The compute required for extended multi-tool reasoning chains, combined with the long-context requirements of research tasks, makes this capability seem fundamentally incompatible with edge deployment.</p>
+<p>DR-Venus challenges this assumption by building a 4B-parameter model that approaches the performance of 30B-class systems on deep research benchmarks. More striking is the data constraint the authors imposed on themselves: the entire training pipeline uses only <strong>~10,000 open-source examples</strong>. Most agentic research training pipelines consume hundreds of thousands to millions of trajectories. This combination — tiny model, tiny dataset, frontier performance — exposes something important about the structure of the deep research problem.</p>
+<p>The practical implications are direct: a 4B model can run entirely on modern mobile devices (16GB+ DRAM iPhones, high-end Android flagships) without cloud API calls, enabling <strong>private, offline-capable deep research</strong>. For enterprise users concerned about data leakage, this is a major unlock.</p>
+<h2>Core Technical Contribution</h2>
+<p>DR-Venus's training recipe consists of exactly two stages:</p>
+<h3>Stage 1: Agentic Supervised Fine-Tuning (Agentic SFT)</h3>
+<p>Standard SFT on agent trajectories faces a structural bias problem: real-world task distributions heavily skew toward short, simple tasks. A naive SFT dataset contains thousands of 3–5 step tasks for every 40+ step deep research trajectory. Training on this unbalanced dataset teaches the model to be good at simple tasks while remaining mediocre at long-horizon research — precisely the capability DR-Venus targets.</p>
+<p>The paper addresses this through two interventions:</p>
+<p><strong>Strict data cleaning</strong>: Rather than simply filtering for high-quality trajectories, the cleaning pipeline specifically removes trajectories that exhibit agentic failure modes: premature task termination, hallucinated tool outputs, repetitive search queries without information gain, and format inconsistencies. The goal is to curate a compact but behaviorally clean set of demonstrations.</p>
+<p><strong>Resampling of long-horizon trajectories</strong>: The cleaned dataset is then resampled to oversample long-horizon research trajectories, correcting the skew. This is not just upweighting by trajectory length — it specifically targets trajectories that demonstrate multi-source synthesis, iterative refinement, and structured report generation. The resampling ensures that the model's SFT phase establishes basic agentic capabilities that are relevant to the target task distribution.</p>
+<h3>Stage 2: Agentic Reinforcement Learning via IGPO</h3>
+<p>The second stage uses agentic reinforcement learning built on <strong>IGPO (Information Gain Policy Optimization)</strong>. This is the most technically novel contribution.</p>
+<p><strong>The credit assignment problem in deep research RL</strong>: Standard RL for language models rewards the final output quality. In a 40-step research trajectory, this creates an extremely sparse reward signal — the model gets one training signal every 40 actions. For deep research, where the quality of the final report depends critically on individual search decisions made early in the trajectory (e.g., choosing to search for methodology papers before application papers), sparse end-of-trajectory rewards fail to teach the model which intermediate decisions were valuable.</p>
+<p><strong>IGPO's solution: Turn-level information gain rewards</strong>. At each agent turn $t$, the model executes a search or tool-use action $a_t$ and observes a result $o_t$. The turn-level reward $r_t$ is computed as:</p>
+<p>$$r_t = \text{InfoGain}(o_t \mid C_t) + \lambda \cdot \text{FormatScore}(a_t)$$</p>
+<p>where $C_t$ is the accumulated context up to turn $t$, and $\lambda$ balances the two reward components.</p>
+<p><strong>Information Gain</strong> measures how much new, relevant information the action $a_t$ contributed to the research context:
+- Actions that retrieve documents already covered by $C_t$ receive low reward (low information gain)
+- Actions that retrieve genuinely novel, relevant information receive high reward
+- Actions that retrieve off-topic or low-quality information receive near-zero reward</p>
+<p><strong>Format-aware regularization</strong> ($\text{FormatScore}$) penalizes malformed tool calls, inconsistently structured intermediate summaries, and off-format report sections. This serves as a consistency enforcer throughout training.</p>
+<p>The combination provides <strong>dense training supervision</strong> for long-horizon tasks — the model receives a training signal at every turn rather than only at the end, enabling far more efficient learning with limited data.</p>
+<h2>Comparison to Prior Work</h2>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Parameters</th>
+<th>Data Used</th>
+<th>Deep Research Benchmark</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DR-Venus</td>
+<td><strong>4B</strong></td>
+<td>~10K</td>
+<td><strong>Best sub-9B</strong></td>
+</tr>
+<tr>
+<td>OpenManus</td>
+<td>7B–9B</td>
+<td>100K+</td>
+<td>Prior sub-9B SOTA</td>
+</tr>
+<tr>
+<td>MiniSearch</td>
+<td>7B</td>
+<td>50K+</td>
+<td>Competitive sub-9B</td>
+</tr>
+<tr>
+<td>30B-class systems</td>
+<td>30B</td>
+<td>Proprietary</td>
+<td>Target frontier</td>
+</tr>
+<tr>
+<td>Cloud LLM agents</td>
+<td>70B+</td>
+<td>N/A</td>
+<td>Current ceiling</td>
+</tr>
+</tbody>
+</table>
+<p>DR-Venus outperforms OpenManus and other prior sub-9B agents on multiple deep research benchmarks, despite using a 4x smaller model and 5–10x less training data. It also meaningfully narrows the gap to 30B-class systems — a gap that was previously considered intractable at 4B parameters.</p>
+<h2>Reading the Results</h2>
+<p><strong>The 10K data efficiency result</strong> is arguably the most significant finding. The authors show that with the right training strategy (strict data cleaning + long-horizon resampling + IGPO with turn-level rewards), a 4B model can learn effective deep research behavior from just 10K examples. This suggests that:</p>
+<ol>
+<li>The deep research capability is not fundamentally about model scale — it's about the quality and structure of the training signal</li>
+<li>Long-horizon resampling corrects a fundamental dataset construction bias that has likely held back prior small-model agentic research</li>
+<li>Turn-level information gain rewards provide a training signal rich enough to overcome the typically sparse reward problem in agentic tasks</li>
+</ol>
+<p><strong>The test-time scaling finding</strong> is also notable: the authors find that 4B agents already possess "surprisingly strong performance potential" that can be unlocked with test-time scaling. This suggests the 4B model has latent capability for deep research that standard inference doesn't fully utilize — additional compute at inference time can extract meaningful performance gains beyond what training alone achieves.</p>
+<p><strong>Closing the gap to 30B systems</strong>: While DR-Venus doesn't surpass 30B-class systems, it narrows the gap significantly. The practical interpretation: for many real-world deep research tasks, a 4B model running locally may achieve 85–90% of the quality of a 30B cloud model, without the latency, cost, or privacy concerns of cloud inference.</p>
+<h2>Key Notes of This Paper</h2>
+<h3>The IGPO Training Signal: Why Turn-Level Rewards Matter</h3>
+<p>To understand why IGPO's turn-level rewards are effective, consider the training signal for a 40-step research trajectory in standard RL vs. IGPO:</p>
+<p><strong>Standard end-of-trajectory RL</strong>:
+- Trajectory generates report R
+- Reward: quality score of R (e.g., 0.7)
+- The model receives one signal: "this 40-step trajectory produced a 0.7 quality report"
+- Learning from this signal requires the model to infer which of the 40 steps were responsible for the quality level</p>
+<p><strong>IGPO turn-level RL</strong>:
+- Turn 1: Search for "topic X" → retrieves highly relevant documents → $r_1 = 0.85$ (high info gain)
+- Turn 7: Search for "topic X" again (redundant) → retrieves already-seen documents → $r_7 = 0.05$ (near-zero info gain)
+- Turn 15: Synthesizes sources into structured outline → well-formatted → $r_{15} = 0.72$ (good format + info gain)</p>
+<p>The model learns: "broad early searches are good; redundant searches are penalized; structured synthesis mid-trajectory is rewarded." This dense signal allows effective learning from just 10K trajectories.</p>
+<p>The format-aware regularization term deserves separate attention. In deep research, the structure of intermediate reasoning steps (how search queries are formulated, how intermediate findings are summarized, how the final report sections are organized) has a large impact on the final quality. The format score penalizes structural failures immediately, rather than waiting to observe their effect on the final output quality.</p>
+<h3>Long-Horizon Resampling: Correcting Training Bias</h3>
+<p>The resampling strategy is grounded in a simple observation: if the training distribution is dominated by 3-step tasks, the model minimizes expected training loss by specializing in 3-step tasks. The gradient signal from 40-step research trajectories is diluted by the overwhelming proportion of short-task gradients.</p>
+<p>By resampling to equalize gradient contributions from long-horizon trajectories, the training objective becomes:</p>
+<p>$$\mathcal{L} = \mathbb{E}_{(x, y) \sim \tilde{D}}[\ell(x, y)]$$</p>
+<p>where $\tilde{D}$ is the resampled distribution that upweights long-horizon examples. This shifts what the model optimizes for without changing the data itself — a lightweight but effective correction.</p>
+<h2>Limitations</h2>
+<ol>
+<li>
+<p><strong>Open-data constraint scope</strong>: The 10K examples are from open sources, but the paper doesn't fully characterize what's in them. The definition of "open" matters for reproducibility.</p>
+</li>
+<li>
+<p><strong>Benchmark specificity</strong>: Results are on deep research benchmarks (likely GAIA, WebArena, BrowseComp variants). Generalization to other long-horizon agentic tasks (coding agents, scientific experiment planning) isn't shown.</p>
+</li>
+<li>
+<p><strong>Test-time scaling cost</strong>: While 4B models running locally is practical, the test-time scaling analysis implies that best performance requires extended inference — which may not fit within all edge deployment latency budgets.</p>
+</li>
+<li>
+<p><strong>Gap to frontier remains</strong>: Narrowing the gap to 30B systems is impressive, but the gap is not closed. For the highest-stakes research tasks, cloud-scale models likely still outperform.</p>
+</li>
+<li>
+<p><strong>Single-agent framework</strong>: Deep research tasks may benefit from multi-agent collaboration. DR-Venus operates as a single agent; whether IGPO training generalizes to multi-agent settings is unexplored.</p>
+</li>
+</ol>
+<h2>Future Work</h2>
+<p><strong>From the authors:</strong>
+- Open-sourcing models, code, and training recipes to enable reproducibility
+- Further exploration of test-time scaling for small agents
+- Extension of the IGPO framework to other long-horizon agentic tasks</p>
+<p><strong>Additional promising directions:</strong>
+- <strong>Multi-agent IGPO</strong>: Extending turn-level information gain rewards to collaborative multi-agent research, where credit assignment must account for which agent contributed which insights
+- <strong>Domain-specific DR-Venus variants</strong>: Fine-tuning the 4B base on domain-specific open data (scientific papers, legal documents, medical literature) to create specialized edge research agents
+- <strong>Adaptive search depth</strong>: Using the model's confidence in its information gain to decide when to search further vs. when to synthesize — a learned stopping criterion for the research loop</p>
+<h2>Implications for Edge / On-Device Deployment</h2>
+<p>DR-Venus has the most direct and transformative implications for on-device deployment of the three papers covered today:</p>
+<ul>
+<li>
+<p><strong>Privacy-preserving research</strong>: A 4B model can run entirely on a high-end smartphone or laptop without any data leaving the device. For researchers handling sensitive information, this eliminates cloud data leakage risks entirely.</p>
+</li>
+<li>
+<p><strong>Offline capability</strong>: DR-Venus can be configured to use locally cached knowledge bases or offline document stores, enabling deep research in environments without reliable internet connectivity.</p>
+</li>
+<li>
+<p><strong>Cost elimination</strong>: Running 40+ step deep research on cloud LLMs can cost $0.50–$5.00 per task (at frontier LLM pricing). A locally running 4B model has zero marginal cost per query after the one-time model download.</p>
+</li>
+<li>
+<p><strong>Latency profile</strong>: While a 4B model running locally is slower per token than a cloud API, the absence of network round-trips for each of the 40+ agent steps means total task latency can be competitive with or better than cloud agents in low-bandwidth environments.</p>
+</li>
+<li>
+<p><strong>The 4B parameter threshold</strong>: This paper's most important practical finding may be that <strong>4B parameters is sufficient for useful deep research</strong>. Modern mobile hardware (A18 Pro, Snapdragon 8 Elite) can run 4B models at 30–50 tokens/second — fast enough for edge deep research to be practical.</p>
+</li>
+</ul>
+<h2>Links</h2>
+<p><a href="https://hf.co/papers/2604.19859">Original Paper</a></p>
+    </article>
+
+        <div class="tags">
+            <p>tags: <a href="/tag/slm.html">SLM</a>, <a href="/tag/ai.html">AI</a>, <a href="/tag/paper-review.html">paper-review</a></p>
+        </div>
+
+    <hr>
+
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <ul class="list-inline text-center">
+                            <li>
+                                <a href="http://twitter.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-twitter fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="http://github.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-github fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                    </ul>
+<p class="copyright text-muted">
+    Blog powered by <a href="http://getpelican.com">Pelican</a>,
+    which takes great advantage of <a href="http://python.org">Python</a>. <br />        &copy;  toohsk
+</p>                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- jQuery -->
+    <script src="/theme/js/jquery.min.js"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="/theme/js/bootstrap.min.js"></script>
+
+        <!-- Custom Theme JavaScript -->
+        <script src="/theme/js/clean-blog.min.js"></script>
+
+<script>
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+        (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+        m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+    ga('create', 'UA-198541380-1', 'auto');
+    ga('send', 'pageview');
+</script>
+</body>
+
+</html>

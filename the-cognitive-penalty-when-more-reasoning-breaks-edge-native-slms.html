@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+            <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+        <title>The Cognitive Penalty: When More Reasoning Breaks Edge-Native SLMs</title>
+
+            <link href="/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Full Atom Feed" />
+            <link href="/feeds/{slug}.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Categories Atom Feed" />
+        <!-- Bootstrap Core CSS -->
+        <link href="/theme/css/bootstrap.min.css" rel="stylesheet">
+
+        <!-- Custom CSS -->
+        <link href="/theme/css/clean-blog.min.css" rel="stylesheet">
+
+        <!-- Code highlight color scheme -->
+            <link href="/theme/css/code_blocks/github.css" rel="stylesheet">
+
+
+        <!-- Custom Fonts -->
+        <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+        <link href='https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+        <link href='https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/css'>
+
+        <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+        <!--[if lt IE 9]>
+            <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+            <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+
+
+        <meta name="description" content="A rigorous ablation on Qwen-3.5-9B reveals that System 2 (extended chain-of-thought) reasoning catastrophically degrades edge-native...">
+
+        <meta name="author" content="toohsk">
+
+        <meta name="tags" content="SLM">
+        <meta name="tags" content="AI">
+        <meta name="tags" content="paper-review">
+
+	                <meta property="og:locale" content="">
+		<meta property="og:site_name" content="Atsushi's blog">
+
+	<meta property="og:type" content="article">
+            <meta property="article:author" content="/author/toohsk.html">
+	<meta property="og:url" content="/the-cognitive-penalty-when-more-reasoning-breaks-edge-native-slms.html">
+	<meta property="og:title" content="The Cognitive Penalty: When More Reasoning Breaks Edge-Native SLMs">
+	<meta property="article:published_time" content="2026-04-28 00:00:00+09:00">
+            <meta property="og:description" content="A rigorous ablation on Qwen-3.5-9B reveals that System 2 (extended chain-of-thought) reasoning catastrophically degrades edge-native...">
+
+            <meta property="og:image" content="/images/blog_cover.jpg">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:site" content="@toohsk">
+        <meta name="twitter:title" content="The Cognitive Penalty: When More Reasoning Breaks Edge-Native SLMs">
+
+            <meta name="twitter:image" content="/images/blog_cover.jpg">
+
+            <meta name="twitter:description" content="A rigorous ablation on Qwen-3.5-9B reveals that System 2 (extended chain-of-thought) reasoning catastrophically degrades edge-native...">
+</head>
+
+<body class="article-the-cognitive-penalty-when-more-reasoning-breaks-edge-native-slms">
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+        <div class="container-fluid">
+            <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header page-scroll">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="/">Atsushi's blog</a>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav navbar-right">
+
+                </ul>
+            </div>
+            <!-- /.navbar-collapse -->
+        </div>
+        <!-- /.container -->
+    </nav>
+
+    <!-- Page Header -->
+        <header class="intro-header" style="background-image: url('/images/blog_cover.jpg')">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <div class="post-heading">
+                        <h1>The Cognitive Penalty: When More Reasoning Breaks Edge-Native SLMs</h1>
+                        <span class="meta">Posted by
+                                <a href="/author/toohsk.html">toohsk</a>
+                             on 火 28 4月 2026
+                        </span>
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+    <!-- Post Content -->
+    <article>
+        <h2>Why This Paper Matters</h2>
+<p>The dominant assumption in the LLM literature since chain-of-thought was introduced is monotonically simple: <strong>more reasoning = better answers</strong>. Give the model space to think, and it will think better. This paper directly challenges that assumption in the specific and increasingly practical context of <strong>edge-native SLMs operating under Byzantine Fault Tolerance (BFT) constraints</strong>.</p>
+<p>Decentralized Autonomous Organizations (DAOs) manage billions of dollars in on-chain assets. They are increasingly exploring Small Language Models as <strong>constitutional firewalls</strong> — autonomous agents deployed at governance checkpoints to vet proposals and detect semantic social engineering (manipulation through persuasively written proposals that appear legitimate but subtly violate the DAO's stated principles). The edge-native aspect matters: such firewalls must run locally on validators without cloud round-trips to prevent latency attacks and preserve decentralization.</p>
+<p>Two questions naturally arise:
+1. Should these governance SLMs use System 1 (fast autoregressive) or System 2 (extended deliberative reasoning) inference?
+2. Is "thinking harder" about adversarial proposals safer?</p>
+<p>The counterintuitive finding: <strong>System 2 reasoning is catastrophically worse on every safety metric in this adversarial setting</strong>.</p>
+<h2>Core Technical Contribution</h2>
+<p>The paper introduces <strong>Sentinel-Bench</strong>, an 840-inference empirical framework that performs a <strong>strict intra-model ablation</strong> on Qwen-3.5-9B. The design is carefully controlled:</p>
+<ul>
+<li><strong>Same model, same weights</strong>: The ablation toggles only the inference-time compute mode, keeping all parameters frozen. This isolates the effect of reasoning depth from model capacity.</li>
+<li><strong>Adversarial dataset</strong>: The Optimism DAO governance dataset, containing real and synthetically generated adversarial proposals designed to manipulate the model into incorrect verdicts.</li>
+<li><strong>Two modes under test</strong>:</li>
+<li><strong>System 1</strong>: Standard autoregressive generation — the model generates a verdict directly from the proposal text without extended internal reasoning.</li>
+<li><strong>System 2</strong>: Extended latent reasoning — the model is allowed (or prompted) to reason through the proposal step by step before rendering a verdict.</li>
+</ul>
+<h3>Key Metrics</h3>
+<ul>
+<li><strong>Adversarial Robustness</strong>: Does the model correctly identify adversarial proposals?</li>
+<li><strong>Juridical Consistency</strong>: Given the same input twice, does the model render the same verdict?</li>
+<li><strong>State Finality Time</strong>: How long until the model commits to a verdict?</li>
+<li><strong>Reasoning Non-Convergence Rate</strong>: How often does extended reasoning fail to converge to any verdict?</li>
+</ul>
+<h2>Comparison to Prior Work</h2>
+<p>Prior work on reasoning in adversarial settings largely assumed that more compute improves robustness. Studies on chain-of-thought, tree-of-thought, and inference-time scaling showed improvements on math, coding, and logical reasoning tasks. The key difference here is the <strong>adversarial governance setting</strong>: the input is crafted to exploit the model's reasoning process, not just test its knowledge.</p>
+<p>Previous adversarial ML research focused on input perturbations (adversarial examples in vision) or prompt injection (jailbreaks). Sentinel-Bench introduces a third attack surface: <strong>exploiting the model's reasoning process itself</strong> — adversarial proposals that trigger extended deliberation but ultimately fail to converge, creating a denial-of-consensus attack.</p>
+<h2>Reading the Results</h2>
+<p>The results are stark and deserve careful attention:</p>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>System 1</th>
+<th>System 2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Adversarial Robustness</td>
+<td><strong>100%</strong></td>
+<td>Degraded</td>
+</tr>
+<tr>
+<td>Juridical Consistency</td>
+<td><strong>100%</strong></td>
+<td>72.6%</td>
+</tr>
+<tr>
+<td>Reasoning Non-Convergence</td>
+<td><strong>0%</strong></td>
+<td><strong>26.7%</strong></td>
+</tr>
+<tr>
+<td>State Finality Time</td>
+<td><strong>&lt;13 seconds</strong></td>
+<td>~220 seconds (17x)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The 26.7% Reasoning Non-Convergence (cognitive collapse) rate</strong> is the central finding. More than 1 in 4 adversarial proposals caused System 2 reasoning to fail to reach a definitive verdict. From a BFT standpoint, this is fatal: if 1/3+ of validator nodes fail to converge, consensus breaks.</p>
+<p><strong>The 72.6% juridical consistency</strong> means that even when System 2 does reach a verdict, it reaches the same verdict only 72.6% of the time when the same proposal is presented again. A governance system that would rule differently on the same proposal depending on timing is not trustworthy.</p>
+<p><strong>The 17x latency overhead</strong> introduces a critical vulnerability: <strong>Governance Extractable Value (GEV)</strong>. If an attacker knows that adversarial proposals trigger 220-second deliberations vs. 13-second decisions for normal proposals, they can:
+1. Time other governance actions to coincide with deliberation windows
+2. Submit multiple adversarial proposals to occupy validator compute, creating a denial-of-service on governance</p>
+<p><strong>Reasoning-Induced Sycophancy</strong> (observed in 1.5% of adversarial trials): In some cases, extended reasoning causes the model to generate very long internal monologues (averaging 25,750 characters) that rationalize <em>accepting</em> adversarial proposals it should have rejected. The model "talks itself into" the wrong answer through elaboration — the opposite of what more reasoning should achieve.</p>
+<h2>Key Notes of This Paper</h2>
+<h3>The Sentinel-Bench Evaluation Protocol</h3>
+<p>The 840 inference trials are structured to enable rigorous comparison:
+- Equal numbers of benign and adversarial proposals
+- Multiple runs per proposal per mode (enabling consistency measurement)
+- Frozen weights throughout (pure inference-time ablation)</p>
+<p>The key experimental design principle: by keeping weights fixed and only toggling the reasoning mode, the paper provides a clean measurement of <strong>the causal effect of System 2 reasoning</strong> rather than conflating it with model size or training differences.</p>
+<h3>The Cognitive Collapse Mechanism</h3>
+<p>Cognitive collapse (Reasoning Non-Convergence) occurs when extended reasoning cycles through inconsistent partial arguments without converging. Formally, if we denote the model's internal reasoning state as a sequence $R_1, R_2, \ldots, R_T$, collapse occurs when:</p>
+<p>$$\nexists T^<em> : P(\text{verdict} \mid R_{T^</em>}) &gt; \tau$$</p>
+<p>for any reasonable threshold $\tau$ within the token budget. The model generates reasoning that perpetually reweighs the adversarial proposal's arguments without ever reaching a sufficient confidence margin for a verdict.</p>
+<p>The adversarial proposals are designed to present balanced-seeming arguments on both sides. System 1 (intuitive inference) pattern-matches to known good/bad governance patterns and commits quickly. System 2 (deliberative reasoning) attempts to reason through the arguments, gets pulled between them, and may never resolve.</p>
+<p>The intuition: <strong>adversarial social engineering is specifically crafted to exploit deliberative reasoning</strong> by constructing plausible arguments for the wrong conclusion. Fast intuitive processing, which relies on pattern matching from training rather than in-context deliberation, is less susceptible to this manipulation.</p>
+<h3>BFT Constraints and Why They Make This Worse</h3>
+<p>Byzantine Fault Tolerance requires that for a system with $f$ faulty nodes, there must be at least $2f+1$ honest nodes that agree. In standard BFT protocols, "faulty" means Byzantine actors. The paper extends this to include <strong>cognitively faulty</strong> nodes — nodes that fail to produce a verdict due to reasoning non-convergence.</p>
+<p>If 26.7% of nodes experience cognitive collapse on adversarial proposals, and adversarial actors time proposals to maximize this exposure, the effective BFT fault tolerance is severely degraded. The paper frames this as a <strong>systemic governance vulnerability</strong> that only manifests under System 2 reasoning.</p>
+<h2>Limitations</h2>
+<p>The authors are appropriately candid:</p>
+<ol>
+<li>
+<p><strong>Single model</strong>: The ablation is performed on Qwen-3.5-9B only. Whether the phenomenon generalizes across model families (Llama, Phi, Gemma) is not tested.</p>
+</li>
+<li>
+<p><strong>Single dataset</strong>: The Optimism DAO adversarial dataset may not represent all DAO governance contexts. Different DAOs (DeFi protocols, NFT platforms, infrastructure DAOs) may have different adversarial proposal patterns.</p>
+</li>
+<li>
+<p><strong>Static token budget</strong>: System 2 is tested with a fixed token budget for reasoning. Adaptive budgets (stopping early if confidence is reached) might reduce the cognitive collapse rate.</p>
+</li>
+<li>
+<p><strong>No fine-tuning for the task</strong>: Neither System 1 nor System 2 mode is fine-tuned specifically for DAO governance. A model fine-tuned on governance data might behave differently.</p>
+</li>
+<li>
+<p><strong>Limited adversarial diversity</strong>: The adversarial proposals are from one source. Truly adaptive adversaries who can learn from the model's responses might find different attack vectors.</p>
+</li>
+</ol>
+<h2>Future Work</h2>
+<p><strong>From the authors:</strong>
+- Extending Sentinel-Bench to multiple model families and DAO datasets
+- Exploring hybrid approaches: System 1 for initial screening, System 2 only when confidence is low
+- Formal analysis of GEV attack surfaces in BFT governance systems</p>
+<p><strong>Additional promising directions:</strong>
+- <strong>Calibrated reasoning activation</strong>: Train a lightweight classifier to decide <em>when</em> System 2 reasoning helps vs. hurts, creating a meta-controller that selectively engages deliberation
+- <strong>Adversarially robust chain-of-thought</strong>: Training specifically on adversarial governance datasets with System 2 reasoning enabled to make the model's deliberation process more robust
+- <strong>Multi-agent validation</strong>: Rather than relying on a single model's consistency, implement a fast consensus protocol across multiple System 1 instances to detect and handle adversarial proposals collectively</p>
+<h2>Implications for Edge / On-Device Deployment</h2>
+<p>The paper's finding has direct implications beyond DAO governance:</p>
+<ul>
+<li>
+<p><strong>Any BFT edge deployment</strong> that requires consensus between nodes should prefer System 1 inference for latency and consistency. The 17x overhead of System 2 is incompatible with real-time consensus protocols.</p>
+</li>
+<li>
+<p><strong>Adversarial input detection</strong> should run in System 1 mode first. If an input triggers extended deliberation, that itself may be a signal that the input is adversarially crafted.</p>
+</li>
+<li>
+<p><strong>Edge SLM resource planning</strong>: System 1's &lt;13 second finality enables predictable compute budgets. System 2's 220-second worst case makes resource planning impossible on constrained hardware.</p>
+</li>
+<li>
+<p><strong>The "just reason more" fallacy</strong>: Developers building edge governance agents should resist the intuition that extended reasoning improves safety. In adversarial settings under BFT constraints, the opposite is empirically true.</p>
+</li>
+</ul>
+<p>The broader lesson: <strong>inference-time compute scaling has context-dependent safety properties</strong>. It helps in benign reasoning tasks but actively creates attack surfaces in adversarial governance scenarios.</p>
+<h2>Links</h2>
+<p><a href="https://hf.co/papers/2604.16913">Original Paper</a></p>
+    </article>
+
+        <div class="tags">
+            <p>tags: <a href="/tag/slm.html">SLM</a>, <a href="/tag/ai.html">AI</a>, <a href="/tag/paper-review.html">paper-review</a></p>
+        </div>
+
+    <hr>
+
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <ul class="list-inline text-center">
+                            <li>
+                                <a href="http://twitter.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-twitter fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="http://github.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-github fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                    </ul>
+<p class="copyright text-muted">
+    Blog powered by <a href="http://getpelican.com">Pelican</a>,
+    which takes great advantage of <a href="http://python.org">Python</a>. <br />        &copy;  toohsk
+</p>                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- jQuery -->
+    <script src="/theme/js/jquery.min.js"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="/theme/js/bootstrap.min.js"></script>
+
+        <!-- Custom Theme JavaScript -->
+        <script src="/theme/js/clean-blog.min.js"></script>
+
+<script>
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+        (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+        m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+    ga('create', 'UA-198541380-1', 'auto');
+    ga('send', 'pageview');
+</script>
+</body>
+
+</html>

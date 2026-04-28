@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+            <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+        <title>DR-Venus：わずか10Kのデータで4Bパラメータによるフロンティア深層リサーチ</title>
+
+            <link href="/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Full Atom Feed" />
+            <link href="/feeds/{slug}.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Categories Atom Feed" />
+        <!-- Bootstrap Core CSS -->
+        <link href="/theme/css/bootstrap.min.css" rel="stylesheet">
+
+        <!-- Custom CSS -->
+        <link href="/theme/css/clean-blog.min.css" rel="stylesheet">
+
+        <!-- Code highlight color scheme -->
+            <link href="/theme/css/code_blocks/github.css" rel="stylesheet">
+
+
+        <!-- Custom Fonts -->
+        <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+        <link href='https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+        <link href='https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/css'>
+
+        <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+        <!--[if lt IE 9]>
+            <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+            <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+
+
+        <meta name="description" content="DR-Venusは約1万件のオープンデータのみを使用し、エッジ展開向け4Bパラメータの深層リサーチエージェントを構築。アジェンティックSFTとIGPO（情報利得方策最適化）によるターンレベル報酬という2段階パイプラインにより、9B未満の全アジェンティックモデルを上回る性能を達成した。">
+
+        <meta name="author" content="toohsk">
+
+        <meta name="tags" content="SLM">
+        <meta name="tags" content="AI">
+        <meta name="tags" content="論文解説">
+
+	                <meta property="og:locale" content="">
+		<meta property="og:site_name" content="Atsushi's blog">
+
+	<meta property="og:type" content="article">
+            <meta property="article:author" content="/author/toohsk.html">
+	<meta property="og:url" content="/dr-venuswazuka10knode-tade4bparame-taniyoruhuronteiashen-ceng-risa-chi.html">
+	<meta property="og:title" content="DR-Venus：わずか10Kのデータで4Bパラメータによるフロンティア深層リサーチ">
+	<meta property="article:published_time" content="2026-04-28 00:00:00+09:00">
+            <meta property="og:description" content="DR-Venusは約1万件のオープンデータのみを使用し、エッジ展開向け4Bパラメータの深層リサーチエージェントを構築。アジェンティックSFTとIGPO（情報利得方策最適化）によるターンレベル報酬という2段階パイプラインにより、9B未満の全アジェンティックモデルを上回る性能を達成した。">
+
+            <meta property="og:image" content="/images/blog_cover.jpg">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:site" content="@toohsk">
+        <meta name="twitter:title" content="DR-Venus：わずか10Kのデータで4Bパラメータによるフロンティア深層リサーチ">
+
+            <meta name="twitter:image" content="/images/blog_cover.jpg">
+
+            <meta name="twitter:description" content="DR-Venusは約1万件のオープンデータのみを使用し、エッジ展開向け4Bパラメータの深層リサーチエージェントを構築。アジェンティックSFTとIGPO（情報利得方策最適化）によるターンレベル報酬という2段階パイプラインにより、9B未満の全アジェンティックモデルを上回る性能を達成した。">
+</head>
+
+<body class="article-dr-venuswazuka10knode-tade4bparame-taniyoruhuronteiashen-ceng-risa-chi">
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+        <div class="container-fluid">
+            <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header page-scroll">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="/">Atsushi's blog</a>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav navbar-right">
+
+                </ul>
+            </div>
+            <!-- /.navbar-collapse -->
+        </div>
+        <!-- /.container -->
+    </nav>
+
+    <!-- Page Header -->
+        <header class="intro-header" style="background-image: url('/images/blog_cover.jpg')">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <div class="post-heading">
+                        <h1>DR-Venus：わずか10Kのデータで4Bパラメータによるフロンティア深層リサーチ</h1>
+                        <span class="meta">Posted by
+                                <a href="/author/toohsk.html">toohsk</a>
+                             on 火 28 4月 2026
+                        </span>
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+    <!-- Post Content -->
+    <article>
+        <h2>なぜこの研究が重要か</h2>
+<p>深層リサーチ ── 多段階の情報収集を自律的に計画し、複数のソースから知見を統合し、構造化されたリサーチレポートを生成する能力 ── は、クラウド環境で動作する大規模LLM（70B+）だけの領域だった。複数ツールにわたる長い推論チェーンに必要な計算量と、リサーチタスクの長文脈要件を合わせると、この能力はエッジ展開と根本的に相容れないように見えた。</p>
+<p>DR-Venusはこの前提に挑戦し、深層リサーチベンチマークで30Bクラスのシステムに迫る性能を持つ4Bパラメータモデルを構築した。さらに驚くべきは著者たちが自分たちに課したデータ制約だ：学習パイプライン全体で使うのは<strong>約1万件のオープンソースデータ</strong>のみ。多くのアジェンティックリサーチ学習パイプラインは数十万から数百万のトラジェクトリを消費する。この組み合わせ ── 超小型モデル、超小型データ、フロンティア性能 ── は、深層リサーチ問題の構造について重要なことを示している。</p>
+<p>実用的な意味は直接的だ：4Bモデルは最新のモバイルデバイス（16GB以上のDRAMを持つiPhoneや高性能Androidフラッグシップ）でクラウドAPI呼び出しなしに完全ローカルで動作できる。データ漏洩を懸念する企業ユーザーにとって、これは大きな可能性を開く。</p>
+<h2>技術的なアプローチ</h2>
+<p>DR-Venusの学習レシピはちょうど2段階から成る：</p>
+<h3>第1段階：アジェンティック教師あり微調整（Agentic SFT）</h3>
+<p>エージェントのトラジェクトリに対する標準的なSFTには構造的なバイアス問題がある：実世界のタスク分布は短くシンプルなタスクに大きく偏っている。ナイーブなSFTデータセットには、40ステップ以上の深層リサーチトラジェクトリ1件に対して数千件の3〜5ステップのタスクが含まれる。この不均衡なデータセットで学習すると、シンプルなタスクは得意だが長期的なリサーチは苦手なモデルが生まれる ── まさにDR-Venusがターゲットとする能力の逆だ。</p>
+<p>論文は2つの介入でこれに対処する：</p>
+<p><strong>厳格なデータクリーニング</strong>：単に高品質なトラジェクトリをフィルタリングするのではなく、アジェンティックな失敗モードを示すトラジェクトリを具体的に除去する：早期タスク終了、ツール出力の幻覚、情報利得のない繰り返し検索クエリ、フォーマットの不整合。目標はコンパクトだが行動的にクリーンなデモンストレーションセットを精製することだ。</p>
+<p><strong>長期トラジェクトリのリサンプリング</strong>：クリーンなデータセットをリサンプリングして長期的なリサーチトラジェクトリを過剰サンプリングし、偏りを修正する。これはトラジェクトリの長さによる単純なアップウェイティングではなく、マルチソース統合・反復的な洗練・構造化レポート生成を示すトラジェクトリを具体的にターゲットにする。</p>
+<h3>第2段階：IGPOによるアジェンティック強化学習</h3>
+<p>第2段階は<strong>IGPO（Information Gain Policy Optimization：情報利得方策最適化）</strong>を基盤としたアジェンティック強化学習を使用する。これが本論文で最も技術的に新規な貢献だ。</p>
+<p><strong>深層リサーチRLにおけるクレジット割当問題</strong>：言語モデルの標準的なRLは最終出力品質を報酬にする。40ステップのリサーチトラジェクトリでは、これは非常にスパースな報酬シグナルを作り出す ── モデルは40アクションごとに1つの学習シグナルしか得られない。トラジェクトリ終端のスパース報酬は、どの中間決定が価値があったかをモデルが学ぶのを妨げる。</p>
+<p><strong>IGPOの解決策：ターンレベルの情報利得報酬</strong>。各エージェントターン $t$ で、モデルは検索またはツール使用アクション $a_t$ を実行し、結果 $o_t$ を観察する。ターンレベルの報酬 $r_t$ は以下で計算される：</p>
+<p>$$r_t = \text{InfoGain}(o_t \mid C_t) + \lambda \cdot \text{FormatScore}(a_t)$$</p>
+<p>ここで $C_t$ はターン $t$ までに蓄積された文脈、$\lambda$ は2つの報酬コンポーネントのバランスをとる係数。</p>
+<p><strong>情報利得（InfoGain）</strong>は、アクション $a_t$ がリサーチ文脈に貢献した新規の関連情報量を測定する：
+- $C_t$ ですでにカバーされているドキュメントを取得するアクション → 低報酬（低情報利得）
+- 真に新規で関連性の高い情報を取得するアクション → 高報酬
+- トピック外または低品質の情報を取得するアクション → ほぼゼロの報酬</p>
+<p><strong>フォーマット認識正則化</strong>（$\text{FormatScore}$）は、不正なツール呼び出し・不整合な構造の中間サマリー・フォーマット外のレポートセクションにペナルティを課す。</p>
+<p>この組み合わせにより、長期タスクに対する<strong>密な学習シグナル</strong>が提供される ── モデルは終端だけでなく毎ターンで学習シグナルを受け取り、限られたデータからはるかに効率的に学習できる。</p>
+<h2>先行研究との比較</h2>
+<table>
+<thead>
+<tr>
+<th>モデル</th>
+<th>パラメータ数</th>
+<th>使用データ量</th>
+<th>深層リサーチ性能</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DR-Venus</td>
+<td><strong>4B</strong></td>
+<td>~10K</td>
+<td><strong>9B未満で最高</strong></td>
+</tr>
+<tr>
+<td>OpenManus</td>
+<td>7B〜9B</td>
+<td>100K+</td>
+<td>従来の9B未満SOTA</td>
+</tr>
+<tr>
+<td>MiniSearch</td>
+<td>7B</td>
+<td>50K+</td>
+<td>競合する9B未満</td>
+</tr>
+<tr>
+<td>30Bクラス</td>
+<td>30B</td>
+<td>クローズドデータ</td>
+<td>ターゲットフロンティア</td>
+</tr>
+<tr>
+<td>クラウドLLMエージェント</td>
+<td>70B+</td>
+<td>N/A</td>
+<td>現在の上限</td>
+</tr>
+</tbody>
+</table>
+<p>DR-Venusは、4倍小さいモデルと5〜10倍少ない学習データにもかかわらず、複数の深層リサーチベンチマークでOpenManusや他の9B未満エージェントを上回る。また、30Bクラスシステムとのギャップを意味のある形で縮小した ── これは4Bパラメータでは達成不可能と考えられてきたことだ。</p>
+<h2>実験結果の読み方</h2>
+<p><strong>10Kデータ効率の結果</strong>が最も重要な知見だ。著者たちは、適切な学習戦略（厳格なデータクリーニング＋長期リサンプリング＋ターンレベル報酬によるIGPO）により、4Bモデルがわずか10Kの例から効果的な深層リサーチ行動を学習できることを示す。これは以下を示唆する：</p>
+<ol>
+<li>深層リサーチ能力はモデルスケールの問題ではなく、学習シグナルの質と構造の問題だ</li>
+<li>長期リサンプリングが先行研究の小型モデルを阻んでいた根本的なデータセット構築バイアスを修正する</li>
+<li>ターンレベルの情報利得報酬は、アジェンティックタスクでの通常スパース報酬問題を克服するのに十分豊かな学習シグナルを提供する</li>
+</ol>
+<p><strong>テスト時スケーリングの知見</strong>も注目に値する：著者たちは、4Bエージェントがすでに「驚くほど強い性能ポテンシャル」を持ち、テスト時スケーリングで引き出せることを発見した。これは4Bモデルが標準推論では完全に活用されていない深層リサーチの潜在能力を持つことを示す。</p>
+<h2>アルゴリズムの重要部分の解説</h2>
+<h3>IGPOの学習シグナル：ターンレベル報酬がなぜ効果的か</h3>
+<p>40ステップのリサーチトラジェクトリにおける標準RLとIGPOの学習シグナルを比較して理解しよう：</p>
+<p><strong>標準的なトラジェクトリ終端RL</strong>：
+- トラジェクトリがレポートRを生成
+- 報酬：Rの品質スコア（例：0.7）
+- モデルが受け取るシグナル：「この40ステップのトラジェクトリは品質0.7のレポートを生成した」
+- このシグナルから学ぶには、40ステップのどれが品質レベルの原因かを推論する必要がある</p>
+<p><strong>IGPOターンレベルRL</strong>：
+- ターン1：「トピックX」を検索 → 高度に関連するドキュメントを取得 → $r_1 = 0.85$（高情報利得）
+- ターン7：「トピックX」を再検索（冗長） → すでに見たドキュメントを取得 → $r_7 = 0.05$（ほぼゼロの情報利得）
+- ターン15：ソースを構造化アウトラインに統合 → 良好にフォーマット → $r_{15} = 0.72$（良好なフォーマット＋情報利得）</p>
+<p>モデルが学ぶこと：「初期の広範な検索は良い；冗長な検索はペナルティを受ける；トラジェクトリ中盤の構造化統合は報酬を受ける」。この密なシグナルにより、わずか10Kのトラジェクトリからの効果的な学習が可能になる。</p>
+<p>直感的なイメージ：人間の研究者も「同じ情報源を何度も読み返すより、新しい視点の文献を探す方が時間の使い方として良い」という判断を学ぶ。IGPOはまさにこの判断をターンごとに信号として与え続けることで、小さなモデルが効率的な情報探索戦略を習得できるようにする。</p>
+<h3>長期リサンプリング：学習バイアスの修正</h3>
+<p>リサンプリング戦略は単純な観察に基づいている：学習分布が3ステップのタスクに支配されていれば、モデルは3ステップのタスクを専門化することで期待学習損失を最小化する。40ステップのリサーチトラジェクトリからの勾配シグナルは、短タスクの勾配の圧倒的な割合によって希釈される。</p>
+<p>長期トラジェクトリからの勾配貢献を均等化するようにリサンプリングすることで、学習目標は次のようになる：</p>
+<p>$$\mathcal{L} = \mathbb{E}_{(x, y) \sim \tilde{D}}[\ell(x, y)]$$</p>
+<p>ここで $\tilde{D}$ は長期サンプルをアップウェイトしたリサンプリング分布だ。データ自体を変更せずに、モデルが最適化する対象をシフトする ── 軽量だが効果的な修正だ。</p>
+<h2>限界と課題</h2>
+<ol>
+<li>
+<p><strong>オープンデータ制約の範囲</strong>：10Kの例はオープンソースからだが、何が含まれるかが完全には特徴づけられていない。「オープン」の定義が再現性に影響する。</p>
+</li>
+<li>
+<p><strong>ベンチマーク特定性</strong>：結果は深層リサーチベンチマーク上のもの。他の長期アジェンティックタスク（コーディングエージェント、科学実験計画）への一般化は示されていない。</p>
+</li>
+<li>
+<p><strong>テスト時スケーリングのコスト</strong>：4Bモデルのローカル動作は実用的だが、テスト時スケーリング分析は最高性能に拡張推論が必要なことを示唆し、全エッジ展開のレイテンシ予算に合わない場合がある。</p>
+</li>
+<li>
+<p><strong>フロンティアとのギャップは残る</strong>：30Bシステムとのギャップを縮小したのは印象的だが、ギャップは閉じていない。</p>
+</li>
+<li>
+<p><strong>単一エージェントフレームワーク</strong>：深層リサーチタスクはマルチエージェント協調から恩恵を受けるかもしれないが、DR-Venusは単一エージェントとして動作する。</p>
+</li>
+</ol>
+<h2>今後の展望</h2>
+<p><strong>著者が示唆する方向：</strong>
+- 再現可能な研究を支援するためのモデル・コード・主要レシピのオープンソース化
+- 小型エージェントのテスト時スケーリングのさらなる探索
+- 他の長期アジェンティックタスクへのIGPOフレームワークの拡張</p>
+<p><strong>独自に考察する発展的な方向：</strong>
+- <strong>マルチエージェントIGPO</strong>：どのエージェントがどの知見に貢献したかのクレジット割当を考慮した協調型マルチエージェントリサーチへのターンレベル情報利得報酬の拡張
+- <strong>ドメイン特化型DR-Venusバリアント</strong>：科学論文・法律文書・医療文献などドメイン特化のオープンデータで4Bベースをファインチューニングし、特化した エッジリサーチエージェントを作成
+- <strong>適応的な検索深度</strong>：情報利得に対するモデルの確信度を使ってさらに検索するかどうかを決定する ── リサーチループの学習済み停止基準</p>
+<h2>エッジ・オンデバイスへの示唆</h2>
+<p>DR-Venusは今日取り上げた3論文の中でオンデバイス展開に対して最も直接的かつ変革的な示唆を持つ：</p>
+<ul>
+<li>
+<p><strong>プライバシー保護リサーチ</strong>：4Bモデルは高性能スマートフォンやノートパソコンで、デバイス外にデータを一切送ることなく完全にローカルで動作できる。機密情報を扱う研究者にとってクラウドデータ漏洩リスクを完全に排除できる。</p>
+</li>
+<li>
+<p><strong>オフライン対応能力</strong>：DR-Venusをローカルにキャッシュされた知識ベースやオフライン文書ストアと組み合わせることで、安定したインターネット接続のない環境での深層リサーチが可能になる。</p>
+</li>
+<li>
+<p><strong>コストの完全排除</strong>：クラウドLLMで40ステップ以上の深層リサーチを実行すると、1タスクあたり0.5〜5ドルかかる場合がある。ローカル実行の4Bモデルなら、一度のモデルダウンロード後はクエリごとのコストがゼロだ。</p>
+</li>
+<li>
+<p><strong>4Bパラメータの閾値</strong>：この論文の最も重要な実用的知見は、<strong>4Bパラメータが有用な深層リサーチに十分</strong>だということかもしれない。最新のモバイルハードウェア（A18 Pro、Snapdragon 8 Elite）は4Bモデルを毎秒30〜50トークンで実行できる ── エッジ深層リサーチが実用的になる速度だ。</p>
+</li>
+</ul>
+<h2>原文リンク</h2>
+<p><a href="https://hf.co/papers/2604.19859">Original Paper</a></p>
+    </article>
+
+        <div class="tags">
+            <p>tags: <a href="/tag/slm.html">SLM</a>, <a href="/tag/ai.html">AI</a>, <a href="/tag/lun-wen-jie-shuo.html">論文解説</a></p>
+        </div>
+
+    <hr>
+
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <ul class="list-inline text-center">
+                            <li>
+                                <a href="http://twitter.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-twitter fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="http://github.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-github fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                    </ul>
+<p class="copyright text-muted">
+    Blog powered by <a href="http://getpelican.com">Pelican</a>,
+    which takes great advantage of <a href="http://python.org">Python</a>. <br />        &copy;  toohsk
+</p>                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- jQuery -->
+    <script src="/theme/js/jquery.min.js"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="/theme/js/bootstrap.min.js"></script>
+
+        <!-- Custom Theme JavaScript -->
+        <script src="/theme/js/clean-blog.min.js"></script>
+
+<script>
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+        (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+        m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+    ga('create', 'UA-198541380-1', 'auto');
+    ga('send', 'pageview');
+</script>
+</body>
+
+</html>
