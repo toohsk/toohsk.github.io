@@ -5,7 +5,9 @@ AUTHOR = 'toohsk'
 SITENAME = "Atsushi's blog"
 #SITEURL = 'https://toohsk.github.io/'
 
-GOOGLE_ANALYTICS = "UA-198541380-1"
+GOOGLE_ANALYTICS = "G-LR14KRYZ4L"  # GA4 measurement ID
+
+THEME_TEMPLATES_OVERRIDES = ['templates']
 
 PATH = 'content'
 
