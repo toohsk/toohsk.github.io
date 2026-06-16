@@ -151,7 +151,7 @@ When gamma equals to 1, the agent values all future rewards equally and interest
 When gamma equals to 0, the agent is interests in the short games, it place no values for all future rewards.<br>
 Gamma needs to be in the range of <code>0 &lt;= γ &lt;= 1</code>, and in the practice it is set in range of <code>0.95 &lt;= γ &lt;= 0.99</code>.
 And the discounted total rewards are expressed as</p>
-<div class="highlight"><pre><span></span><code>G_{t} = γ^0 * R_{t+1} + γ^1 * R_{t+2} + γ^2 * R_{t+3} + ... + γ^{T-1} * R_{T} = Sigma(γ^k * R_{t+k+1})
+<div class="highlight"><pre><span></span><code>G_{t} = γ^0 <span class="gs">* R_{t+1} + γ^1 *</span> R_{t+2} + γ^2 <span class="gs">* R_{t+3} + ... + γ^{T-1} *</span> R_{T} = Sigma(γ^k * R_{t+k+1})
 </code></pre></div>
 
 <p>Policy is mapping of states to actions.

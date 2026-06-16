@@ -154,13 +154,13 @@
 <h2>Key Notes of This Paper</h2>
 <p>The central conceptual contribution is the <strong>reward-density analogy for deployment</strong>: just as speculative decoding leverages the fact that most tokens are predictable and only a fraction require the full model, collaborative intelligence leverages the fact that most queries are answerable locally and only a fraction require cloud-scale models. The art is in identifying which is which, cheaply.</p>
 <p>The paper formalizes this with a two-axis design space:</p>
-<div class="highlight"><pre><span></span><code>Vertical (across tiers):        Horizontal (within a tier):
-  Cloud                           Agent A ─┐
-    ↑ route complex queries         Agent B ─┤─→ Orchestrator → Response
-  Edge                             Agent C ─┘
-    ↑ route medium queries
-  Device
-    └ handle simple queries
+<div class="highlight"><pre><span></span><code><span class="nx">Vertical</span><span class="w"> </span><span class="p">(</span><span class="nx">across</span><span class="w"> </span><span class="nx">tiers</span><span class="p">):</span><span class="w">        </span><span class="nx">Horizontal</span><span class="w"> </span><span class="p">(</span><span class="nx">within</span><span class="w"> </span><span class="nx">a</span><span class="w"> </span><span class="nx">tier</span><span class="p">):</span>
+<span class="w">  </span><span class="nx">Cloud</span><span class="w">                           </span><span class="nx">Agent</span><span class="w"> </span><span class="nx">A</span><span class="w"> </span><span class="err">─┐</span>
+<span class="w">    </span><span class="err">↑</span><span class="w"> </span><span class="nx">route</span><span class="w"> </span><span class="nx">complex</span><span class="w"> </span><span class="nx">queries</span><span class="w">         </span><span class="nx">Agent</span><span class="w"> </span><span class="nx">B</span><span class="w"> </span><span class="err">─┤─→</span><span class="w"> </span><span class="nx">Orchestrator</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="nx">Response</span>
+<span class="w">  </span><span class="nx">Edge</span><span class="w">                             </span><span class="nx">Agent</span><span class="w"> </span><span class="nx">C</span><span class="w"> </span><span class="err">─┘</span>
+<span class="w">    </span><span class="err">↑</span><span class="w"> </span><span class="nx">route</span><span class="w"> </span><span class="nx">medium</span><span class="w"> </span><span class="nx">queries</span>
+<span class="w">  </span><span class="nx">Device</span>
+<span class="w">    </span><span class="err">└</span><span class="w"> </span><span class="nx">handle</span><span class="w"> </span><span class="nx">simple</span><span class="w"> </span><span class="nx">queries</span>
 </code></pre></div>
 
 <p>Hybrid topologies combine both: a device SLM routes a hard query to the cloud, where a horizontal ensemble of agents produces the response. The device SLM then validates the cloud response against local context before presenting it — adding a trust layer that neither pure routing nor pure delegation provides.</p>
