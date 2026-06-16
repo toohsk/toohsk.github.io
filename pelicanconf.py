@@ -9,6 +9,10 @@ GOOGLE_ANALYTICS = "G-LR14KRYZ4L"  # GA4 measurement ID
 
 THEME_TEMPLATES_OVERRIDES = ['templates']
 
+# Render LaTeX math ($...$ inline, $$...$$ block) via MathJax.
+# Provided by the pelican-render-math package.
+PLUGINS = ['pelican.plugins.render_math']
+
 PATH = 'content'
 
 TIMEZONE = 'Asia/Tokyo'
