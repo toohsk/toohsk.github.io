@@ -58,6 +58,51 @@ ProbeScale は「事前学習済みモデルの各層が、対象タスクにど
 """)
 
 # ---------------------------------------------------------------------------
+md(r"""## 論文の数式とアルゴリズム（実装の対応表）
+
+実装コードには、論文のどの式・どのアルゴリズム行に対応するかを `# [Paper ...]` の形でコメントしてあります。先に対応先となる原典をここにまとめておきます。
+
+### 式 (1): 層関連度 (Layer Relevance)
+$$R_{l,T} = \sum_{p_j \in P_T} w(p_j, T)\cdot V_{p_j,l} \qquad (1)$$
+- $V_{p_j,l}$: 層 $l$ の表現上で訓練したプローブ $p_j$ の検証性能（本実装では **OCR プローブの文字正解率 $1-\mathrm{CER}$**）
+- $P_T$: タスク $T$ に関連するプローブ集合、$w$: その重み
+- 本実装は単一プローブ（OCR 文字認識）・$w=1$ なので $R_l = V_l$（論文の SST-2 設定と同じ）
+
+### 式 (2): 予算制約付きサブネットワーク選択
+$$S^{*} = \underset{S \in \mathcal{S}_k}{\arg\max} \sum_{l \in S} R_{l,T}
+\quad \text{s.t.}\quad |\Theta_S| \le B \qquad (2)$$
+- $\mathcal{S}_k$: サイズ $k$ の許容される層部分集合（本実装では**連続ブロック**）
+- $|\Theta_S|$: サブネットのパラメータ数、$B$: パラメータ予算
+
+### Algorithm 1: ProbeScale (Contiguous Block Selection)
+```
+function CALCULATERELEVANCE(M, P_T, w):                # -> Step 1 / 第3節
+  for each layer l in {1..L}:
+    Extract representations h_l on probe datasets       # (line 6)
+    for each probe p in P_T:
+      Train probe g_{p,l}(h_l; phi_{p,l})               # (line 8)
+      Evaluate performance V_{p,l}                      # (line 9)
+      R_{l,T} += w(p,T) * V_{p,l}                        # (line 10) = 式(1)
+  return {R_1..R_L}
+
+function SELECTSUBNETWORK({R_l}, B, L):                 # -> Step 2 / 式(2)
+  for block size k in {1..k_max}:                       # (line 18)
+    for start l_start in {1..L-k+1}:                    # (line 19)
+      S = {l_start .. l_start+k-1}                      # (line 21)
+      score(S) = sum_{l in S} R_{l,T}                   # (line 22)
+      if score(S) > max and |Theta_S| <= B: S* = S      # (line 24)
+  return S*
+
+R_T  <- CalculateRelevance(M, P_T, w)                   # (line 32)
+S*   <- SelectSubnetwork(R_T, B, L)                     # (line 33)
+M_S  <- Extract subnetwork using S*, embeddings, head   # (line 34)
+Fine-tune M_S on task T                                 # (line 35)
+```
+
+ノートブックのセクション構成: **Step 1** = `CalculateRelevance`（第3節 *Layer-wise Probing Analysis* + 式(1)）、**Step 2** = `SelectSubnetwork`（式(2)）、**Step 3** = サブネット抽出 + fine-tune（第3節 *Subnetwork Extraction and Fine-tuning*）。
+""")
+
+# ---------------------------------------------------------------------------
 md(r"""## 0. セットアップ
 
 GPU ランタイムを選択してください（メニュー: ランタイム → ランタイムのタイプを変更 → ハードウェアアクセラレータ → GPU）。
@@ -221,12 +266,16 @@ for p, r in zip(base_preds[:3], base_refs[:3]):
 # ---------------------------------------------------------------------------
 md(r"""## 3. ProbeScale Step 1 — 層ごとのプロービング解析
 
-論文の Algorithm 1 の `CalculateRelevance` に対応します。
+**対応**: 論文 Algorithm 1 `CalculateRelevance`（line 3–14）／第3節 *Layer-wise Probing Analysis* (a)(b)(c)／**式 (1)**。
 
-1. 各エンコーダ層 $l$ の隠れ表現 $h_l$ を抽出（`output_hidden_states=True` で1回の forward から全層取得）
-2. その層の表現の上に **線形 CTC プローブ** $g_l$ を学習（エンコーダは凍結＝特徴は固定）
-3. 検証セットでプローブの **文字正解率 $V_l = 1 - \mathrm{CER}$** を測定
-4. 層関連度 $R_{l} = w \cdot V_l$（単一プローブ・$w=1$）
+各ステップと論文の対応:
+
+| 本実装 | 論文 |
+|---|---|
+| 1. 各層 $l$ の隠れ表現 $h_l$ を抽出（1回の forward で全層取得）| Alg.1 line 6 / 第3節(a) "Extract representations $h_l$" |
+| 2. その層に **線形 CTC プローブ** $g_l$ を学習（エンコーダ凍結）| Alg.1 line 8 / 第3節(b) "Train probe $g_{p,l}(h_l;\phi_{p,l})$" |
+| 3. 検証セットで **文字正解率 $V_l = 1-\mathrm{CER}$** を測定 | Alg.1 line 9 / 第3節(c) "Evaluate $V_{p,l}$" |
+| 4. 層関連度 $R_l = \sum_p w\,V_{p,l}$（単一プローブ・$w=1$）| Alg.1 line 10 / **式 (1)** |
 
 特徴は一度だけ計算してキャッシュします（全層を再計算しないため高速）。
 """)
@@ -247,20 +296,24 @@ def encode_text(t):
 """)
 
 code(r"""
+# [Paper Alg.1 line 6 / Sec.3 "Layer-wise Probing Analysis (a)"]
+#   "Extract representations h_l from M for a dataset D_{p_j}".
+# h_l = f_l(h_{l-1}; theta_l) for l=1..L (Sec.3). One forward with
+# output_hidden_states=True returns h_0..h_L, so we cache every layer at once.
 @torch.no_grad()
 def extract_layer_features(dataset, n):
     '''Forward the (frozen) encoder once per image and cache every layer's token
     sequence. Returns feats[layer] = fp16 CPU tensor of shape (n, T, HIDDEN).'''
     full_model.eval()
-    per_layer = [[] for _ in range(L + 1)]   # hidden_states has L+1 entries (emb + L layers)
+    per_layer = [[] for _ in range(L + 1)]   # hidden_states has L+1 entries: h_0 (emb) + h_1..h_L
     targets, target_lens, texts = [], [], []
     for i in range(0, n, EVAL_BATCH):
         sub = dataset.select(range(i, min(i + EVAL_BATCH, n)))
         images = [im.convert("RGB") for im in sub["image"]]
         pv = processor(images=images, return_tensors="pt").pixel_values.to(device)
         with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=(device == "cuda")):
-            enc_out = full_model.encoder(pv, output_hidden_states=True)
-        for li, hs in enumerate(enc_out.hidden_states):
+            enc_out = full_model.encoder(pv, output_hidden_states=True)   # frozen M
+        for li, hs in enumerate(enc_out.hidden_states):                  # h_li for li=0..L
             per_layer[li].append(hs.to("cpu", torch.float16))
         for t in sub["text"]:
             ids = encode_text(t)
@@ -293,26 +346,32 @@ def ctc_greedy_decode(logits):
 
 
 def train_probe_for_layer(layer_index):
-    '''Train a linear CTC probe on cached features of one layer; return V_l = 1 - CER.'''
-    feats = train_feats[layer_index]           # (N, T, HIDDEN) fp16 CPU
-    probe = nn.Linear(HIDDEN, V).to(device)
+    '''Train a linear CTC probe on cached features of one layer; return V_l = 1 - CER.
+
+    [Paper Alg.1 line 8 / Sec.3(b)]  Train probe g_{p,l}(h_l; phi_{p,l}).
+        Here g_{p,l} is a single Linear(HIDDEN -> vocab) read out over the patch
+        sequence and decoded with CTC -> the "simple linear probe" of the paper.
+        The encoder M is frozen (we only fit phi_{p,l}), exactly as in probing.
+    [Paper Alg.1 line 9 / Sec.3(c)]  Evaluate V_{p,l} on a held-out set.
+    '''
+    feats = train_feats[layer_index]           # cached h_l, shape (N, T, HIDDEN), fp16 CPU
+    probe = nn.Linear(HIDDEN, V).to(device)    # g_{p,l}: the probe classifier phi_{p,l}
     opt = torch.optim.Adam(probe.parameters(), lr=PROBE_LR)
-    ctc = nn.CTCLoss(blank=0, zero_infinity=True)
+    ctc = nn.CTCLoss(blank=0, zero_infinity=True)   # L_probe: probe training objective (Sec.3b)
     N = feats.shape[0]
     order = np.arange(N)
     for ep in range(PROBE_EPOCHS):
         np.random.shuffle(order)
         for i in range(0, N, TRAIN_BATCH * 4):
             bidx = order[i:i + TRAIN_BATCH * 4]
-            x = feats[bidx].to(device, torch.float32)             # (b, T, H)
-            logp = probe(x).log_softmax(-1).transpose(0, 1)       # (T, b, V)
-            tgt = torch.cat([train_targets[j] for j in bidx]).to(device)
+            x = feats[bidx].to(device, torch.float32)             # h_l for this batch (b, T, H)
+            logp = probe(x).log_softmax(-1).transpose(0, 1)       # g_{p,l}(h_l) -> (T, b, V)
+            tgt = torch.cat([train_targets[j] for j in bidx]).to(device)   # y_{p_j}: target chars
             tgt_len = torch.tensor([len(train_targets[j]) for j in bidx], device=device)
             in_len = torch.full((len(bidx),), T_tokens, dtype=torch.long, device=device)
-            # skip samples whose target is longer than T (CTC requirement)
-            loss = ctc(logp, tgt, in_len, tgt_len)
+            loss = ctc(logp, tgt, in_len, tgt_len)                # minimize L_probe(g_{p,l}(h_l), y)
             opt.zero_grad(); loss.backward(); opt.step()
-    # ---- measure probe CER on validation features ----
+    # ---- [Alg.1 line 9 / Sec.3(c)] measure V_{p,l} = 1 - CER on validation features ----
     probe.eval()
     vfeats = val_feats[layer_index]
     preds = []
@@ -330,15 +389,19 @@ def train_probe_for_layer(layer_index):
 """)
 
 code(r"""
+# [Paper Alg.1 lines 4-13 = CalculateRelevance] loop over every layer and
+# accumulate the task relevance.  With a single probe (OCR) and w=1 this is
+#     R_l = sum_{p in P_T} w(p,T) * V_{p,l}   == V_l        # <- Eq. (1)
 print("Training one linear CTC probe per encoder layer...")
-relevance = np.zeros(L)   # R_l for l = 1..L  (stored at index l-1)
-for l in range(1, L + 1):
+relevance = np.zeros(L)   # R_{l,T} for l = 1..L  (stored at index l-1)
+W_OCR = 1.0               # w(p, T): single-probe uniform weight (Sec.4 "we use w = 1")
+for l in range(1, L + 1):                       # Alg.1 line 5: for each layer l
     t0 = time.time()
-    V_l = train_probe_for_layer(l)             # uses hidden_states[l]
-    relevance[l - 1] = V_l
+    V_l = train_probe_for_layer(l)              # Alg.1 lines 8-9: V_{p,l} from h_l = hidden_states[l]
+    relevance[l - 1] = W_OCR * V_l              # Alg.1 line 10 / Eq.(1): R_l += w * V_{p,l}
     print(f"  layer {l:2d}: V_l (1-CER) = {V_l:.3f}   [{time.time()-t0:.0f}s]")
 
-print("\nLayer relevance R_l:", np.round(relevance, 3))
+print("\nLayer relevance R_l (Eq.1):", np.round(relevance, 3))
 """)
 
 code(r"""
@@ -356,25 +419,31 @@ plt.show()
 # ---------------------------------------------------------------------------
 md(r"""## 4. ProbeScale Step 2 — 予算制約付きサブネットワーク選択
 
-論文 Algorithm 1 の `SelectSubnetwork`。サイズ $k$ の **連続ブロック** $S=\{l_{start},...,l_{end}\}$ の中で $\sum_{l\in S} R_l$ を最大化します。比較用に Top-k（最終 $k$ 層）と Uniform-k（等間隔 $k$ 層）も用意します。
+**対応**: 論文 Algorithm 1 `SelectSubnetwork`（line 15–31）／**式 (2)**。
+
+サイズ $k$ の **連続ブロック** $S=\{l_{start},...,l_{end}\}$ の中で $\sum_{l\in S} R_l$ を最大化します（式(2)）。パラメータ予算 $B$ は「残す層数 $k$」で表現します（各 Transformer 層のパラメータ数はほぼ一定なので $|\Theta_S|\le B \Leftrightarrow k\le k_{max}$）。比較用に Top-k（最終 $k$ 層）と Uniform-k（等間隔 $k$ 層 — 論文 *Experimental Setup* のベースライン）も用意します。
 """)
 
 code(r"""
+# [Paper Alg.1 lines 15-31 = SelectSubnetwork] + Eq.(2):
+#   S* = argmax_{S in S_k} sum_{l in S} R_{l,T}   s.t. |Theta_S| <= B
+# S_k = all CONTIGUOUS blocks of size k (Sec.3 "Budget-Constrained Subnetwork Selection").
 def select_probescale(R, k):
-    '''Algorithm 1: contiguous block of size k maximizing sum of relevance.'''
+    '''Eq.(2): contiguous block of size k maximizing sum of layer relevance R_l.'''
     best_start, best_score = 0, -1e9
-    for start in range(0, L - k + 1):
-        s = R[start:start + k].sum()
-        if s > best_score:
+    for start in range(0, L - k + 1):              # Alg.1 line 19: each start l_start
+        s = R[start:start + k].sum()               # Alg.1 line 22: score(S) = sum_{l in S} R_l
+        if s > best_score:                         # Alg.1 line 24: keep arg-max under budget
             best_score, best_start = s, start
-    return list(range(best_start, best_start + k))   # 0-indexed layer ids
+    return list(range(best_start, best_start + k))   # S* (0-indexed layer ids)
 
 
+# --- baselines from the paper's "Subnetwork Selection & Baselines" ---
 def select_topk(k):
-    return list(range(L - k, L))                      # final k layers
+    return list(range(L - k, L))                      # "Top-k Layers": the final k layers
 
 
-def select_uniform(k):
+def select_uniform(k):                                # "Uniform-k Layers": k evenly spaced layers
     idx = sorted(set(np.linspace(0, L - 1, k).round().astype(int).tolist()))
     j = 0
     while len(idx) < k:                                # fill if rounding collided
@@ -395,21 +464,27 @@ for k in K_BUDGETS:
 # ---------------------------------------------------------------------------
 md(r"""## 5. サブネットワークの抽出と fine-tune
 
-選んだ層インデックスでエンコーダの層 `ModuleList` を作り直します。入力（パッチ）埋め込みと最終 LayerNorm は保持、デコーダはそのまま（次元 768 は不変なのでクロスアテンションは問題なし）。連続ブロックでも先頭層をスキップすると分布がずれるため、論文どおり短く fine-tune して回復させます。
+**対応**: 論文 Algorithm 1 line 34–35／第3節 *Subnetwork Extraction and Fine-tuning*。
+
+論文の記述「$\Theta_S = \{\theta_l\,|\,l\in S\}\cup\theta_{emb}\cup\theta'_{head}$」に従い、選んだ層 $S^{*}$ だけでエンコーダの層 `ModuleList` を作り直します。入力（パッチ）埋め込み $\theta_{emb}$ と最終 LayerNorm は保持し、デコーダ（=タスクヘッド $\theta'_{head}$ に相当）はそのまま（次元 768 は不変なのでクロスアテンションは問題なし）。連続ブロックでも先頭層をスキップすると分布がずれるため、論文どおり（"Optionally, $M_S$ is fine-tuned ... for a few epochs"）短く fine-tune して回復させます。
 """)
 
 code(r"""
+# [Paper Alg.1 line 34 / Sec.3 "Subnetwork Extraction"]
+#   Construct M_S using selected layers S*.  Theta_S = {theta_l | l in S} ∪ theta_emb ∪ theta'_head.
+#   Embeddings theta_emb are retained; the decoder plays the role of the task head theta'_head.
 def build_subnetwork(layer_indices):
-    '''Return a TrOCR model whose encoder keeps only `layer_indices` (deep-copied).'''
+    '''Return a TrOCR model whose encoder keeps only `layer_indices` = S* (deep-copied).'''
     m = copy.deepcopy(full_model)
     enc_layers = m.encoder.encoder.layer            # DeiT: VisionEncoderDecoder.encoder.encoder.layer
-    new_layers = nn.ModuleList([enc_layers[i] for i in layer_indices])
-    m.encoder.encoder.layer = new_layers
+    new_layers = nn.ModuleList([enc_layers[i] for i in layer_indices])   # keep only theta_l, l in S*
+    m.encoder.encoder.layer = new_layers            # theta_emb (patch embeddings) kept untouched
     m.encoder.config.num_hidden_layers = len(layer_indices)
     m.config.encoder.num_hidden_layers = len(layer_indices)
     return m.to(device)
 
 
+# [Paper Alg.1 line 35 / Sec.3] Fine-tune M_S on task T for a few epochs.
 def finetune(model, dataset, epochs=FT_EPOCHS, lr=FT_LR, batch=TRAIN_BATCH):
     model.train()
     opt = torch.optim.AdamW(model.parameters(), lr=lr)
@@ -452,21 +527,26 @@ results.append({
 })
 
 selectors = {
-    "ProbeScale": lambda k: select_probescale(relevance, k),
-    "Top-k":      lambda k: select_topk(k),
-    "Uniform-k":  lambda k: select_uniform(k),
+    "ProbeScale": lambda k: select_probescale(relevance, k),   # Eq.(2): R-weighted contiguous block
+    "Top-k":      lambda k: select_topk(k),                     # baseline
+    "Uniform-k":  lambda k: select_uniform(k),                 # baseline
 }
 
+# This loop is the top-level driver of Algorithm 1 (lines 32-35) for each budget:
+#   line 32  R_T = CalculateRelevance(...)   -> already computed as `relevance`
+#   line 33  S*  = SelectSubnetwork(...)     -> selectors[method](k)
+#   line 34  M_S = build_subnetwork(S*)
+#   line 35  fine-tune M_S, then evaluate
 for k in K_BUDGETS:
     for method in METHODS:
-        layers = selectors[method](k)
+        layers = selectors[method](k)                          # Alg.1 line 33: pick S*
         print(f"\n=== {method} | k={k} | layers={[i+1 for i in layers]} ===")
-        sub = build_subnetwork(layers)
+        sub = build_subnetwork(layers)                         # Alg.1 line 34: extract M_S
         rep = model_param_report(sub)
         print("  params (M):", {kk: round(v/1e6, 1) for kk, v in rep.items()})
         print("  fine-tuning...")
-        sub = finetune(sub, ft_train)
-        m, _, _ = evaluate_model(sub, eval_test, n=N_EVAL)
+        sub = finetune(sub, ft_train)                          # Alg.1 line 35: fine-tune M_S
+        m, _, _ = evaluate_model(sub, eval_test, n=N_EVAL)     # final CER/WER on task T
         print(f"  -> CER={m['cer']*100:.2f}%  WER={m['wer']*100:.2f}%")
         results.append({
             "method": method, "k": k, "layers": [i + 1 for i in layers],
@@ -487,10 +567,13 @@ md(r"""## 6. 結果の比較 — 圧縮率と精度
 """)
 
 code(r"""
+# This table reproduces the paper's Table 1 (Params |Theta_S|, ratio |Theta_S|/|Theta|, Acc.).
+# The paper reports e.g. "retains ~98.3% (94.9/96.5) of the original accuracy" (Sec.5):
+#   retention = acc_sub / acc_orig.  For OCR we use character accuracy = 1 - CER.
 df = pd.DataFrame(results)
-orig_acc = 1 - baseline_metrics["cer"]
-df["char_acc"] = 1 - df["cer"]
-df["acc_retained_%"] = (df["char_acc"] / orig_acc) * 100
+orig_acc = 1 - baseline_metrics["cer"]                  # acc_orig = 1 - CER_orig
+df["char_acc"] = 1 - df["cer"]                          # acc_sub  = 1 - CER_sub
+df["acc_retained_%"] = (df["char_acc"] / orig_acc) * 100   # paper's "% of original retained"
 df["CER_%"] = df["cer"] * 100
 df["WER_%"] = df["wer"] * 100
 df["encoder_ratio_%"] = df["encoder_ratio"] * 100
