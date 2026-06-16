@@ -128,14 +128,14 @@
 <h3>Stage 2: Agentic Reinforcement Learning via IGPO</h3>
 <p>The second stage uses agentic reinforcement learning built on <strong>IGPO (Information Gain Policy Optimization)</strong>. This is the most technically novel contribution.</p>
 <p><strong>The credit assignment problem in deep research RL</strong>: Standard RL for language models rewards the final output quality. In a 40-step research trajectory, this creates an extremely sparse reward signal — the model gets one training signal every 40 actions. For deep research, where the quality of the final report depends critically on individual search decisions made early in the trajectory (e.g., choosing to search for methodology papers before application papers), sparse end-of-trajectory rewards fail to teach the model which intermediate decisions were valuable.</p>
-<p><strong>IGPO's solution: Turn-level information gain rewards</strong>. At each agent turn $t$, the model executes a search or tool-use action $a_t$ and observes a result $o_t$. The turn-level reward $r_t$ is computed as:</p>
-<p>$$r_t = \text{InfoGain}(o_t \mid C_t) + \lambda \cdot \text{FormatScore}(a_t)$$</p>
-<p>where $C_t$ is the accumulated context up to turn $t$, and $\lambda$ balances the two reward components.</p>
-<p><strong>Information Gain</strong> measures how much new, relevant information the action $a_t$ contributed to the research context:
-- Actions that retrieve documents already covered by $C_t$ receive low reward (low information gain)
+<p><strong>IGPO's solution: Turn-level information gain rewards</strong>. At each agent turn <span class="math">\(t\)</span>, the model executes a search or tool-use action <span class="math">\(a_t\)</span> and observes a result <span class="math">\(o_t\)</span>. The turn-level reward <span class="math">\(r_t\)</span> is computed as:</p>
+<div class="math">$$r_t = \text{InfoGain}(o_t \mid C_t) + \lambda \cdot \text{FormatScore}(a_t)$$</div>
+<p>where <span class="math">\(C_t\)</span> is the accumulated context up to turn <span class="math">\(t\)</span>, and <span class="math">\(\lambda\)</span> balances the two reward components.</p>
+<p><strong>Information Gain</strong> measures how much new, relevant information the action <span class="math">\(a_t\)</span> contributed to the research context:
+- Actions that retrieve documents already covered by <span class="math">\(C_t\)</span> receive low reward (low information gain)
 - Actions that retrieve genuinely novel, relevant information receive high reward
 - Actions that retrieve off-topic or low-quality information receive near-zero reward</p>
-<p><strong>Format-aware regularization</strong> ($\text{FormatScore}$) penalizes malformed tool calls, inconsistently structured intermediate summaries, and off-format report sections. This serves as a consistency enforcer throughout training.</p>
+<p><strong>Format-aware regularization</strong> (<span class="math">\(\text{FormatScore}\)</span>) penalizes malformed tool calls, inconsistently structured intermediate summaries, and off-format report sections. This serves as a consistency enforcer throughout training.</p>
 <p>The combination provides <strong>dense training supervision</strong> for long-horizon tasks — the model receives a training signal at every turn rather than only at the end, enabling far more efficient learning with limited data.</p>
 <h2>Comparison to Prior Work</h2>
 <table>
@@ -199,16 +199,16 @@
 - The model receives one signal: "this 40-step trajectory produced a 0.7 quality report"
 - Learning from this signal requires the model to infer which of the 40 steps were responsible for the quality level</p>
 <p><strong>IGPO turn-level RL</strong>:
-- Turn 1: Search for "topic X" → retrieves highly relevant documents → $r_1 = 0.85$ (high info gain)
-- Turn 7: Search for "topic X" again (redundant) → retrieves already-seen documents → $r_7 = 0.05$ (near-zero info gain)
-- Turn 15: Synthesizes sources into structured outline → well-formatted → $r_{15} = 0.72$ (good format + info gain)</p>
+- Turn 1: Search for "topic X" → retrieves highly relevant documents → <span class="math">\(r_1 = 0.85\)</span> (high info gain)
+- Turn 7: Search for "topic X" again (redundant) → retrieves already-seen documents → <span class="math">\(r_7 = 0.05\)</span> (near-zero info gain)
+- Turn 15: Synthesizes sources into structured outline → well-formatted → <span class="math">\(r_{15} = 0.72\)</span> (good format + info gain)</p>
 <p>The model learns: "broad early searches are good; redundant searches are penalized; structured synthesis mid-trajectory is rewarded." This dense signal allows effective learning from just 10K trajectories.</p>
 <p>The format-aware regularization term deserves separate attention. In deep research, the structure of intermediate reasoning steps (how search queries are formulated, how intermediate findings are summarized, how the final report sections are organized) has a large impact on the final quality. The format score penalizes structural failures immediately, rather than waiting to observe their effect on the final output quality.</p>
 <h3>Long-Horizon Resampling: Correcting Training Bias</h3>
 <p>The resampling strategy is grounded in a simple observation: if the training distribution is dominated by 3-step tasks, the model minimizes expected training loss by specializing in 3-step tasks. The gradient signal from 40-step research trajectories is diluted by the overwhelming proportion of short-task gradients.</p>
 <p>By resampling to equalize gradient contributions from long-horizon trajectories, the training objective becomes:</p>
-<p>$$\mathcal{L} = \mathbb{E}_{(x, y) \sim \tilde{D}}[\ell(x, y)]$$</p>
-<p>where $\tilde{D}$ is the resampled distribution that upweights long-horizon examples. This shifts what the model optimizes for without changing the data itself — a lightweight but effective correction.</p>
+<div class="math">$$\mathcal{L} = \mathbb{E}_{(x, y) \sim \tilde{D}}[\ell(x, y)]$$</div>
+<p>where <span class="math">\(\tilde{D}\)</span> is the resampled distribution that upweights long-horizon examples. This shifts what the model optimizes for without changing the data itself — a lightweight but effective correction.</p>
 <h2>Limitations</h2>
 <ol>
 <li>
@@ -246,7 +246,7 @@
 <p><strong>Offline capability</strong>: DR-Venus can be configured to use locally cached knowledge bases or offline document stores, enabling deep research in environments without reliable internet connectivity.</p>
 </li>
 <li>
-<p><strong>Cost elimination</strong>: Running 40+ step deep research on cloud LLMs can cost $0.50–$5.00 per task (at frontier LLM pricing). A locally running 4B model has zero marginal cost per query after the one-time model download.</p>
+<p><strong>Cost elimination</strong>: Running 40+ step deep research on cloud LLMs can cost <span class="math">\(0.50–\)</span>5.00 per task (at frontier LLM pricing). A locally running 4B model has zero marginal cost per query after the one-time model download.</p>
 </li>
 <li>
 <p><strong>Latency profile</strong>: While a 4B model running locally is slower per token than a cloud API, the absence of network round-trips for each of the 40+ agent steps means total task latency can be competitive with or better than cloud agents in low-bandwidth environments.</p>
@@ -257,6 +257,68 @@
 </ul>
 <h2>Links</h2>
 <p><a href="https://hf.co/papers/2604.19859">Original Paper</a></p>
+<script type="text/javascript">if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width < 768) ? "left" : align;
+        indent = (screen.width < 768) ? "0em" : indent;
+        linebreak = (screen.width < 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+
+    var configscript = document.createElement('script');
+    configscript.type = 'text/x-mathjax-config';
+    configscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'none' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        availableFonts: ['STIX', 'TeX']," +
+        "        preferredFont: 'STIX'," +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(configscript);
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+</script>
     </article>
 
         <div class="tags">

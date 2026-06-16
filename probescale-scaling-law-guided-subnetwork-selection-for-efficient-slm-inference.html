@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+            <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+        <title>ProbeScale: Scaling-Law-Guided Subnetwork Selection for Efficient SLM Inference</title>
+
+            <link href="/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Full Atom Feed" />
+            <link href="/feeds/{slug}.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Categories Atom Feed" />
+        <!-- Bootstrap Core CSS -->
+        <link href="/theme/css/bootstrap.min.css" rel="stylesheet">
+
+        <!-- Custom CSS -->
+        <link href="/theme/css/clean-blog.min.css" rel="stylesheet">
+
+        <!-- Code highlight color scheme -->
+            <link href="/theme/css/code_blocks/github.css" rel="stylesheet">
+
+
+        <!-- Custom Fonts -->
+        <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+        <link href='https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+        <link href='https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/css'>
+
+        <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+        <!--[if lt IE 9]>
+            <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+            <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+
+
+        <meta name="description" content="ProbeScale combines neural scaling laws with task-specific layer probing to automatically identify minimal SLM subnetworks — achieving...">
+
+        <meta name="author" content="toohsk">
+
+        <meta name="tags" content="SLM">
+        <meta name="tags" content="AI">
+        <meta name="tags" content="paper-review">
+
+	                <meta property="og:locale" content="">
+		<meta property="og:site_name" content="Atsushi's blog">
+
+	<meta property="og:type" content="article">
+            <meta property="article:author" content="/author/toohsk.html">
+	<meta property="og:url" content="/probescale-scaling-law-guided-subnetwork-selection-for-efficient-slm-inference.html">
+	<meta property="og:title" content="ProbeScale: Scaling-Law-Guided Subnetwork Selection for Efficient SLM Inference">
+	<meta property="article:published_time" content="2026-06-13 00:00:00+09:00">
+            <meta property="og:description" content="ProbeScale combines neural scaling laws with task-specific layer probing to automatically identify minimal SLM subnetworks — achieving...">
+
+            <meta property="og:image" content="/images/blog_cover.jpg">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:site" content="@toohsk">
+        <meta name="twitter:title" content="ProbeScale: Scaling-Law-Guided Subnetwork Selection for Efficient SLM Inference">
+
+            <meta name="twitter:image" content="/images/blog_cover.jpg">
+
+            <meta name="twitter:description" content="ProbeScale combines neural scaling laws with task-specific layer probing to automatically identify minimal SLM subnetworks — achieving...">
+</head>
+
+<body class="article-probescale-scaling-law-guided-subnetwork-selection-for-efficient-slm-inference">
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+        <div class="container-fluid">
+            <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header page-scroll">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="/">Atsushi's blog</a>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav navbar-right">
+
+                </ul>
+            </div>
+            <!-- /.navbar-collapse -->
+        </div>
+        <!-- /.container -->
+    </nav>
+
+    <!-- Page Header -->
+        <header class="intro-header" style="background-image: url('/images/blog_cover.jpg')">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <div class="post-heading">
+                        <h1>ProbeScale: Scaling-Law-Guided Subnetwork Selection for Efficient SLM Inference</h1>
+                        <span class="meta">Posted by
+                                <a href="/author/toohsk.html">toohsk</a>
+                             on 土 13 6月 2026
+                        </span>
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+    <!-- Post Content -->
+    <article>
+        <h2>Why This Paper Matters</h2>
+<p>Small Language Models (SLMs) are already the compressed end of the language model spectrum, yet the "one-size-fits-all" approach to model serving remains wasteful. A 350M-parameter encoder model deployed for sentiment classification is carrying enormous amounts of representational capacity developed for tasks it will never encounter in production. For edge inference — where memory bandwidth, power, and latency budgets are measured in milliwatts and milliseconds — this overhead is not just inefficient; it's often prohibitive.</p>
+<p>Prior work in model compression follows well-worn paths: magnitude pruning, structured pruning, knowledge distillation, quantization. Each has a core weakness when applied to task-specific SLM deployment: they either require access to the full training pipeline, introduce training-time overhead, operate on weights without task context, or lack principled guidance about <em>how much</em> to compress for a given task.</p>
+<p>ProbeScale attacks this problem from a different angle: rather than asking "how do we make the model smaller?", it asks "given a target task, which layers of the model actually matter, and by how much?" The answer comes from two orthogonal sources of signal — <strong>layer probing</strong> (empirical task relevance) and <strong>scaling laws</strong> (theoretical capacity requirements) — combined into a principled, training-free subnetwork selection algorithm.</p>
+<h2>Core Technical Contribution</h2>
+<h3>The Two-Signal Framework</h3>
+<p>ProbeScale operates on a pre-trained SLM and a target task without any finetuning. It extracts two types of information from the model:</p>
+<p><strong>Signal 1: Layer probing scores.</strong> For each layer <span class="math">\(l\)</span> in the model, ProbeScale trains a lightweight linear probe on the layer's hidden representations against the target task labels. The probe's validation accuracy <span class="math">\(a_l\)</span> measures how much task-relevant information that layer encodes. High <span class="math">\(a_l\)</span> means the layer's representations are predictive of the task output; low <span class="math">\(a_l\)</span> means that layer contributes little task-specific signal.</p>
+<p><strong>Signal 2: Scaling law predictions.</strong> Neural scaling laws describe how model performance scales with parameter count and compute. ProbeScale uses these relationships to estimate the minimum parameter budget <span class="math">\(N^*\)</span> needed to achieve a target performance level on the task. This gives the algorithm a principled target for the compression ratio rather than a heuristically chosen one.</p>
+<h3>Subnetwork Selection Algorithm</h3>
+<p>Given the per-layer probe scores <span class="math">\(\{a_l\}\)</span> and a parameter budget <span class="math">\(N^*\)</span> derived from scaling laws, ProbeScale frames subnetwork selection as an optimization problem:</p>
+<div class="math">$$\max_{S \subseteq \{1, \ldots, L\}} \sum_{l \in S} w_l \cdot a_l \quad \text{subject to} \quad \text{params}(S) \leq N^*$$</div>
+<p>where <span class="math">\(S\)</span> is the selected set of layers, <span class="math">\(w_l\)</span> is the task-weighted contribution of layer <span class="math">\(l\)</span> (based on probe score normalized across tasks), and <span class="math">\(\text{params}(S)\)</span> counts the parameters in the selected subnetwork.</p>
+<p>For multi-task scenarios — common in SLM deployments where a single model must handle several downstream tasks — the objective aggregates across tasks:</p>
+<div class="math">$$\max_{S} \sum_{t=1}^{T} \lambda_t \sum_{l \in S} a_{l,t} \quad \text{subject to} \quad \text{params}(S) \leq N^*$$</div>
+<p>where <span class="math">\(\lambda_t\)</span> is a task priority weight and <span class="math">\(a_{l,t}\)</span> is layer <span class="math">\(l\)</span>'s probe score on task <span class="math">\(t\)</span>.</p>
+<p>This is a variant of a knapsack problem and can be solved efficiently with greedy or dynamic programming approaches.</p>
+<h3>Why Scaling Laws Matter Here</h3>
+<p>Without scaling laws, the compression ratio <span class="math">\(N^* / N_{\text{full}}\)</span> is a free parameter that the practitioner must set by cross-validation or engineering judgment. This is expensive and fragile. By anchoring the budget to the scaling law prediction for a given task difficulty, ProbeScale derives the compression ratio automatically from the task characteristics. Tasks with simpler decision boundaries get aggressively compressed; tasks with complex linguistic structure are compressed more conservatively.</p>
+<p>The authors use the standard empirical scaling law form:</p>
+<div class="math">$$L(N) = \left(\frac{N_c}{N}\right)^\alpha + L_\infty$$</div>
+<p>where <span class="math">\(L(N)\)</span> is the loss at parameter count <span class="math">\(N\)</span>, <span class="math">\(N_c\)</span> is a critical scale, <span class="math">\(\alpha\)</span> is the power-law exponent, and <span class="math">\(L_\infty\)</span> is the irreducible loss floor. Inverting this gives the minimum <span class="math">\(N^*\)</span> for a target loss level.</p>
+<h3>Training-Free Deployment</h3>
+<p>A critical practical feature: ProbeScale requires no gradient updates to the base model. The linear probes are cheap to train (they are single-layer classifiers on frozen representations) and the subnetwork selection is a combinatorial optimization on the probe scores. The full pipeline — probing, scaling law calibration, subnetwork extraction — runs as a preprocessing step before inference, with no modifications to the original model weights.</p>
+<p>This is in sharp contrast to structured pruning approaches that require iterative finetuning after each pruning step, or knowledge distillation that requires training a new student model from scratch.</p>
+<h2>Comparison to Prior Work</h2>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Training-free</th>
+<th>Task-aware</th>
+<th>Principled budget</th>
+<th>Multi-task</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Magnitude pruning</td>
+<td>✓</td>
+<td>✗</td>
+<td>✗</td>
+<td>✗</td>
+</tr>
+<tr>
+<td>Structured pruning + finetune</td>
+<td>✗</td>
+<td>✗</td>
+<td>✗</td>
+<td>✗</td>
+</tr>
+<tr>
+<td>Knowledge distillation</td>
+<td>✗</td>
+<td>✓</td>
+<td>✗</td>
+<td>✓</td>
+</tr>
+<tr>
+<td>Task-specific probing (prior)</td>
+<td>✓</td>
+<td>✓</td>
+<td>✗</td>
+<td>✗</td>
+</tr>
+<tr>
+<td>ProbeScale (this work)</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+</tr>
+</tbody>
+</table>
+<p>Prior probing-based compression methods identify task-relevant layers but lack a principled criterion for how deep to cut. Prior scaling-law-based approaches predict optimal model size but don't account for which parts of an existing model are task-relevant. ProbeScale is the first to combine both signals into a unified selection criterion.</p>
+<h2>Reading the Results</h2>
+<p>ProbeScale is evaluated on <strong>RoBERTa-Large</strong> (355M parameters, encoder-only) and <strong>T5-Base</strong> (220M parameters, encoder-decoder) across a battery of GLUE and SuperGLUE tasks.</p>
+<p><strong>Parameter reduction.</strong> The subnetworks selected by ProbeScale retain <strong>5–10x fewer parameters</strong> than the full models while achieving <strong>95–98% of full-model performance</strong>. For reference, a 7–20x parameter reduction with 95%+ performance retention is substantially better than standard structured pruning at similar compression ratios.</p>
+<p><strong>Comparison to heuristic baselines.</strong> ProbeScale consistently outperforms three heuristic baselines:
+- <em>Last-k layers only</em>: Retaining only the final <span class="math">\(k\)</span> layers performs significantly worse, especially for tasks that rely on early contextualization.
+- <em>Uniform layer selection</em>: Selecting every <span class="math">\(n\)</span>-th layer ignores task relevance and loses performance on tasks with uneven layer importance distributions.
+- <em>Magnitude pruning to the same budget</em>: Weight-level pruning at the same parameter count falls 2–5% below ProbeScale, confirming that layer-level structural selection outperforms weight-level pruning for task-specific deployment.</p>
+<p><strong>Scaling law calibration.</strong> The predicted budget <span class="math">\(N^*\)</span> from scaling laws closely matches the empirically optimal budget (the compression level at which performance begins to degrade). This validates the scaling law approach as a reliable proxy for the correct compression ratio, eliminating the need for expensive cross-validation of the compression ratio.</p>
+<p><strong>Multi-task setting.</strong> In the multi-task variant, ProbeScale allocates layer budget in proportion to task difficulty (as estimated by scaling laws), resulting in subnetworks that handle heterogeneous task sets with graceful performance tradeoffs across tasks.</p>
+<h2>Key Notes of This Paper</h2>
+<h3>Why Layer Probing Works as a Relevance Signal</h3>
+<p>The use of linear probes to measure layer relevance is motivated by the <strong>probing hypothesis</strong>: if a linear classifier trained on a layer's representations can predict task outputs, then task-relevant features are linearly decodable from that layer. This is a strong signal for task relevance because it tests discriminative capacity without entanglement with higher-level representations.</p>
+<p>Formally, for layer <span class="math">\(l\)</span> with hidden representations <span class="math">\(\mathbf{h}_l \in \mathbb{R}^d\)</span>, a linear probe learns:</p>
+<div class="math">$$\hat{y} = \text{softmax}(W \mathbf{h}_l + b)$$</div>
+<p>and the probe accuracy <span class="math">\(a_l\)</span> is the validation accuracy under this classifier. Layers with high <span class="math">\(a_l\)</span> are structurally important for the task; layers with low <span class="math">\(a_l\)</span> can be pruned without degrading the model's task-relevant information content.</p>
+<h3>The Knapsack Formulation and Its Tractability</h3>
+<p>The subnetwork selection problem is NP-hard in general (it is a variant of 0/1 knapsack), but the structure of the problem — items (layers) with weights (parameter counts) and values (probe scores), a linear budget constraint — makes it tractable for practical model sizes. With <span class="math">\(L \leq 24\)</span> layers in RoBERTa-Large and a parameter-count budget, the dynamic programming solution runs in time <span class="math">\(O(L \cdot N^*)\)</span>, which is milliseconds on a standard CPU.</p>
+<h3>Scaling Law Inversion</h3>
+<p>The inversion of the scaling law to obtain <span class="math">\(N^*\)</span> requires fitting the law parameters <span class="math">\(\{N_c, \alpha, L_\infty\}\)</span> to a small number of probe evaluation points at different budgets. The authors show that 3–5 evaluation points are sufficient to fit the scaling law reliably, making the calibration cost negligible (these are evaluations of linear probes, not full model evaluations).</p>
+<h2>Limitations</h2>
+<ol>
+<li>
+<p><strong>Encoder-only and encoder-decoder models</strong>: The paper evaluates on RoBERTa (encoder-only) and T5 (encoder-decoder) but does not include decoder-only autoregressive models (GPT-style). Whether probe scores from a causal language model behave similarly to those from masked or encoder-decoder models is an open question.</p>
+</li>
+<li>
+<p><strong>Static task distribution</strong>: ProbeScale assumes the target task(s) are known at deployment time. For systems where the task mix changes dynamically, the subnetwork would need to be recomputed, adding latency.</p>
+</li>
+<li>
+<p><strong>Linear probe as a proxy</strong>: The linear probing assumption may underestimate layers that encode non-linearly decodable but compositionally important features. Some tasks may rely on combinations of layers rather than individual layers, violating the independence assumption in the selection objective.</p>
+</li>
+<li>
+<p><strong>Scaling law generalization</strong>: The scaling law parameters fitted on a small set of evaluation points may not generalize perfectly to all tasks or all model architectures. Calibration errors propagate to incorrect budget estimates.</p>
+</li>
+<li>
+<p><strong>Layer contiguity</strong>: The paper's subnetwork selection does not require selected layers to be contiguous. Non-contiguous layer selection requires model surgery (removing skip connections, etc.) that may not be straightforward in all architectures.</p>
+</li>
+</ol>
+<h2>Future Work</h2>
+<p><strong>From the authors:</strong>
+- Extending ProbeScale to autoregressive decoder-only models (Llama, Mistral, Phi families)
+- Dynamic subnetwork selection for streaming multi-task systems, where the active subnetwork adapts to the current request
+- Hardware-aware selection: incorporating device-specific latency/memory constraints alongside parameter count in the budget</p>
+<p><strong>Additional promising directions:</strong>
+- <strong>Quantization integration</strong>: ProbeScale's subnetwork extraction could be composed with quantization — the selected layers are further quantized, doubling the compression — with the scaling law predicting the joint (parameter count × bit width) budget
+- <strong>Federated subnetwork selection</strong>: In privacy-sensitive deployments, each device could compute its own probe scores on local data, and the server could aggregate them to select a personalized subnetwork without sharing raw data
+- <strong>Online probe adaptation</strong>: As distribution shift occurs in production, the probes could be updated online with minimal overhead to track evolving task characteristics
+- <strong>Cross-model layer transfer</strong>: Probe scores computed on one model architecture might be transferable to models in the same family, enabling zero-shot subnetwork selection for new models</p>
+<h2>Implications for Edge / On-Device Deployment</h2>
+<p>ProbeScale is directly relevant to the practical deployment challenge of getting capable language models onto resource-constrained devices.</p>
+<p><strong>Training-free means fast deployment cycles.</strong> For edge device manufacturers and app developers, the ability to go from a pre-trained SLM to a task-optimized subnetwork in a preprocessing step — without any training infrastructure — dramatically reduces the time from model selection to production.</p>
+<p><strong>Task-aware compression respects the usage context.</strong> A single base model (e.g., a downloaded SLM on a smartphone) can be specialized into multiple lightweight subnetworks for different on-device applications: keyboard prediction, voice command parsing, email summary. Each subnetwork is tuned to its task without requiring separate downloaded models.</p>
+<p><strong>Principled budgeting helps hardware engineers.</strong> Rather than negotiating compression ratios empirically with ML engineers, hardware teams can use scaling law predictions to justify memory and compute requirements in terms of task performance targets — a translation layer between ML and systems disciplines.</p>
+<p><strong>5–10x reduction enables genuinely new device categories.</strong> A 355M-parameter RoBERTa model is infeasible for microcontroller-class devices. A 35–70M-parameter ProbeScale subnetwork may fit in constrained flash and SRAM budgets, opening the door to language understanding at the very edge.</p>
+<h2>Links</h2>
+<p><a href="https://arxiv.org/abs/2606.01806">Original Paper</a></p>
+<script type="text/javascript">if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width < 768) ? "left" : align;
+        indent = (screen.width < 768) ? "0em" : indent;
+        linebreak = (screen.width < 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+
+    var configscript = document.createElement('script');
+    configscript.type = 'text/x-mathjax-config';
+    configscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'none' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        availableFonts: ['STIX', 'TeX']," +
+        "        preferredFont: 'STIX'," +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(configscript);
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+</script>
+    </article>
+
+        <div class="tags">
+            <p>tags: <a href="/tag/slm.html">SLM</a>, <a href="/tag/ai.html">AI</a>, <a href="/tag/paper-review.html">paper-review</a></p>
+        </div>
+
+    <hr>
+
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <ul class="list-inline text-center">
+                            <li>
+                                <a href="http://twitter.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-twitter fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="http://github.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-github fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                    </ul>
+<p class="copyright text-muted">
+    Blog powered by <a href="http://getpelican.com">Pelican</a>,
+    which takes great advantage of <a href="http://python.org">Python</a>. <br />        &copy;  toohsk
+</p>                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- jQuery -->
+    <script src="/theme/js/jquery.min.js"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="/theme/js/bootstrap.min.js"></script>
+
+        <!-- Custom Theme JavaScript -->
+        <script src="/theme/js/clean-blog.min.js"></script>
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-LR14KRYZ4L"></script>
+<script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-LR14KRYZ4L');
+</script>
+</body>
+
+</html>

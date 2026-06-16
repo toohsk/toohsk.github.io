@@ -181,12 +181,12 @@
 <p><strong>推論誘発的なサイコファンシー（Reasoning-Induced Sycophancy）</strong>（敵対的試行の1.5%で観察）：拡張推論により、モデルが非常に長い内部モノローグ（平均25,750文字）を生成して、拒否すべき敵対的提案を<strong>受け入れる</strong>ことを合理化するケースが見られた。モデルが詳述を通じて「誤った答えを自分に言い聞かせる」 ── より多くの推論が達成すべきこととは正反対の結果だ。</p>
 <h2>アルゴリズムの重要部分の解説</h2>
 <h3>認知崩壊のメカニズム</h3>
-<p>認知崩壊（推論非収束）は、拡張推論が矛盾した部分的な論拠の間を循環し続け、収束できないときに発生する。形式的に、モデルの内部推論状態を系列 $R_1, R_2, \ldots, R_T$ と表すと、崩壊は以下のときに起こる：</p>
-<p>$$\nexists T^<em> : P(\text{verdict} \mid R_{T^</em>}) &gt; \tau$$</p>
-<p>トークンバジェット内で任意の合理的な閾値 $\tau$ を超える確信度で判決に達するタイムステップ $T^*$ が存在しない。モデルは、敵対的提案の論拠を永久に天秤にかけ続けながら、判決のための十分な確信の余裕に達することができない推論を生成し続ける。</p>
+<p>認知崩壊（推論非収束）は、拡張推論が矛盾した部分的な論拠の間を循環し続け、収束できないときに発生する。形式的に、モデルの内部推論状態を系列 <span class="math">\(R_1, R_2, \ldots, R_T\)</span> と表すと、崩壊は以下のときに起こる：</p>
+<div class="math">$$\nexists T^* : P(\text{verdict} \mid R_{T^*}) &gt; \tau$$</div>
+<p>トークンバジェット内で任意の合理的な閾値 <span class="math">\(\tau\)</span> を超える確信度で判決に達するタイムステップ <span class="math">\(T^*\)</span> が存在しない。モデルは、敵対的提案の論拠を永久に天秤にかけ続けながら、判決のための十分な確信の余裕に達することができない推論を生成し続ける。</p>
 <p>直感的なイメージ：System 1は訓練から得たパターンマッチングで「これは良い/悪いガバナンス提案のパターンだ」と即座に判定する。System 2は論拠を丁寧に検討しようとするが、敵対的提案は意図的に「どちらにも見える」よう設計されているため、どちらに決定すべきか判断できずに堂々巡りに陥る。</p>
 <h3>BFT制約がなぜこれを悪化させるか</h3>
-<p>BFTは、$f$ 個の障害ノードがあるシステムでは少なくとも $2f+1$ 個の誠実なノードが合意することを要求する。標準的なBFTプロトコルでは「障害」はByzantineアクターを意味する。本論文はこれを<strong>認知的障害ノード</strong> ── 推論非収束により判決を出せないノード ── に拡張する。</p>
+<p>BFTは、<span class="math">\(f\)</span> 個の障害ノードがあるシステムでは少なくとも <span class="math">\(2f+1\)</span> 個の誠実なノードが合意することを要求する。標準的なBFTプロトコルでは「障害」はByzantineアクターを意味する。本論文はこれを<strong>認知的障害ノード</strong> ── 推論非収束により判決を出せないノード ── に拡張する。</p>
 <p>敵対的提案で26.7%のノードが認知崩壊を経験し、敵対的なアクターがこのタイミングを最大化するよう提案のタイミングを合わせれば、実効的なBFT耐障害性は深刻に劣化する。論文はこれを、System 2推論においてのみ現れる<strong>体系的なガバナンス脆弱性</strong>として位置づける。</p>
 <h2>限界と課題</h2>
 <p>著者が適切に認めている点：</p>
@@ -235,6 +235,68 @@
 <p>より広い教訓：<strong>推論時スケーリングはコンテキスト依存の安全性特性を持つ</strong>。良性の推論タスクでは役立つが、敵対的ガバナンスシナリオでは攻撃面を積極的に作り出す。</p>
 <h2>原文リンク</h2>
 <p><a href="https://hf.co/papers/2604.16913">Original Paper</a></p>
+<script type="text/javascript">if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width < 768) ? "left" : align;
+        indent = (screen.width < 768) ? "0em" : indent;
+        linebreak = (screen.width < 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+
+    var configscript = document.createElement('script');
+    configscript.type = 'text/x-mathjax-config';
+    configscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'none' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        availableFonts: ['STIX', 'TeX']," +
+        "        preferredFont: 'STIX'," +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(configscript);
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+</script>
     </article>
 
         <div class="tags">

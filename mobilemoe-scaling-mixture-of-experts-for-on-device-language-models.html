@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+            <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+        <title>MobileMoE: Scaling Mixture-of-Experts for On-Device Language Models</title>
+
+            <link href="/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Full Atom Feed" />
+            <link href="/feeds/{slug}.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Categories Atom Feed" />
+        <!-- Bootstrap Core CSS -->
+        <link href="/theme/css/bootstrap.min.css" rel="stylesheet">
+
+        <!-- Custom CSS -->
+        <link href="/theme/css/clean-blog.min.css" rel="stylesheet">
+
+        <!-- Code highlight color scheme -->
+            <link href="/theme/css/code_blocks/github.css" rel="stylesheet">
+
+
+        <!-- Custom Fonts -->
+        <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+        <link href='https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+        <link href='https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/css'>
+
+        <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+        <!--[if lt IE 9]>
+            <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+            <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+
+
+        <meta name="description" content="MobileMoE establishes a new Pareto frontier for on-device LLMs by applying Mixture-of-Experts at sub-billion active parameter scales —...">
+
+        <meta name="author" content="toohsk">
+
+        <meta name="tags" content="SLM">
+        <meta name="tags" content="AI">
+        <meta name="tags" content="paper-review">
+
+	                <meta property="og:locale" content="">
+		<meta property="og:site_name" content="Atsushi's blog">
+
+	<meta property="og:type" content="article">
+            <meta property="article:author" content="/author/toohsk.html">
+	<meta property="og:url" content="/mobilemoe-scaling-mixture-of-experts-for-on-device-language-models.html">
+	<meta property="og:title" content="MobileMoE: Scaling Mixture-of-Experts for On-Device Language Models">
+	<meta property="article:published_time" content="2026-05-29 00:00:00+09:00">
+            <meta property="og:description" content="MobileMoE establishes a new Pareto frontier for on-device LLMs by applying Mixture-of-Experts at sub-billion active parameter scales —...">
+
+            <meta property="og:image" content="/images/blog_cover.jpg">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:site" content="@toohsk">
+        <meta name="twitter:title" content="MobileMoE: Scaling Mixture-of-Experts for On-Device Language Models">
+
+            <meta name="twitter:image" content="/images/blog_cover.jpg">
+
+            <meta name="twitter:description" content="MobileMoE establishes a new Pareto frontier for on-device LLMs by applying Mixture-of-Experts at sub-billion active parameter scales —...">
+</head>
+
+<body class="article-mobilemoe-scaling-mixture-of-experts-for-on-device-language-models">
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+        <div class="container-fluid">
+            <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header page-scroll">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="/">Atsushi's blog</a>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav navbar-right">
+
+                </ul>
+            </div>
+            <!-- /.navbar-collapse -->
+        </div>
+        <!-- /.container -->
+    </nav>
+
+    <!-- Page Header -->
+        <header class="intro-header" style="background-image: url('/images/blog_cover.jpg')">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <div class="post-heading">
+                        <h1>MobileMoE: Scaling Mixture-of-Experts for On-Device Language Models</h1>
+                        <span class="meta">Posted by
+                                <a href="/author/toohsk.html">toohsk</a>
+                             on 金 29 5月 2026
+                        </span>
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+    <!-- Post Content -->
+    <article>
+        <h2>Why This Paper Matters</h2>
+<p>Mixture-of-Experts (MoE) has become the dominant architecture for frontier models at the 100B+ scale — DeepSeek-V3, Mixtral, and GPT-4 all exploit sparsity to scale capacity without proportionally scaling compute. But a fundamental question has gone unanswered: <strong>does MoE confer the same advantages at sub-billion parameter scales, on actual mobile hardware?</strong></p>
+<p>The challenge is non-trivial. Mobile deployment imposes hard constraints that don't exist in data center settings: a smartphone's NPU/CPU operates under thermal limits, has fixed memory bandwidth, and must share resources with the OS and other apps. The two key bottlenecks — <strong>active compute (FLOPs) and weight memory</strong> — are partially decoupled in MoE architectures but they interact in complex ways on mobile silicon.</p>
+<p>Dense models at 0.5–1B parameters (e.g., MobileLLM, Phi-1.5) are already well-understood for mobile. But their compute scales with all parameters for every token. MoE offers a different trade-off: more total parameters (spread across experts) but only a fraction of them active per token. Whether this trade-off — more memory for weight loading, less compute per token — actually benefits mobile inference depends on the specific bottlenecks of the target hardware.</p>
+<p>This paper is the first to rigorously answer that question, and the answer is a clear <strong>yes</strong> — but only with the right architectural choices and training approach.</p>
+<h2>Core Technical Contribution</h2>
+<h3>1. On-Device MoE Scaling Law</h3>
+<p>The central methodological contribution is a <strong>joint scaling law that models both INT4 weight memory and active inference FLOPs</strong> as a function of MoE architectural hyperparameters.</p>
+<p>The key hyperparameters considered are:
+- <strong>Number of experts</strong> (E): Total expert count per MoE layer
+- <strong>Top-k routing</strong> (k): How many experts are active per token
+- <strong>Sparsity ratio</strong> (k/E): Fraction of experts activated
+- <strong>Expert granularity</strong>: Size of each individual expert FFN (larger = fewer, smaller = more)
+- <strong>Shared expert ratio</strong>: Fraction of always-active (dense) experts per layer</p>
+<p>The scaling law reveals a non-obvious insight: on mobile hardware, the Pareto-optimal configuration is <strong>not</strong> maximum sparsity (e.g., top-1 routing with many small experts). This seems counterintuitive — shouldn't using fewer experts per token minimize compute? The problem is that:</p>
+<ol>
+<li>Very fine-grained experts increase <strong>routing overhead</strong> (more decision-making per token)</li>
+<li>High sparsity increases <strong>load imbalance</strong> at inference, causing some experts to be idle while others are overloaded</li>
+<li>Extreme sparsity at small scales <strong>hurts model quality</strong> since individual experts have too few parameters to learn meaningful representations</li>
+</ol>
+<p>The scaling law identifies a <strong>"mobile sweet spot"</strong>: moderate sparsity (top-2 from ~8–16 experts per layer) combined with fine-grained expert sizing and a small number of always-active shared experts.</p>
+<h3>2. Architecture: Fine-Grained + Shared Experts</h3>
+<p>Building on the scaling law, MobileMoE uses a hybrid expert design:</p>
+<ul>
+<li>
+<p><strong>Fine-grained experts</strong>: Each expert has fewer parameters than in standard MoE (e.g., as in DeepSeekMoE). Having many small experts provides fine-grained specialization — different experts can learn to handle different syntactic constructions, domains, or reasoning patterns — without proportionally increasing the weight memory footprint.</p>
+</li>
+<li>
+<p><strong>Shared experts</strong>: A small set of experts (typically 1–2) that are always activated, regardless of routing. These serve as "backbone" representations that every token passes through, while the routed experts handle specialization. This design borrows from DeepSeek-MoE and prevents routing collapse (where all tokens flow to the same few experts).</p>
+</li>
+</ul>
+<p>The result is a model family spanning 0.3–0.9B active parameters with 1.3–5.3B total parameters:
+- <strong>MobileMoE-XS</strong>: 0.3B active / 1.3B total
+- <strong>MobileMoE-S</strong>: ~0.5B active / ~2.5B total
+- <strong>MobileMoE-M</strong>: ~0.9B active / ~5.3B total</p>
+<h3>3. Four-Stage Training Recipe</h3>
+<p>A crucial finding is that MoE at this scale requires careful training beyond standard pre-training. The paper proposes a four-stage pipeline:</p>
+<p><strong>Stage 1: Pre-training</strong> — Standard next-token prediction on open-source datasets (CommonCrawl, The Pile, etc.). The key here is that the routing mechanism must stabilize early; unstable routing in early training leads to collapsed expert utilization.</p>
+<p><strong>Stage 2: Mid-training</strong> — Continued training at a lower learning rate on higher-quality data, including code and mathematical text. This stage is critical for building the domain-specific expert specialization that makes MoE valuable.</p>
+<p><strong>Stage 3: Instruction Fine-Tuning (IFT)</strong> — Supervised fine-tuning on instruction-response pairs, enabling the model to follow natural language instructions.</p>
+<p><strong>Stage 4: Quantization-Aware Training (QAT)</strong> — The paper identifies this stage as essential. Post-training quantization (PTQ) to INT4 causes significant quality degradation in MoE models because expert routing decisions are particularly sensitive to the quantization noise introduced by INT4 weights. QAT trains the model while simulating INT4 quantization, allowing the routing mechanism to adapt to the quantized weight distribution. This stage recovers 1–2 percentage points of quality lost from naive PTQ.</p>
+<h3>4. Efficient MoE Inference on Smartphones</h3>
+<p>Beyond the training pipeline, the paper provides the <strong>first comprehensive on-device profiling</strong> of MoE inference on commodity Android smartphones. Key engineering contributions:
+- Expert weight caching strategies to reduce I/O overhead
+- Efficient sparse tensor operations for NPU execution
+- Latency/memory trade-off characterization across different hardware tiers</p>
+<h2>Comparison to Prior Work</h2>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Active Params</th>
+<th>Total Params</th>
+<th>Avg Score (14 tasks)</th>
+<th>Prefill Speed</th>
+<th>Decode Speed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MobileLLM-Pro</td>
+<td>0.5B</td>
+<td>0.5B</td>
+<td>Baseline</td>
+<td>1×</td>
+<td>1×</td>
+</tr>
+<tr>
+<td>OLMoE-1B-7B</td>
+<td>1B</td>
+<td>7B</td>
+<td>≈ MobileMoE-M</td>
+<td>N/A</td>
+<td>N/A</td>
+</tr>
+<tr>
+<td>MobileMoE-S</td>
+<td>~0.5B</td>
+<td>~2.5B</td>
+<td>≈ MobileLLM-Pro</td>
+<td>1.8–3.8×</td>
+<td>2.2–3.4×</td>
+</tr>
+<tr>
+<td>MobileMoE-M</td>
+<td>~0.9B</td>
+<td>~5.3B</td>
+<td>≥ OLMoE-1B-7B</td>
+<td>—</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>Key comparative findings:
+- <strong>vs. MobileLLM-Pro (dense baseline)</strong>: MobileMoE-S achieves <strong>comparable quality</strong> with 1.8–3.8× faster prefill and 2.2–3.4× faster decode at equivalent INT4 weight memory
+- <strong>vs. OLMoE-1B-7B</strong>: MobileMoE matches or surpasses this established MoE model with <strong>up to 60% fewer total parameters</strong>
+- <strong>vs. dense LLMs generally</strong>: Across 14 benchmarks, MobileMoE matches or exceeds leading on-device dense models with <strong>2–4× fewer inference FLOPs</strong></p>
+<h2>Reading the Results</h2>
+<p>The speed numbers deserve careful interpretation. <strong>Prefill</strong> (processing the input prompt) benefits differently from <strong>decode</strong> (generating tokens one at a time):</p>
+<ul>
+<li>
+<p><strong>Prefill speedup (1.8–3.8×)</strong> comes primarily from reduced FLOPs per token. Since prefill processes many tokens in parallel, the reduction in per-token compute translates directly into wall-clock time.</p>
+</li>
+<li>
+<p><strong>Decode speedup (2.2–3.4×)</strong> is more surprising. Decoding is typically memory-bandwidth-bound (loading weights from memory), not compute-bound. The speedup here comes from MoE's property: at decode time, only a fraction of expert weights need to be loaded from memory for each token. Even though total weight memory is larger, less of it is <em>accessed</em> per step.</p>
+</li>
+</ul>
+<p>The 14-benchmark coverage spans: commonsense reasoning (HellaSwag, PIQA, WinoGrande), world knowledge (ARC-E/C, MMLU), math (GSM8K), and code (HumanEval/MBPP). The results are consistent across task types, suggesting the quality improvement is genuine rather than benchmark-specific.</p>
+<h2>Key Notes of This Paper</h2>
+<h3>The MoE Scaling Law Formulation</h3>
+<p>The on-device MoE scaling law jointly models:</p>
+<p><strong>Quality</strong> as a function of active parameters and total parameters:
+</p>
+<div class="math">$$\text{Quality} \propto f(N_{\text{active}}, N_{\text{total}})$$</div>
+<p><strong>Memory</strong> as:
+</p>
+<div class="math">$$M = N_{\text{total}} \cdot b_{\text{INT4}}$$</div>
+<p>
+where <span class="math">\(b_{\text{INT4}}\)</span> is the bits per parameter under INT4 quantization.</p>
+<p><strong>Active FLOPs</strong> per token as:
+</p>
+<div class="math">$$C = 2 \cdot N_{\text{active}}$$</div>
+<p>
+(standard approximation for transformer forward pass)</p>
+<p>The critical insight is that these two constraints define a <strong>Pareto frontier</strong> in <span class="math">\((N_{\text{active}}, N_{\text{total}})\)</span> space. For a given memory budget <span class="math">\(M\)</span>:
+- A dense model: <span class="math">\(N_{\text{active}} = N_{\text{total}} = M / b_{\text{INT4}}\)</span> — maximum active parameters but all memory accessed per token
+- A very sparse MoE (top-1): <span class="math">\(N_{\text{active}} \ll N_{\text{total}}\)</span> — minimum compute but poor quality at small scale
+- <strong>Optimal MoE</strong>: moderate sparsity, fine-grained experts — hits the sweet spot where quality is maintained and compute is substantially reduced</p>
+<p>The scaling law allows architects to <strong>predict</strong> which <span class="math">\((N_{\text{active}}, N_{\text{total}}, k, E)\)</span> configuration is optimal for a given mobile device profile without running full training experiments.</p>
+<h3>Expert Routing as a Computational Bottleneck</h3>
+<p>Standard transformer attention is compute-bound (quadratic in sequence length). MoE introduces a new bottleneck: <strong>routing computation</strong>. For each token, the router evaluates:</p>
+<div class="math">$$\text{router score}_i = \text{softmax}(x W_r)_i, \quad i \in \{1, \ldots, E\}$$</div>
+<p>This linear projection over <span class="math">\(E\)</span> experts must be done efficiently. Fine-grained MoE (many small experts) increases <span class="math">\(E\)</span>, making routing relatively more expensive. The paper shows that beyond <span class="math">\(E \approx 64\)</span>, routing overhead becomes a meaningful fraction of total compute on mobile NPUs.</p>
+<p>The shared expert design bypasses routing entirely for the "backbone" experts — every token runs them unconditionally — which simplifies hardware scheduling and improves cache utilization.</p>
+<h2>Limitations</h2>
+<p>The paper acknowledges several constraints:</p>
+<ol>
+<li>
+<p><strong>Memory footprint growth</strong>: Even with INT4 quantization, a 5.3B total-parameter model requires ~3GB of weight storage. This fits current flagship phones (8–12GB RAM) but is tight for mid-range devices (4–6GB RAM).</p>
+</li>
+<li>
+<p><strong>Expert load balancing at inference</strong>: Unlike training (where auxiliary load-balancing losses can force even expert utilization), inference routing is unconstrained. In practice, expert utilization is skewed — some experts are cold (rarely used), creating memory inefficiency. The paper addresses this with caching strategies but does not eliminate the imbalance.</p>
+</li>
+<li>
+<p><strong>Training cost</strong>: The four-stage training pipeline is substantially more complex than training a single dense model. QAT in particular is expensive — the model must be trained for additional steps with quantization simulation.</p>
+</li>
+<li>
+<p><strong>Routing instability at very small scales</strong>: At XS-scale (0.3B active), the benefits of expert specialization diminish because individual experts have too few parameters to learn meaningfully distinct representations. The scaling law shows diminishing returns below ~8 experts per layer at this scale.</p>
+</li>
+</ol>
+<h2>Future Work</h2>
+<p><strong>Authors' suggested directions:</strong>
+- Extending the scaling law to vision-language models (VLMs) with MoE architectures
+- Exploring dynamic expert routing that adapts sparsity at inference time based on available compute budget
+- On-device learning (fine-tuning) of MoE models without catastrophic forgetting</p>
+<p><strong>Promising follow-on directions:</strong>
+- <strong>MoE with structured pruning</strong>: Rather than routing to different experts, one could prune experts after training based on utilization statistics — keeping only the most-used experts for deployment
+- <strong>Layer-wise sparsity variation</strong>: Not all layers benefit equally from MoE; layers with lower information density (e.g., early layers) might use fewer active experts than later layers
+- <strong>Dynamic active-parameter budgets</strong>: Allowing MobileMoE to scale up or down its active parameter count at runtime based on battery state, thermal conditions, or task complexity
+- <strong>Cross-device MoE</strong>: Using an edge-cloud hybrid where the device handles routing and the cloud handles expert computation for the hardest tokens</p>
+<h2>Implications for Edge / On-Device Deployment</h2>
+<p>MobileMoE has direct practical implications for the next generation of on-device AI:</p>
+<ol>
+<li>
+<p><strong>Better performance within the same memory budget</strong>: A 2.5B total-parameter MoE model using 1.3GB INT4 memory can outperform a 1.3B dense model using the same memory. Memory-constrained users (mid-range phones) get a meaningful quality upgrade for free.</p>
+</li>
+<li>
+<p><strong>Faster battery-efficient inference</strong>: The 2–4× FLOPs reduction translates to proportional energy savings on NPUs. For battery-sensitive use cases (always-on voice assistants, real-time translation), this is transformative.</p>
+</li>
+<li>
+<p><strong>The "right" architecture for always-on AI</strong>: Smartphones need models that can process many short interactions throughout the day. MoE's lower per-token compute directly enables this use case at quality levels previously requiring larger dense models.</p>
+</li>
+<li>
+<p><strong>Open-source training recipe matters</strong>: All training uses open-source datasets. This means the MobileMoE architecture can be reproduced and adapted by device manufacturers without proprietary data dependencies.</p>
+</li>
+</ol>
+<h2>Links</h2>
+<p><a href="https://hf.co/papers/2605.27358">Original Paper</a></p>
+<script type="text/javascript">if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width < 768) ? "left" : align;
+        indent = (screen.width < 768) ? "0em" : indent;
+        linebreak = (screen.width < 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+
+    var configscript = document.createElement('script');
+    configscript.type = 'text/x-mathjax-config';
+    configscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'none' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        availableFonts: ['STIX', 'TeX']," +
+        "        preferredFont: 'STIX'," +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(configscript);
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+</script>
+    </article>
+
+        <div class="tags">
+            <p>tags: <a href="/tag/slm.html">SLM</a>, <a href="/tag/ai.html">AI</a>, <a href="/tag/paper-review.html">paper-review</a></p>
+        </div>
+
+    <hr>
+
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <ul class="list-inline text-center">
+                            <li>
+                                <a href="http://twitter.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-twitter fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="http://github.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-github fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                    </ul>
+<p class="copyright text-muted">
+    Blog powered by <a href="http://getpelican.com">Pelican</a>,
+    which takes great advantage of <a href="http://python.org">Python</a>. <br />        &copy;  toohsk
+</p>                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- jQuery -->
+    <script src="/theme/js/jquery.min.js"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="/theme/js/bootstrap.min.js"></script>
+
+        <!-- Custom Theme JavaScript -->
+        <script src="/theme/js/clean-blog.min.js"></script>
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-LR14KRYZ4L"></script>
+<script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-LR14KRYZ4L');
+</script>
+</body>
+
+</html>

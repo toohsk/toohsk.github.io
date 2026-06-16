@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+            <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+        <title>MobileMoE：オンデバイス向けMixture-of-Experts言語モデルの最適設計</title>
+
+            <link href="/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Full Atom Feed" />
+            <link href="/feeds/{slug}.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Categories Atom Feed" />
+        <!-- Bootstrap Core CSS -->
+        <link href="/theme/css/bootstrap.min.css" rel="stylesheet">
+
+        <!-- Custom CSS -->
+        <link href="/theme/css/clean-blog.min.css" rel="stylesheet">
+
+        <!-- Code highlight color scheme -->
+            <link href="/theme/css/code_blocks/github.css" rel="stylesheet">
+
+
+        <!-- Custom Fonts -->
+        <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+        <link href='https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+        <link href='https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/css'>
+
+        <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+        <!--[if lt IE 9]>
+            <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+            <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+
+
+        <meta name="description" content="MobileMoEはオンデバイスLLMの新たなパレートフロンティアを確立する——専用のMoEスケーリング則と4段階トレーニングレシピ（量子化対応トレーニングを含む）により、10億未満のアクティブパラメータでモバイル向けMoEモデルが密なベースラインより2〜4倍少ない推論FLOPsを実現。">
+
+        <meta name="author" content="toohsk">
+
+        <meta name="tags" content="SLM">
+        <meta name="tags" content="AI">
+        <meta name="tags" content="論文解説">
+
+	                <meta property="og:locale" content="">
+		<meta property="og:site_name" content="Atsushi's blog">
+
+	<meta property="og:type" content="article">
+            <meta property="article:author" content="/author/toohsk.html">
+	<meta property="og:url" content="/mobilemoeondebaisuxiang-kemixture-of-expertsyan-yu-moderunozui-shi-she-ji.html">
+	<meta property="og:title" content="MobileMoE：オンデバイス向けMixture-of-Experts言語モデルの最適設計">
+	<meta property="article:published_time" content="2026-05-29 00:00:00+09:00">
+            <meta property="og:description" content="MobileMoEはオンデバイスLLMの新たなパレートフロンティアを確立する——専用のMoEスケーリング則と4段階トレーニングレシピ（量子化対応トレーニングを含む）により、10億未満のアクティブパラメータでモバイル向けMoEモデルが密なベースラインより2〜4倍少ない推論FLOPsを実現。">
+
+            <meta property="og:image" content="/images/blog_cover.jpg">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:site" content="@toohsk">
+        <meta name="twitter:title" content="MobileMoE：オンデバイス向けMixture-of-Experts言語モデルの最適設計">
+
+            <meta name="twitter:image" content="/images/blog_cover.jpg">
+
+            <meta name="twitter:description" content="MobileMoEはオンデバイスLLMの新たなパレートフロンティアを確立する——専用のMoEスケーリング則と4段階トレーニングレシピ（量子化対応トレーニングを含む）により、10億未満のアクティブパラメータでモバイル向けMoEモデルが密なベースラインより2〜4倍少ない推論FLOPsを実現。">
+</head>
+
+<body class="article-mobilemoeondebaisuxiang-kemixture-of-expertsyan-yu-moderunozui-shi-she-ji">
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+        <div class="container-fluid">
+            <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header page-scroll">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="/">Atsushi's blog</a>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav navbar-right">
+
+                </ul>
+            </div>
+            <!-- /.navbar-collapse -->
+        </div>
+        <!-- /.container -->
+    </nav>
+
+    <!-- Page Header -->
+        <header class="intro-header" style="background-image: url('/images/blog_cover.jpg')">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <div class="post-heading">
+                        <h1>MobileMoE：オンデバイス向けMixture-of-Experts言語モデルの最適設計</h1>
+                        <span class="meta">Posted by
+                                <a href="/author/toohsk.html">toohsk</a>
+                             on 金 29 5月 2026
+                        </span>
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+    <!-- Post Content -->
+    <article>
+        <h2>なぜこの研究が重要か</h2>
+<p>Mixture-of-Experts（MoE）は100B以上の大規模モデルにおける主流アーキテクチャとなっている——DeepSeek-V3、Mixtral、GPT-4はいずれも疎活性化によって計算量を比例的に増加させることなく容量をスケールアップしている。しかし根本的な問いは答えられないままだった：<strong>10億未満パラメータのスケールで、実際のモバイルハードウェア上でもMoEは同じ優位性をもたらすのか？</strong></p>
+<p>課題は単純ではない。モバイルデプロイメントは、データセンターには存在しない厳しい制約を課している。スマートフォンのNPU/CPUは熱制限のもとで動作し、メモリ帯域幅は固定されており、OSや他のアプリとリソースを共有しなければならない。<strong>アクティブ計算（FLOPs）と重みメモリ</strong>という2つのボトルネックはMoEアーキテクチャでは部分的に分離されているが、モバイルシリコン上では複雑に相互作用する。</p>
+<p>0.5〜1Bパラメータの密なモデル（MobileLLM、Phi-1.5など）はモバイル向けに既に十分研究されている。しかしそれらは全パラメータをすべてのトークンで計算する。MoEは異なるトレードオフを提供する：より多い総パラメータ（エキスパートに分散）だが、1トークンあたりにアクティブになるのはその一部のみ。このトレードオフ——重みロードの増大と1トークンあたりの計算量削減——が実際にモバイル推論に有利かは、ターゲットハードウェアの具体的なボトルネックに依存する。</p>
+<p>本論文はこの問いに厳密に答えた最初の研究であり、答えは明確に<strong>YES</strong>だ——ただし正しいアーキテクチャ選択とトレーニング手法があってのことだが。</p>
+<h2>技術的なアプローチ</h2>
+<h3>1. オンデバイスMoEスケーリング則</h3>
+<p>中心的な方法論的貢献は、<strong>INT4重みメモリとアクティブ推論FLOPsの両方をMoEアーキテクチャのハイパーパラメータの関数としてモデル化する合同スケーリング則</strong>だ。</p>
+<p>考慮される主要なハイパーパラメータ：
+- <strong>エキスパート数（E）</strong>：MoE層あたりの総エキスパート数
+- <strong>Top-kルーティング（k）</strong>：1トークンあたりにアクティブになるエキスパート数
+- <strong>疎活性化率（k/E）</strong>：アクティブになるエキスパートの割合
+- <strong>エキスパート粒度</strong>：個々のエキスパートFFNのサイズ（大きいほど数が少なく、小さいほど数が多い）
+- <strong>共有エキスパート比率</strong>：各層で常にアクティブな（密な）エキスパートの割合</p>
+<p>スケーリング則が明らかにした非直感的な洞察：モバイルハードウェアにおけるパレート最適な構成は<strong>最大疎活性化（例：多数の小エキスパートによるtop-1ルーティング）ではない</strong>。これは直感に反するように見える——1トークンあたりの使用エキスパートを減らせばもっと計算が少なくなるはずでは？問題は次の点にある：</p>
+<ol>
+<li>非常に細粒度のエキスパートは<strong>ルーティングオーバーヘッド</strong>を増加させる（1トークンあたりの意思決定が多くなる）</li>
+<li>高い疎活性化は推論時の<strong>負荷不均衡</strong>を増加させ、一部のエキスパートがアイドル状態になる</li>
+<li>小規模での極端な疎活性化は<strong>モデル品質を損なう</strong>——個々のエキスパートが有意義な表現を学習するパラメータが少なすぎる</li>
+</ol>
+<p>スケーリング則は<strong>「モバイルスイートスポット」</strong>を特定する：細粒度かつ共有エキスパートを組み合わせた適度な疎活性化（1層あたり約8〜16エキスパートからtop-2選択）。</p>
+<h3>2. アーキテクチャ：細粒度＋共有エキスパート</h3>
+<p>スケーリング則に基づき、MobileMoEはハイブリッドエキスパート設計を採用する：</p>
+<ul>
+<li>
+<p><strong>細粒度エキスパート</strong>：各エキスパートは標準MoEより少ないパラメータを持つ（DeepSeekMoEと同様）。多数の小エキスパートを持つことで細かい専門化が可能になる——異なるエキスパートが異なる構文構造、ドメイン、推論パターンを担当できる——重みメモリフットプリントを比例的に増加させることなく。</p>
+</li>
+<li>
+<p><strong>共有エキスパート</strong>：少数のエキスパート（通常1〜2個）がルーティングに関わらず常にアクティブになる。これらは全トークンが通過する「バックボーン」表現として機能し、ルーティングされたエキスパートが専門化を担う。この設計はDeepSeek-MoEから借用し、ルーティングの崩壊（全トークンが同じ少数エキスパートに流れる現象）を防ぐ。</p>
+</li>
+</ul>
+<p>結果として生まれるモデルファミリーは0.3〜0.9Bのアクティブパラメータ、1.3〜5.3Bの総パラメータにまたがる：
+- <strong>MobileMoE-XS</strong>：0.3Bアクティブ / 1.3B総計
+- <strong>MobileMoE-S</strong>：〜0.5Bアクティブ / 〜2.5B総計
+- <strong>MobileMoE-M</strong>：〜0.9Bアクティブ / 〜5.3B総計</p>
+<h3>3. 4段階トレーニングレシピ</h3>
+<p>重要な発見は、このスケールのMoEには標準的な事前学習を超えた慎重なトレーニングが必要だということだ。論文は4段階パイプラインを提案する：</p>
+<p><strong>第1段階：事前学習</strong> — オープンソースデータセット（CommonCrawl、The Pileなど）での標準的な次トークン予測。重要なのは、ルーティングメカニズムが早期に安定する必要があること；学習初期の不安定なルーティングはエキスパート活性化の崩壊を招く。</p>
+<p><strong>第2段階：中間学習</strong> — より低い学習率でより高品質なデータ（コードや数学的テキストを含む）での継続学習。この段階はMoEの価値となるドメイン固有のエキスパート専門化を構築するために重要。</p>
+<p><strong>第3段階：命令ファインチューニング（IFT）</strong> — 命令と応答のペアでの教師ありファインチューニング。自然言語の指示に従う能力を習得させる。</p>
+<p><strong>第4段階：量子化対応トレーニング（QAT）</strong> — 論文はこの段階を必須と位置づける。INT4へのポストトレーニング量子化（PTQ）はMoEモデルで大幅な品質低下を引き起こす。なぜならエキスパートルーティングの判断は、INT4重みによる量子化ノイズに特に敏感だからだ。QATはINT4量子化をシミュレートしながらモデルをトレーニングし、ルーティングメカニズムが量子化された重み分布に適応できるようにする。この段階は単純なPTQから失われた品質の1〜2パーセントポイントを回復する。</p>
+<h3>4. スマートフォンでの効率的なMoE推論</h3>
+<p>トレーニングパイプラインを超えて、本論文は一般消費者向けAndroidスマートフォン上でのMoE推論の<strong>初の包括的なオンデバイスプロファイリング</strong>を提供する：
+- I/Oオーバーヘッドを削減するエキスパート重みキャッシュ戦略
+- NPU実行のための効率的なスパーステンソル演算
+- 異なるハードウェアティア間での遅延/メモリトレードオフの特性評価</p>
+<h2>先行研究との比較</h2>
+<table>
+<thead>
+<tr>
+<th>モデル</th>
+<th>アクティブパラメータ</th>
+<th>総パラメータ</th>
+<th>平均スコア（14タスク）</th>
+<th>プリフィル速度</th>
+<th>デコード速度</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MobileLLM-Pro</td>
+<td>0.5B</td>
+<td>0.5B</td>
+<td>ベースライン</td>
+<td>1×</td>
+<td>1×</td>
+</tr>
+<tr>
+<td>OLMoE-1B-7B</td>
+<td>1B</td>
+<td>7B</td>
+<td>≈ MobileMoE-M</td>
+<td>N/A</td>
+<td>N/A</td>
+</tr>
+<tr>
+<td>MobileMoE-S</td>
+<td>〜0.5B</td>
+<td>〜2.5B</td>
+<td>≈ MobileLLM-Pro</td>
+<td>1.8〜3.8×</td>
+<td>2.2〜3.4×</td>
+</tr>
+<tr>
+<td>MobileMoE-M</td>
+<td>〜0.9B</td>
+<td>〜5.3B</td>
+<td>≥ OLMoE-1B-7B</td>
+<td>—</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>主な比較結果：
+- <strong>MobileLLM-Pro（密なベースライン）との比較</strong>：MobileMoE-Sは同等のINT4重みメモリで<strong>同等の品質</strong>を維持しつつ、プリフィルが1.8〜3.8×、デコードが2.2〜3.4×高速
+- <strong>OLMoE-1B-7Bとの比較</strong>：MobileMoEは確立されたMoEモデルに匹敵または超える品質を<strong>総パラメータ最大60%削減</strong>で達成
+- <strong>密なLLM全般との比較</strong>：14のベンチマーク全体で、MobileMoEは主要なオンデバイス密なモデルに<strong>2〜4×少ない推論FLOPs</strong>で匹敵または超える</p>
+<h2>実験結果の読み方</h2>
+<p>速度の数値は注意深い解釈が必要だ。<strong>プリフィル</strong>（入力プロンプトの処理）と<strong>デコード</strong>（1トークンずつ生成）では、MoEの恩恵が異なる形で現れる：</p>
+<ul>
+<li>
+<p><strong>プリフィル高速化（1.8〜3.8×）</strong>は主に1トークンあたりのFLOPs削減から来ている。プリフィルは多数のトークンを並列処理するため、1トークンあたりの計算量削減が実際の経過時間に直接変換される。</p>
+</li>
+<li>
+<p><strong>デコード高速化（2.2〜3.4×）</strong>はより驚くべきものだ。デコードは通常計算制約ではなくメモリ帯域幅制約（メモリからの重みロード）だ。ここでの高速化はMoEの特性から来ている：デコード時、各トークンにつきエキスパート重みの一部のみをメモリからロードする必要がある。総重みメモリはより大きいが、各ステップで<em>アクセスされる</em>量はより少ない。</p>
+</li>
+</ul>
+<p>14のベンチマークカバレッジには常識推論（HellaSwag、PIQA、WinoGrande）、世界知識（ARC-E/C、MMLU）、数学（GSM8K）、コード（HumanEval/MBPP）が含まれる。結果はタスクタイプ全体で一貫しており、品質改善がベンチマーク固有ではなく本物であることを示唆している。</p>
+<h2>アルゴリズムの重要部分の解説</h2>
+<h3>オンデバイスMoEスケーリング則の定式化</h3>
+<p>スケーリング則はモデルの品質、メモリ、計算量を以下のように関係づける：</p>
+<p><strong>品質</strong>はアクティブパラメータと総パラメータの関数として：
+</p>
+<div class="math">$$\text{品質} \propto f(N_{\text{active}}, N_{\text{total}})$$</div>
+<p><strong>メモリ</strong>：
+</p>
+<div class="math">$$M = N_{\text{total}} \cdot b_{\text{INT4}}$$</div>
+<p>
+<span class="math">\(b_{\text{INT4}}\)</span>はINT4量子化下での1パラメータあたりのビット数。</p>
+<p><strong>1トークンあたりのアクティブFLOPs</strong>：
+</p>
+<div class="math">$$C = 2 \cdot N_{\text{active}}$$</div>
+<p>重要な洞察は、これら2つの制約が<span class="math">\((N_{\text{active}}, N_{\text{total}})\)</span>空間に<strong>パレートフロンティア</strong>を定義することだ。所定のメモリバジェット<span class="math">\(M\)</span>に対して：
+- <strong>密なモデル</strong>：<span class="math">\(N_{\text{active}} = N_{\text{total}} = M / b_{\text{INT4}}\)</span> — 最大のアクティブパラメータだがすべてのメモリが毎トークンアクセスされる
+- <strong>非常に疎なMoE（top-1）</strong>：<span class="math">\(N_{\text{active}} \ll N_{\text{total}}\)</span> — 最小計算量だが小規模では品質が低い
+- <strong>最適なMoE</strong>：適度な疎活性化と細粒度エキスパート — 品質を維持しながら計算量を大幅に削減するスイートスポット</p>
+<p>このスケーリング則により、アーキテクト設計者は完全なトレーニング実験を実行することなく、特定のモバイルデバイスプロファイルに最適な<span class="math">\((N_{\text{active}}, N_{\text{total}}, k, E)\)</span>構成を<strong>予測</strong>できる。</p>
+<h3>ルーティング計算という新たなボトルネック</h3>
+<p>標準的なTransformerアテンションは（シーケンス長に対して）計算制約がある。MoEは新しいボトルネックを導入する：<strong>ルーティング計算</strong>。各トークンについて、ルーターは次を評価する：</p>
+<div class="math">$$\text{ルータースコア}_i = \text{softmax}(x W_r)_i, \quad i \in \{1, \ldots, E\}$$</div>
+<p>この<span class="math">\(E\)</span>エキスパートに対する線形射影は、モバイルNPU上で効率的に実行される必要がある。細粒度MoE（多数の小エキスパート）は<span class="math">\(E\)</span>を増加させ、ルーティングを全体的な計算量に対して相対的に高コストにする。論文は<span class="math">\(E \approx 64\)</span>を超えると、ルーティングオーバーヘッドがモバイルNPU上での総計算量の意味のある割合になることを示している。</p>
+<p>共有エキスパート設計は「バックボーン」エキスパートのルーティングを完全にバイパスする——すべてのトークンが無条件にそれらを実行——ハードウェアスケジューリングを簡素化しキャッシュ利用率を向上させる。</p>
+<h2>限界と課題</h2>
+<ol>
+<li>
+<p><strong>メモリフットプリントの増大</strong>：INT4量子化でも、5.3B総パラメータモデルは約3GBの重みストレージを必要とする。これは現在のフラッグシップスマートフォン（8〜12GB RAM）には収まるが、ミッドレンジデバイス（4〜6GB RAM）では厳しい。</p>
+</li>
+<li>
+<p><strong>推論時のエキスパート負荷不均衡</strong>：学習時（補助的な負荷分散ロスによって均一なエキスパート活性化を強制できる）と異なり、推論時のルーティングは制約がない。実際にはエキスパート活性化は偏っており——一部のエキスパートはコールドで（ほとんど使われない）——メモリの非効率性を生じさせる。論文はキャッシュ戦略でこれに対処しているが不均衡を排除できない。</p>
+</li>
+<li>
+<p><strong>トレーニングコスト</strong>：4段階のトレーニングパイプラインは単一の密なモデルのトレーニングより大幅に複雑だ。QATは特に高コスト——モデルが量子化シミュレーションを含む追加ステップでトレーニングされる必要がある。</p>
+</li>
+<li>
+<p><strong>非常に小さいスケールでのルーティング不安定性</strong>：XSスケール（0.3Bアクティブ）では、エキスパート専門化の恩恵が薄れる。なぜなら個々のエキスパートのパラメータが少なすぎて意味のある異なる表現を学習できないからだ。スケーリング則はこのスケールで1層あたり約8エキスパート未満では収穫逓減を示している。</p>
+</li>
+</ol>
+<h2>今後の展望</h2>
+<p><strong>著者が示唆する方向性：</strong>
+- MoEアーキテクチャを持つビジョン言語モデル（VLM）へのスケーリング則の拡張
+- 利用可能な計算バジェットに基づいて推論時に疎活性化を適応させる動的エキスパートルーティングの探索
+- 壊滅的忘却なしのMoEモデルのオンデバイス学習（ファインチューニング）</p>
+<p><strong>派生的な研究方向の独自考察：</strong>
+- <strong>構造化プルーニングとMoE</strong>：ルーティングではなく、トレーニング後に活性化統計に基づいてエキスパートをプルーニング——最も使われるエキスパートのみをデプロイメントに保持する
+- <strong>層別疎活性化の変化</strong>：すべての層がMoEから等しく恩恵を受けるわけではない；情報密度が低い層（例：初期層）は後の層より少ないアクティブエキスパートを使える
+- <strong>動的アクティブパラメータバジェット</strong>：バッテリー状態、熱条件、タスク複雑さに基づいて実行時にアクティブパラメータ数をスケールアップ/ダウンできるようMobileMoEを許可する
+- <strong>クロスデバイスMoE</strong>：デバイスがルーティングを処理し、クラウドが最も難しいトークンのエキスパート計算を処理するエッジクラウドハイブリッドの使用</p>
+<h2>エッジ・オンデバイスへの示唆</h2>
+<p>MobileMoEは次世代のオンデバイスAIに直接的な実用的意味を持つ：</p>
+<ol>
+<li>
+<p><strong>同じメモリバジェット内でより優れたパフォーマンス</strong>：同じメモリを使用して1.3GB INT4メモリで2.5B総パラメータMoEモデルが1.3B密なモデルを上回れる。メモリ制約のあるユーザー（ミッドレンジスマートフォン）は無償で意味のある品質向上を得る。</p>
+</li>
+<li>
+<p><strong>高速で電池効率の良い推論</strong>：2〜4倍のFLOPs削減はNPU上での比例的なエネルギー節約に変換される。電池に敏感なユースケース（常時起動音声アシスタント、リアルタイム翻訳）にとってこれは変革的だ。</p>
+</li>
+<li>
+<p><strong>常時オンAIのための「正しい」アーキテクチャ</strong>：スマートフォンは1日を通じて多くの短いインタラクションを処理できるモデルを必要とする。MoEの低い1トークンあたりの計算量がこのユースケースを、以前は大きな密なモデルが必要だった品質レベルで実現する。</p>
+</li>
+<li>
+<p><strong>オープンソーストレーニングレシピの重要性</strong>：すべてのトレーニングはオープンソースデータセットを使用している。これはMobileMoEアーキテクチャを独自データ依存性なしにデバイスメーカーが再現・適応できることを意味する。</p>
+</li>
+</ol>
+<h2>原文リンク</h2>
+<p><a href="https://hf.co/papers/2605.27358">Original Paper</a></p>
+<script type="text/javascript">if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width < 768) ? "left" : align;
+        indent = (screen.width < 768) ? "0em" : indent;
+        linebreak = (screen.width < 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+
+    var configscript = document.createElement('script');
+    configscript.type = 'text/x-mathjax-config';
+    configscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'none' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        availableFonts: ['STIX', 'TeX']," +
+        "        preferredFont: 'STIX'," +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(configscript);
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+</script>
+    </article>
+
+        <div class="tags">
+            <p>tags: <a href="/tag/slm.html">SLM</a>, <a href="/tag/ai.html">AI</a>, <a href="/tag/lun-wen-jie-shuo.html">論文解説</a></p>
+        </div>
+
+    <hr>
+
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <ul class="list-inline text-center">
+                            <li>
+                                <a href="http://twitter.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-twitter fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="http://github.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-github fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                    </ul>
+<p class="copyright text-muted">
+    Blog powered by <a href="http://getpelican.com">Pelican</a>,
+    which takes great advantage of <a href="http://python.org">Python</a>. <br />        &copy;  toohsk
+</p>                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- jQuery -->
+    <script src="/theme/js/jquery.min.js"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="/theme/js/bootstrap.min.js"></script>
+
+        <!-- Custom Theme JavaScript -->
+        <script src="/theme/js/clean-blog.min.js"></script>
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-LR14KRYZ4L"></script>
+<script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-LR14KRYZ4L');
+</script>
+</body>
+
+</html>

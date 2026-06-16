@@ -193,15 +193,15 @@
 <p>4〜8単語という範囲は意図的に調整されている：ユーザーが即時応答の心理的印象を得るのに十分な長さであり、マイクロコントローラークラスのデバイスで数十ミリ秒以内に生成できる短さでもある。</p>
 <h2>アルゴリズムの重要部分の解説</h2>
 <h3>冒頭句のプレフィックス定式化</h3>
-<p>形式的には、μLMは対話文脈 $C$ を条件として、$k \in [4, 8]$ 個のトークン $w_1, w_2, \ldots, w_k$ を生成する：</p>
-<p>$$\hat{w}<em w__1:k="w_{1:k">{1:k} = \arg\max</em> \mid C)$$}} P_{\mu}(w_{1:k</p>
-<p>ここで $P_{\mu}$ はμLMの確率分布。クラウドモデルはその後：</p>
-<p>$$w_{k+1}, w_{k+2}, \ldots \sim P_{\text{cloud}}(\cdot \mid C, \hat{w}_{1:k})$$</p>
-<p>ユーザーに見える完全な応答は $[\hat{w}<em k_1:="k+1:">{1:k}, w</em>]$ となる。<strong>重要な制約は、クラウドモデルが冒頭句を条件として続きを生成しなければならない</strong>ことだ（ゼロから再生成するのでは協調モードの意味がなくなる）。</p>
-<p>この定式化では、μLMは<strong>完全な応答品質</strong>ではなく<strong>プレフィックス品質</strong>に最適化されている。プレフィックス $\hat{w}_{1:k}$ が良質とは：(a) 文脈 $C$ に対してもっともらしい、(b) クラウドモデルが整合のとれた完全な応答に向けて自然に拡張できる、という2条件を満たすことを意味する。</p>
+<p>形式的には、μLMは対話文脈 <span class="math">\(C\)</span> を条件として、<span class="math">\(k \in [4, 8]\)</span> 個のトークン <span class="math">\(w_1, w_2, \ldots, w_k\)</span> を生成する：</p>
+<div class="math">$$\hat{w}_{1:k} = \arg\max_{w_{1:k}} P_{\mu}(w_{1:k} \mid C)$$</div>
+<p>ここで <span class="math">\(P_{\mu}\)</span> はμLMの確率分布。クラウドモデルはその後：</p>
+<div class="math">$$w_{k+1}, w_{k+2}, \ldots \sim P_{\text{cloud}}(\cdot \mid C, \hat{w}_{1:k})$$</div>
+<p>ユーザーに見える完全な応答は <span class="math">\([\hat{w}_{1:k}, w_{k+1:}]\)</span> となる。<strong>重要な制約は、クラウドモデルが冒頭句を条件として続きを生成しなければならない</strong>ことだ（ゼロから再生成するのでは協調モードの意味がなくなる）。</p>
+<p>この定式化では、μLMは<strong>完全な応答品質</strong>ではなく<strong>プレフィックス品質</strong>に最適化されている。プレフィックス <span class="math">\(\hat{w}_{1:k}\)</span> が良質とは：(a) 文脈 <span class="math">\(C\)</span> に対してもっともらしい、(b) クラウドモデルが整合のとれた完全な応答に向けて自然に拡張できる、という2条件を満たすことを意味する。</p>
 <p>直感的なイメージ：μLMは「この会話ならまずこう切り出す」という語感を学習し、クラウドは「この書き出しなら自然にこう続けられる」という継続を学習する。両者が暗黙のうちに「引き継ぎのフォーマット」を共有することで、途切れのない協調が生まれる。</p>
 <h3>グレースフル回復のメカニズム</h3>
-<p>エラー訂正では、$P_{\text{cloud}}(w_{k+1} \mid C, \hat{w}_{1:k})$ が閾値 $\tau$ を下回った場合（クラウドモデルが自然な続きに低確率を割り当てた場合）にシステムが回復を起動する。これは「クラウドが引き継ぎを自信を持って実行できるか」の自動検査機構として機能する。</p>
+<p>エラー訂正では、<span class="math">\(P_{\text{cloud}}(w_{k+1} \mid C, \hat{w}_{1:k})\)</span> が閾値 <span class="math">\(\tau\)</span> を下回った場合（クラウドモデルが自然な続きに低確率を割り当てた場合）にシステムが回復を起動する。これは「クラウドが引き継ぎを自信を持って実行できるか」の自動検査機構として機能する。</p>
 <h2>限界と課題</h2>
 <p>著者が認めている制約：</p>
 <ol>
@@ -241,6 +241,68 @@
 <p>より広い建築的教訓として、エッジ-クラウドの遅延は「ユーザーが関与し続けるのに十分な最小限の処理をエッジが担う」ことで吸収できる ── グラフィックスでフレーム補間がレンダリング遅延を隠すのと同じ<strong>知覚的遅延隠蔽</strong>のアプローチだ。</p>
 <h2>原文リンク</h2>
 <p><a href="https://hf.co/papers/2604.19642">Original Paper</a></p>
+<script type="text/javascript">if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width < 768) ? "left" : align;
+        indent = (screen.width < 768) ? "0em" : indent;
+        linebreak = (screen.width < 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+
+    var configscript = document.createElement('script');
+    configscript.type = 'text/x-mathjax-config';
+    configscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'none' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        availableFonts: ['STIX', 'TeX']," +
+        "        preferredFont: 'STIX'," +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(configscript);
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+</script>
     </article>
 
         <div class="tags">

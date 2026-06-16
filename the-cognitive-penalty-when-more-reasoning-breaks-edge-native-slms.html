@@ -187,13 +187,13 @@
 - Frozen weights throughout (pure inference-time ablation)</p>
 <p>The key experimental design principle: by keeping weights fixed and only toggling the reasoning mode, the paper provides a clean measurement of <strong>the causal effect of System 2 reasoning</strong> rather than conflating it with model size or training differences.</p>
 <h3>The Cognitive Collapse Mechanism</h3>
-<p>Cognitive collapse (Reasoning Non-Convergence) occurs when extended reasoning cycles through inconsistent partial arguments without converging. Formally, if we denote the model's internal reasoning state as a sequence $R_1, R_2, \ldots, R_T$, collapse occurs when:</p>
-<p>$$\nexists T^<em> : P(\text{verdict} \mid R_{T^</em>}) &gt; \tau$$</p>
-<p>for any reasonable threshold $\tau$ within the token budget. The model generates reasoning that perpetually reweighs the adversarial proposal's arguments without ever reaching a sufficient confidence margin for a verdict.</p>
+<p>Cognitive collapse (Reasoning Non-Convergence) occurs when extended reasoning cycles through inconsistent partial arguments without converging. Formally, if we denote the model's internal reasoning state as a sequence <span class="math">\(R_1, R_2, \ldots, R_T\)</span>, collapse occurs when:</p>
+<div class="math">$$\nexists T^* : P(\text{verdict} \mid R_{T^*}) &gt; \tau$$</div>
+<p>for any reasonable threshold <span class="math">\(\tau\)</span> within the token budget. The model generates reasoning that perpetually reweighs the adversarial proposal's arguments without ever reaching a sufficient confidence margin for a verdict.</p>
 <p>The adversarial proposals are designed to present balanced-seeming arguments on both sides. System 1 (intuitive inference) pattern-matches to known good/bad governance patterns and commits quickly. System 2 (deliberative reasoning) attempts to reason through the arguments, gets pulled between them, and may never resolve.</p>
 <p>The intuition: <strong>adversarial social engineering is specifically crafted to exploit deliberative reasoning</strong> by constructing plausible arguments for the wrong conclusion. Fast intuitive processing, which relies on pattern matching from training rather than in-context deliberation, is less susceptible to this manipulation.</p>
 <h3>BFT Constraints and Why They Make This Worse</h3>
-<p>Byzantine Fault Tolerance requires that for a system with $f$ faulty nodes, there must be at least $2f+1$ honest nodes that agree. In standard BFT protocols, "faulty" means Byzantine actors. The paper extends this to include <strong>cognitively faulty</strong> nodes — nodes that fail to produce a verdict due to reasoning non-convergence.</p>
+<p>Byzantine Fault Tolerance requires that for a system with <span class="math">\(f\)</span> faulty nodes, there must be at least <span class="math">\(2f+1\)</span> honest nodes that agree. In standard BFT protocols, "faulty" means Byzantine actors. The paper extends this to include <strong>cognitively faulty</strong> nodes — nodes that fail to produce a verdict due to reasoning non-convergence.</p>
 <p>If 26.7% of nodes experience cognitive collapse on adversarial proposals, and adversarial actors time proposals to maximize this exposure, the effective BFT fault tolerance is severely degraded. The paper frames this as a <strong>systemic governance vulnerability</strong> that only manifests under System 2 reasoning.</p>
 <h2>Limitations</h2>
 <p>The authors are appropriately candid:</p>
@@ -242,6 +242,68 @@
 <p>The broader lesson: <strong>inference-time compute scaling has context-dependent safety properties</strong>. It helps in benign reasoning tasks but actively creates attack surfaces in adversarial governance scenarios.</p>
 <h2>Links</h2>
 <p><a href="https://hf.co/papers/2604.16913">Original Paper</a></p>
+<script type="text/javascript">if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width < 768) ? "left" : align;
+        indent = (screen.width < 768) ? "0em" : indent;
+        linebreak = (screen.width < 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+
+    var configscript = document.createElement('script');
+    configscript.type = 'text/x-mathjax-config';
+    configscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'none' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        availableFonts: ['STIX', 'TeX']," +
+        "        preferredFont: 'STIX'," +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(configscript);
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+</script>
     </article>
 
         <div class="tags">

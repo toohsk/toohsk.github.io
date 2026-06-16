@@ -128,14 +128,14 @@
 <h3>第2段階：IGPOによるアジェンティック強化学習</h3>
 <p>第2段階は<strong>IGPO（Information Gain Policy Optimization：情報利得方策最適化）</strong>を基盤としたアジェンティック強化学習を使用する。これが本論文で最も技術的に新規な貢献だ。</p>
 <p><strong>深層リサーチRLにおけるクレジット割当問題</strong>：言語モデルの標準的なRLは最終出力品質を報酬にする。40ステップのリサーチトラジェクトリでは、これは非常にスパースな報酬シグナルを作り出す ── モデルは40アクションごとに1つの学習シグナルしか得られない。トラジェクトリ終端のスパース報酬は、どの中間決定が価値があったかをモデルが学ぶのを妨げる。</p>
-<p><strong>IGPOの解決策：ターンレベルの情報利得報酬</strong>。各エージェントターン $t$ で、モデルは検索またはツール使用アクション $a_t$ を実行し、結果 $o_t$ を観察する。ターンレベルの報酬 $r_t$ は以下で計算される：</p>
-<p>$$r_t = \text{InfoGain}(o_t \mid C_t) + \lambda \cdot \text{FormatScore}(a_t)$$</p>
-<p>ここで $C_t$ はターン $t$ までに蓄積された文脈、$\lambda$ は2つの報酬コンポーネントのバランスをとる係数。</p>
-<p><strong>情報利得（InfoGain）</strong>は、アクション $a_t$ がリサーチ文脈に貢献した新規の関連情報量を測定する：
-- $C_t$ ですでにカバーされているドキュメントを取得するアクション → 低報酬（低情報利得）
+<p><strong>IGPOの解決策：ターンレベルの情報利得報酬</strong>。各エージェントターン <span class="math">\(t\)</span> で、モデルは検索またはツール使用アクション <span class="math">\(a_t\)</span> を実行し、結果 <span class="math">\(o_t\)</span> を観察する。ターンレベルの報酬 <span class="math">\(r_t\)</span> は以下で計算される：</p>
+<div class="math">$$r_t = \text{InfoGain}(o_t \mid C_t) + \lambda \cdot \text{FormatScore}(a_t)$$</div>
+<p>ここで <span class="math">\(C_t\)</span> はターン <span class="math">\(t\)</span> までに蓄積された文脈、<span class="math">\(\lambda\)</span> は2つの報酬コンポーネントのバランスをとる係数。</p>
+<p><strong>情報利得（InfoGain）</strong>は、アクション <span class="math">\(a_t\)</span> がリサーチ文脈に貢献した新規の関連情報量を測定する：
+- <span class="math">\(C_t\)</span> ですでにカバーされているドキュメントを取得するアクション → 低報酬（低情報利得）
 - 真に新規で関連性の高い情報を取得するアクション → 高報酬
 - トピック外または低品質の情報を取得するアクション → ほぼゼロの報酬</p>
-<p><strong>フォーマット認識正則化</strong>（$\text{FormatScore}$）は、不正なツール呼び出し・不整合な構造の中間サマリー・フォーマット外のレポートセクションにペナルティを課す。</p>
+<p><strong>フォーマット認識正則化</strong>（<span class="math">\(\text{FormatScore}\)</span>）は、不正なツール呼び出し・不整合な構造の中間サマリー・フォーマット外のレポートセクションにペナルティを課す。</p>
 <p>この組み合わせにより、長期タスクに対する<strong>密な学習シグナル</strong>が提供される ── モデルは終端だけでなく毎ターンで学習シグナルを受け取り、限られたデータからはるかに効率的に学習できる。</p>
 <h2>先行研究との比較</h2>
 <table>
@@ -198,16 +198,16 @@
 - モデルが受け取るシグナル：「この40ステップのトラジェクトリは品質0.7のレポートを生成した」
 - このシグナルから学ぶには、40ステップのどれが品質レベルの原因かを推論する必要がある</p>
 <p><strong>IGPOターンレベルRL</strong>：
-- ターン1：「トピックX」を検索 → 高度に関連するドキュメントを取得 → $r_1 = 0.85$（高情報利得）
-- ターン7：「トピックX」を再検索（冗長） → すでに見たドキュメントを取得 → $r_7 = 0.05$（ほぼゼロの情報利得）
-- ターン15：ソースを構造化アウトラインに統合 → 良好にフォーマット → $r_{15} = 0.72$（良好なフォーマット＋情報利得）</p>
+- ターン1：「トピックX」を検索 → 高度に関連するドキュメントを取得 → <span class="math">\(r_1 = 0.85\)</span>（高情報利得）
+- ターン7：「トピックX」を再検索（冗長） → すでに見たドキュメントを取得 → <span class="math">\(r_7 = 0.05\)</span>（ほぼゼロの情報利得）
+- ターン15：ソースを構造化アウトラインに統合 → 良好にフォーマット → <span class="math">\(r_{15} = 0.72\)</span>（良好なフォーマット＋情報利得）</p>
 <p>モデルが学ぶこと：「初期の広範な検索は良い；冗長な検索はペナルティを受ける；トラジェクトリ中盤の構造化統合は報酬を受ける」。この密なシグナルにより、わずか10Kのトラジェクトリからの効果的な学習が可能になる。</p>
 <p>直感的なイメージ：人間の研究者も「同じ情報源を何度も読み返すより、新しい視点の文献を探す方が時間の使い方として良い」という判断を学ぶ。IGPOはまさにこの判断をターンごとに信号として与え続けることで、小さなモデルが効率的な情報探索戦略を習得できるようにする。</p>
 <h3>長期リサンプリング：学習バイアスの修正</h3>
 <p>リサンプリング戦略は単純な観察に基づいている：学習分布が3ステップのタスクに支配されていれば、モデルは3ステップのタスクを専門化することで期待学習損失を最小化する。40ステップのリサーチトラジェクトリからの勾配シグナルは、短タスクの勾配の圧倒的な割合によって希釈される。</p>
 <p>長期トラジェクトリからの勾配貢献を均等化するようにリサンプリングすることで、学習目標は次のようになる：</p>
-<p>$$\mathcal{L} = \mathbb{E}_{(x, y) \sim \tilde{D}}[\ell(x, y)]$$</p>
-<p>ここで $\tilde{D}$ は長期サンプルをアップウェイトしたリサンプリング分布だ。データ自体を変更せずに、モデルが最適化する対象をシフトする ── 軽量だが効果的な修正だ。</p>
+<div class="math">$$\mathcal{L} = \mathbb{E}_{(x, y) \sim \tilde{D}}[\ell(x, y)]$$</div>
+<p>ここで <span class="math">\(\tilde{D}\)</span> は長期サンプルをアップウェイトしたリサンプリング分布だ。データ自体を変更せずに、モデルが最適化する対象をシフトする ── 軽量だが効果的な修正だ。</p>
 <h2>限界と課題</h2>
 <ol>
 <li>
@@ -253,6 +253,68 @@
 </ul>
 <h2>原文リンク</h2>
 <p><a href="https://hf.co/papers/2604.19859">Original Paper</a></p>
+<script type="text/javascript">if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width < 768) ? "left" : align;
+        indent = (screen.width < 768) ? "0em" : indent;
+        linebreak = (screen.width < 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+
+    var configscript = document.createElement('script');
+    configscript.type = 'text/x-mathjax-config';
+    configscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'none' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        availableFonts: ['STIX', 'TeX']," +
+        "        preferredFont: 'STIX'," +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(configscript);
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+</script>
     </article>
 
         <div class="tags">

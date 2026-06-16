@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+            <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+        <title>PAAC: Privacy-Aware Agentic Device-Cloud LLM Collaboration</title>
+
+            <link href="/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Full Atom Feed" />
+            <link href="/feeds/{slug}.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Categories Atom Feed" />
+        <!-- Bootstrap Core CSS -->
+        <link href="/theme/css/bootstrap.min.css" rel="stylesheet">
+
+        <!-- Custom CSS -->
+        <link href="/theme/css/clean-blog.min.css" rel="stylesheet">
+
+        <!-- Code highlight color scheme -->
+            <link href="/theme/css/code_blocks/github.css" rel="stylesheet">
+
+
+        <!-- Custom Fonts -->
+        <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+        <link href='https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+        <link href='https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/css'>
+
+        <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+        <!--[if lt IE 9]>
+            <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+            <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+
+
+        <meta name="description" content="PAAC resolves the cloud-vs-device privacy dilemma for LLM agents by aligning a planner-executor decomposition with the device-cloud...">
+
+        <meta name="author" content="toohsk">
+
+        <meta name="tags" content="SLM">
+        <meta name="tags" content="AI">
+        <meta name="tags" content="paper-review">
+
+	                <meta property="og:locale" content="">
+		<meta property="og:site_name" content="Atsushi's blog">
+
+	<meta property="og:type" content="article">
+            <meta property="article:author" content="/author/toohsk.html">
+	<meta property="og:url" content="/paac-privacy-aware-agentic-device-cloud-llm-collaboration.html">
+	<meta property="og:title" content="PAAC: Privacy-Aware Agentic Device-Cloud LLM Collaboration">
+	<meta property="article:published_time" content="2026-05-14 00:00:00+09:00">
+            <meta property="og:description" content="PAAC resolves the cloud-vs-device privacy dilemma for LLM agents by aligning a planner-executor decomposition with the device-cloud...">
+
+            <meta property="og:image" content="/images/blog_cover.jpg">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:site" content="@toohsk">
+        <meta name="twitter:title" content="PAAC: Privacy-Aware Agentic Device-Cloud LLM Collaboration">
+
+            <meta name="twitter:image" content="/images/blog_cover.jpg">
+
+            <meta name="twitter:description" content="PAAC resolves the cloud-vs-device privacy dilemma for LLM agents by aligning a planner-executor decomposition with the device-cloud...">
+</head>
+
+<body class="article-paac-privacy-aware-agentic-device-cloud-llm-collaboration">
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+        <div class="container-fluid">
+            <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header page-scroll">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="/">Atsushi's blog</a>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav navbar-right">
+
+                </ul>
+            </div>
+            <!-- /.navbar-collapse -->
+        </div>
+        <!-- /.container -->
+    </nav>
+
+    <!-- Page Header -->
+        <header class="intro-header" style="background-image: url('/images/blog_cover.jpg')">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <div class="post-heading">
+                        <h1>PAAC: Privacy-Aware Agentic Device-Cloud LLM Collaboration</h1>
+                        <span class="meta">Posted by
+                                <a href="/author/toohsk.html">toohsk</a>
+                             on 木 14 5月 2026
+                        </span>
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+    <!-- Post Content -->
+    <article>
+        <h2>Why This Paper Matters</h2>
+<p>LLM agents working on personal tasks — scheduling a meeting from email threads, answering a health question, filling in a tax form — necessarily touch sensitive data. The structural problem is that the two extremes of deployment architecture each sacrifice something fundamental.</p>
+<p><strong>Cloud agents</strong> can draw on the full power of frontier models. A GPT-4 class agent can reason across a complex email chain and produce a flawless calendar event. But to do so, it must receive the email content — names, medical details, financial figures, personal relationships — in plaintext. For many users and many use cases, this is not acceptable.</p>
+<p><strong>On-device agents</strong> preserve privacy by keeping all data local. But current on-device SLMs are significantly less capable than cloud models, especially on complex multi-step reasoning. An agent that can only run a 1B-parameter model on a phone will fail on the tasks where users most need help.</p>
+<p>The naive hybrid — classify queries as sensitive or not-sensitive and route accordingly — doesn't work for agentic tasks. Real tasks blend sensitive and non-sensitive content at a fine-grained level: a task might require reasoning about a person's calendar availability (non-sensitive), their health condition (sensitive), and a publicly available restaurant's phone number (non-sensitive), all in one planning step. You can't cleanly separate these at the query level.</p>
+<p>Existing sanitization approaches (NER-based redaction, differential privacy mechanisms) have a critical failure mode in agentic contexts: they break <strong>structural fidelity</strong>. When an agent needs to call <code>create_calendar_event(name="John Smith", time="3pm")</code>, redacting "John Smith" to <code>[PERSON]</code> produces an action that cannot execute. The sanitizer must preserve the semantic role of each value even while hiding its content — and current tools don't do this.</p>
+<h2>Core Technical Contribution</h2>
+<p>PAAC (Privacy-Aware Agentic Collaboration) introduces a planner-executor decomposition where the decomposition axis is the device-cloud <strong>trust boundary</strong>, not the usual compute boundary.</p>
+<h3>Architecture</h3>
+<p><strong>On-device agent (Sensitive Span Identifier + Key-Findings Distiller):</strong>
+- At each agentic step, the on-device SLM identifies which spans in the current context are privacy-sensitive
+- It proposes replacements using <strong>typed placeholder tokens</strong> from a structured taxonomy: <code>&lt;PERSON_0&gt;</code>, <code>&lt;LOCATION_1&gt;</code>, <code>&lt;HEALTH_CONDITION_0&gt;</code>, <code>&lt;FINANCIAL_VALUE_2&gt;</code>, etc.
+- After the cloud agent returns an action, the on-device agent distills the execution outcome into compact <strong>key findings</strong> that capture what was learned without re-exposing raw data to the cloud on subsequent steps</p>
+<p><strong>Deterministic registry (on-device, non-LLM):</strong>
+- A lookup table that maps typed placeholders to their original values and back
+- Performs all substitution (sensitive value → placeholder) and reversal (placeholder → original value) deterministically
+- The LLM never touches original sensitive values; it only proposes which spans to tag and which placeholder type to assign</p>
+<p><strong>Cloud agent (Reasoner + Planner):</strong>
+- Receives sanitized context with typed placeholders intact
+- Reasons over placeholders as if they were opaque tokens: <code>&lt;PERSON_0&gt;</code> is treated as "some person" whose identity is known to the device but not to the cloud
+- Returns action sequences using placeholders (e.g., <code>send_email(to=&lt;PERSON_0&gt;, subject="Follow-up")</code>)
+- The device registry substitutes the real value before executing the action</p>
+<h3>Why Typed Placeholders Work</h3>
+<p>The key insight is that <strong>reasoning roles can be preserved even when content is hidden</strong>. "Meet with <code>&lt;PERSON_0&gt;</code> at <code>&lt;LOCATION_1&gt;</code> on <code>&lt;DATE_0&gt;</code>" conveys enough structure for the cloud agent to reason about scheduling conflicts, generate follow-up reminders, and produce coherent multi-step plans — without ever knowing that <code>&lt;PERSON_0&gt;</code> is "Dr. Sarah Chen" or that <code>&lt;LOCATION_1&gt;</code> is a cancer treatment center.</p>
+<p>The type annotation is essential: knowing that a placeholder is of type <code>&lt;HEALTH_CONDITION&gt;</code> allows the cloud model to apply appropriate reasoning (medical context, sensitivity level, follow-up actions) even without the literal value. This is fundamentally different from simple redaction, which destroys type information along with content.</p>
+<h3>The Security Model</h3>
+<p>PAAC's threat model is <strong>honest-but-curious cloud providers</strong>: the cloud model faithfully executes its role but observes everything sent to it. The guarantee is that no raw sensitive values appear in cloud-visible context. The deterministic registry ensures that even if the cloud could observe traffic patterns, it sees only opaque placeholder tokens.</p>
+<p>The on-device LLM's role is deliberately limited: it proposes span boundaries and placeholder types, but does not perform substitution itself. This means errors in span identification are bounded — the worst case is a missed sensitive span (leaking one value), not systematic misidentification of non-sensitive content as sensitive (breaking task utility).</p>
+<h2>Comparison to Prior Work</h2>
+<p><strong>Simple routing baselines</strong>: Route all sensitive queries to device, all non-sensitive to cloud. Fails on mixed-sensitivity agentic tasks and doesn't leverage cloud reasoning for sensitive reasoning steps (only for non-sensitive ones).</p>
+<p><strong>NER-based redaction</strong>: Replace named entities with <code>[PERSON]</code>, <code>[LOCATION]</code> etc. Breaks structural fidelity for tool calls (you lose the ability to use the value in a downstream API call). Also limited to entity types in a fixed taxonomy, missing sensitive information that doesn't fit standard NER categories (e.g., "the treatment she started last month").</p>
+<p><strong>Differential privacy mechanisms</strong>: Add noise to embeddings or outputs to prevent membership inference. Incompatible with discrete, structured agentic actions where adding noise produces invalid API calls.</p>
+<p><strong>State-of-the-art device-cloud baselines</strong>: PAAC improves average accuracy by <strong>15–36%</strong> and reduces average leakage by <strong>2–6×</strong> on three agentic benchmarks under strict privacy settings. The largest margins appear on privacy targets outside fixed entity taxonomies — exactly where NER-based approaches fail.</p>
+<p>The consistent improvements across <strong>17 additional benchmarks spanning 10 domains</strong> (math, science, finance, among others) suggest the framework's benefit extends beyond privacy-specific tasks.</p>
+<h2>Reading the Results</h2>
+<p>The +15–36% accuracy improvement over device-cloud baselines is large and significant. The range reflects task difficulty: on tasks where the cloud agent can usefully reason over typed placeholders (most scheduling, planning, and factual tasks), accuracy gains are at the high end. On tasks where the sensitive span structure is too dense for coherent placeholder-based reasoning, gains are smaller.</p>
+<p>The 2–6× leakage reduction is measured against baselines that already apply some form of sanitization. This means PAAC isn't being compared to "send everything to cloud" — it's outperforming dedicated privacy-preserving baselines by a factor of 2–6 in leakage while also being more accurate.</p>
+<p>The fact that improvements hold across 17 benchmarks spanning domains beyond the privacy-focused training distribution suggests the planner-executor decomposition itself is a useful structural prior, not just a privacy mechanism.</p>
+<h2>Key Notes of This Paper</h2>
+<p>The central algorithmic mechanism is the <strong>typed placeholder substitution pipeline</strong>:</p>
+<div class="highlight"><pre><span></span><code><span class="n">Step</span><span class="w"> </span><span class="mh">1</span><span class="w"> </span><span class="p">(</span><span class="n">on</span><span class="o">-</span><span class="n">device</span><span class="p">)</span><span class="o">:</span><span class="w"> </span><span class="n">Identify</span><span class="w"> </span><span class="n">sensitive</span><span class="w"> </span><span class="n">spans</span>
+<span class="w">  </span><span class="nl">context:</span><span class="w"> </span><span class="s">&quot;Schedule lunch with Dr. Chen at Mayo Clinic re: her chemo schedule&quot;</span>
+<span class="w">  </span><span class="nl">spans:</span><span class="w"> </span><span class="p">[(</span><span class="s">&quot;Dr. Chen&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">PERSON</span><span class="p">),</span><span class="w"> </span><span class="p">(</span><span class="s">&quot;Mayo Clinic&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">LOCATION</span><span class="p">),</span><span class="w"> </span><span class="p">(</span><span class="s">&quot;chemo schedule&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">HEALTH_CONDITION</span><span class="p">)]</span>
+
+<span class="n">Step</span><span class="w"> </span><span class="mh">2</span><span class="w"> </span><span class="p">(</span><span class="n">on</span><span class="o">-</span><span class="n">device</span><span class="w"> </span><span class="n">registry</span><span class="p">)</span><span class="o">:</span><span class="w"> </span><span class="n">Substitute</span>
+<span class="w">  </span><span class="nl">sanitized:</span><span class="w"> </span><span class="s">&quot;Schedule lunch with &lt;PERSON_0&gt; at &lt;LOCATION_0&gt; re: her &lt;HEALTH_CONDITION_0&gt;&quot;</span>
+<span class="w">  </span><span class="nl">registry:</span><span class="w"> </span><span class="p">{</span><span class="nl">PERSON_0:</span><span class="w"> </span><span class="s">&quot;Dr. Chen&quot;</span><span class="p">,</span><span class="w"> </span><span class="nl">LOCATION_0:</span><span class="w"> </span><span class="s">&quot;Mayo Clinic&quot;</span><span class="p">,</span><span class="w"> </span><span class="nl">HEALTH_CONDITION_0:</span><span class="w"> </span><span class="s">&quot;chemo schedule&quot;</span><span class="p">}</span>
+
+<span class="n">Step</span><span class="w"> </span><span class="mh">3</span><span class="w"> </span><span class="p">(</span><span class="n">cloud</span><span class="p">)</span><span class="o">:</span><span class="w"> </span><span class="n">Reason</span><span class="w"> </span><span class="k">and</span><span class="w"> </span><span class="n">plan</span>
+<span class="w">  </span><span class="k">input</span><span class="o">:</span><span class="w"> </span><span class="n">sanitized</span><span class="w"> </span><span class="n">context</span>
+<span class="w">  </span><span class="k">output</span><span class="o">:</span><span class="w"> </span><span class="n">create_calendar_event</span><span class="p">(</span><span class="n">attendee</span><span class="o">=&lt;</span><span class="n">PERSON_0</span><span class="o">&gt;</span><span class="p">,</span><span class="w"> </span><span class="n">location</span><span class="o">=&lt;</span><span class="n">LOCATION_0</span><span class="o">&gt;</span><span class="p">,</span><span class="w"> </span><span class="n">note</span><span class="o">=</span><span class="s">&quot;Discuss &lt;HEALTH_CONDITION_0&gt;&quot;</span><span class="p">)</span>
+
+<span class="n">Step</span><span class="w"> </span><span class="mh">4</span><span class="w"> </span><span class="p">(</span><span class="n">on</span><span class="o">-</span><span class="n">device</span><span class="w"> </span><span class="n">registry</span><span class="p">)</span><span class="o">:</span><span class="w"> </span><span class="n">Reverse</span><span class="w"> </span><span class="n">substitution</span>
+<span class="w">  </span><span class="nl">action:</span><span class="w"> </span><span class="n">create_calendar_event</span><span class="p">(</span><span class="n">attendee</span><span class="o">=</span><span class="s">&quot;Dr. Chen&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">location</span><span class="o">=</span><span class="s">&quot;Mayo Clinic&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">note</span><span class="o">=</span><span class="s">&quot;Discuss chemo schedule&quot;</span><span class="p">)</span>
+
+<span class="n">Step</span><span class="w"> </span><span class="mh">5</span><span class="w"> </span><span class="p">(</span><span class="n">on</span><span class="o">-</span><span class="n">device</span><span class="p">)</span><span class="o">:</span><span class="w"> </span><span class="n">Execute</span><span class="w"> </span><span class="n">action</span><span class="w"> </span><span class="k">and</span><span class="w"> </span><span class="n">distill</span><span class="w"> </span><span class="n">key</span><span class="w"> </span><span class="n">findings</span>
+<span class="w">  </span><span class="nl">finding:</span><span class="w"> </span><span class="s">&quot;Lunch scheduled with PERSON_0 at LOCATION_0 for Thursday 1pm&quot;</span>
+</code></pre></div>
+
+<p>The key findings distillation in Step 5 is important: it summarizes what was learned in a form that can be passed to the cloud on the next step without re-exposing raw values in a fresh context. This prevents sensitive information from "re-entering" the cloud context through the back door of accumulated conversation history.</p>
+<p>The type system is what makes this work at scale. The paper proposes a taxonomy of placeholder types that covers the most common sensitive information categories in personal agentic tasks. The on-device SLM is fine-tuned to produce accurate type assignments, which is a simpler and more reliable task than full information extraction.</p>
+<h2>Limitations</h2>
+<ul>
+<li>The on-device SLM must be capable enough to accurately identify sensitive spans. A very weak SLM may miss sensitive information or over-redact, degrading task utility.</li>
+<li>The typed placeholder taxonomy must be designed in advance and may not cover all domains (e.g., legal or specialized medical sub-fields may require domain-specific placeholder types).</li>
+<li>Privacy targets that span multiple steps in an agentic chain (e.g., inferring a person's identity from a combination of non-sensitive details) are not addressed — PAAC focuses on within-step span privacy.</li>
+<li>The paper evaluates on agentic benchmarks; real deployment involves additional attack surfaces (side-channel timing attacks, model output analysis) not addressed here.</li>
+</ul>
+<h2>Future Work</h2>
+<p><strong>Authors' directions:</strong>
+- Extending the framework to multi-modal agentic tasks where sensitive information appears in images or audio
+- Formal privacy guarantees under stronger threat models (not just honest-but-curious cloud)
+- Adaptive typed placeholder taxonomy that grows with new domain deployments</p>
+<p><strong>Additional promising directions:</strong>
+- <strong>Federated span detection</strong>: Multiple devices collaboratively train the on-device span detection model without sharing sensitive examples, using federated learning.
+- <strong>Semantic-preserving placeholder embeddings</strong>: Instead of opaque tokens, use embeddings that capture semantic properties (valence, category, approximate magnitude for numbers) while hiding the exact value — enabling richer cloud reasoning.
+- <strong>Auditable leakage tracking</strong>: A formal audit log of what types of information left the device and when, allowing users to review and set policies.
+- <strong>Integration with on-device LLM improvement</strong>: As on-device models improve, the split point can shift dynamically — PAAC's architecture naturally accommodates this without redesign.</p>
+<h2>Implications for Edge / On-Device Deployment</h2>
+<p>PAAC makes a compelling case that the right role for a small on-device LLM in a hybrid system is not "the model that runs when the network is down" — it is <strong>the privacy guardian</strong> that mediates all contact between user data and cloud reasoning.</p>
+<p>This reframing has practical implications for SLM design. Instead of optimizing an on-device SLM purely for general language generation quality, you should optimize it for:
+1. <strong>Sensitive span detection accuracy</strong>: High recall on identifying sensitive information
+2. <strong>Type classification accuracy</strong>: Correct assignment of placeholder type categories<br>
+3. <strong>Key-findings distillation quality</strong>: Compact, information-rich summaries of action outcomes</p>
+<p>These are narrower, more achievable tasks than general reasoning. A 1–3B parameter model fine-tuned specifically for these roles can function as an effective privacy guardian even for queries that would stump it as a standalone assistant.</p>
+<p>For product teams, this means the on-device LLM's role in a hybrid system is worth investing in even if the on-device model never produces the final user-facing response. The privacy and accuracy gains from a well-designed device-side sanitizer justify the engineering investment.</p>
+<h2>Links</h2>
+<p><a href="https://huggingface.co/papers/2605.08646">Original Paper</a></p>
+    </article>
+
+        <div class="tags">
+            <p>tags: <a href="/tag/slm.html">SLM</a>, <a href="/tag/ai.html">AI</a>, <a href="/tag/paper-review.html">paper-review</a></p>
+        </div>
+
+    <hr>
+
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <ul class="list-inline text-center">
+                            <li>
+                                <a href="http://twitter.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-twitter fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="http://github.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-github fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                    </ul>
+<p class="copyright text-muted">
+    Blog powered by <a href="http://getpelican.com">Pelican</a>,
+    which takes great advantage of <a href="http://python.org">Python</a>. <br />        &copy;  toohsk
+</p>                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- jQuery -->
+    <script src="/theme/js/jquery.min.js"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="/theme/js/bootstrap.min.js"></script>
+
+        <!-- Custom Theme JavaScript -->
+        <script src="/theme/js/clean-blog.min.js"></script>
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-LR14KRYZ4L"></script>
+<script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-LR14KRYZ4L');
+</script>
+</body>
+
+</html>

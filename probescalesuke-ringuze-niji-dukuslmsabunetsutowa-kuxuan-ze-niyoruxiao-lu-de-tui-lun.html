@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+            <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+        <title>ProbeScale：スケーリング則に基づくSLMサブネットワーク選択による効率的推論</title>
+
+            <link href="/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Full Atom Feed" />
+            <link href="/feeds/{slug}.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Categories Atom Feed" />
+        <!-- Bootstrap Core CSS -->
+        <link href="/theme/css/bootstrap.min.css" rel="stylesheet">
+
+        <!-- Custom CSS -->
+        <link href="/theme/css/clean-blog.min.css" rel="stylesheet">
+
+        <!-- Code highlight color scheme -->
+            <link href="/theme/css/code_blocks/github.css" rel="stylesheet">
+
+
+        <!-- Custom Fonts -->
+        <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+        <link href='https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+        <link href='https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/css'>
+
+        <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+        <!--[if lt IE 9]>
+            <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+            <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+
+
+        <meta name="description" content="ProbeScaleはニューラルスケーリング則とタスク固有の層プロービングを組み合わせ、追加学習なしで最小限のSLMサブネットワークを自動選択する。RoBERTa-LargeとT5-Baseで5〜10倍のパラメータ削減を達成しながら下流タスクの性能を95〜98%維持する。">
+
+        <meta name="author" content="toohsk">
+
+        <meta name="tags" content="SLM">
+        <meta name="tags" content="AI">
+        <meta name="tags" content="paper-review">
+
+	                <meta property="og:locale" content="">
+		<meta property="og:site_name" content="Atsushi's blog">
+
+	<meta property="og:type" content="article">
+            <meta property="article:author" content="/author/toohsk.html">
+	<meta property="og:url" content="/probescalesuke-ringuze-niji-dukuslmsabunetsutowa-kuxuan-ze-niyoruxiao-lu-de-tui-lun.html">
+	<meta property="og:title" content="ProbeScale：スケーリング則に基づくSLMサブネットワーク選択による効率的推論">
+	<meta property="article:published_time" content="2026-06-13 00:00:00+09:00">
+            <meta property="og:description" content="ProbeScaleはニューラルスケーリング則とタスク固有の層プロービングを組み合わせ、追加学習なしで最小限のSLMサブネットワークを自動選択する。RoBERTa-LargeとT5-Baseで5〜10倍のパラメータ削減を達成しながら下流タスクの性能を95〜98%維持する。">
+
+            <meta property="og:image" content="/images/blog_cover.jpg">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:site" content="@toohsk">
+        <meta name="twitter:title" content="ProbeScale：スケーリング則に基づくSLMサブネットワーク選択による効率的推論">
+
+            <meta name="twitter:image" content="/images/blog_cover.jpg">
+
+            <meta name="twitter:description" content="ProbeScaleはニューラルスケーリング則とタスク固有の層プロービングを組み合わせ、追加学習なしで最小限のSLMサブネットワークを自動選択する。RoBERTa-LargeとT5-Baseで5〜10倍のパラメータ削減を達成しながら下流タスクの性能を95〜98%維持する。">
+</head>
+
+<body class="article-probescalesuke-ringuze-niji-dukuslmsabunetsutowa-kuxuan-ze-niyoruxiao-lu-de-tui-lun">
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+        <div class="container-fluid">
+            <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header page-scroll">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="/">Atsushi's blog</a>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav navbar-right">
+
+                </ul>
+            </div>
+            <!-- /.navbar-collapse -->
+        </div>
+        <!-- /.container -->
+    </nav>
+
+    <!-- Page Header -->
+        <header class="intro-header" style="background-image: url('/images/blog_cover.jpg')">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <div class="post-heading">
+                        <h1>ProbeScale：スケーリング則に基づくSLMサブネットワーク選択による効率的推論</h1>
+                        <span class="meta">Posted by
+                                <a href="/author/toohsk.html">toohsk</a>
+                             on 土 13 6月 2026
+                        </span>
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+    <!-- Post Content -->
+    <article>
+        <h2>なぜこの研究が重要か</h2>
+<p>小型言語モデル（SLM）はすでに言語モデルスペクトラムの圧縮された端にあるが、「一つのモデルですべてに対応」するサービング方法は依然として非効率だ。感情分類のために展開された350Mパラメータのエンコーダーモデルは、本番環境で決して使われないタスクのために発達した膨大な表現容量を抱えている。エッジ推論では——メモリ帯域幅、電力、レイテンシの予算がミリワットとミリ秒単位で測られる——このオーバーヘッドは非効率なだけでなく、しばしば実現不可能でさえある。</p>
+<p>モデル圧縮の先行研究は踏み慣れた道を歩んできた：マグニチュードプルーニング、構造化プルーニング、知識蒸留、量子化。これらはそれぞれ、タスク固有のSLMデプロイメントに適用したときの根本的な弱点を抱えている。完全な学習パイプラインへのアクセスが必要だったり、学習時のオーバーヘッドが生じたり、タスクのコンテキストなしに重みを操作したり、特定のタスクに対して<em>どの程度</em>圧縮すべきかの原理的指針がなかったりする。</p>
+<p>ProbeScaleはこの問題を別の角度から攻める。「どうモデルを小さくするか」ではなく、「対象タスクが与えられたとき、モデルのどの層が実際に重要で、どの程度重要か」を問う。答えは2つの直交した情報源から来る——<strong>層プロービング</strong>（経験的タスク関連性）と<strong>スケーリング則</strong>（理論的容量要件）——を組み合わせた原理的で学習不要なサブネットワーク選択アルゴリズムだ。</p>
+<h2>技術的なアプローチ</h2>
+<h3>2つのシグナルフレームワーク</h3>
+<p>ProbeScaleは事前学習済みSLMと対象タスクに対してファインチューニングなしで動作する。モデルから2種類の情報を抽出する。</p>
+<p><strong>シグナル1：層プロービングスコア。</strong> モデルの各層 <span class="math">\(l\)</span> に対して、ProbeScaleはその層の隠れ表現を対象タスクのラベルに対して軽量な線形プローブで訓練する。プローブの検証精度 <span class="math">\(a_l\)</span> は、その層がどれだけタスク関連情報を符号化しているかを測る。<span class="math">\(a_l\)</span> が高いほどその層の表現がタスク出力を予測する力が高く、低い <span class="math">\(a_l\)</span> はその層がタスク固有のシグナルにほとんど貢献していないことを示す。</p>
+<p><strong>シグナル2：スケーリング則予測。</strong> ニューラルスケーリング則はモデル性能がパラメータ数と計算量に対してどう変化するかを記述する。ProbeScaleはこれらの関係を使って、対象タスクで目標性能を達成するために必要な最小パラメータ予算 <span class="math">\(N^*\)</span> を推定する。これにより、ヒューリスティックに選んだ圧縮比ではなく、原理的なターゲットをアルゴリズムに与えることができる。</p>
+<h3>サブネットワーク選択アルゴリズム</h3>
+<p>スケーリング則から導出したパラメータ予算 <span class="math">\(N^*\)</span> と層ごとのプロービングスコア <span class="math">\(\{a_l\}\)</span> から、ProbeScaleはサブネットワーク選択を最適化問題として定式化する。</p>
+<div class="math">$$\max_{S \subseteq \{1, \ldots, L\}} \sum_{l \in S} w_l \cdot a_l \quad \text{subject to} \quad \text{params}(S) \leq N^*$$</div>
+<p>ここで <span class="math">\(S\)</span> は選択された層の集合、<span class="math">\(w_l\)</span> は（タスク間で正規化された）層 <span class="math">\(l\)</span> のタスク加重寄与度、<span class="math">\(\text{params}(S)\)</span> は選択されたサブネットワークのパラメータ数だ。</p>
+<p>複数のタスクを同時に扱うマルチタスクシナリオ——単一モデルが複数の下流タスクを処理するSLMデプロイメントに多い——では、目標はタスク間で集約される。</p>
+<div class="math">$$\max_{S} \sum_{t=1}^{T} \lambda_t \sum_{l \in S} a_{l,t} \quad \text{subject to} \quad \text{params}(S) \leq N^*$$</div>
+<p>ここで <span class="math">\(\lambda_t\)</span> はタスク優先度の重みで、<span class="math">\(a_{l,t}\)</span> はタスク <span class="math">\(t\)</span> における層 <span class="math">\(l\)</span> のプロービングスコアだ。</p>
+<p>これはナップサック問題の一変種で、貪欲法または動的計画法で効率的に解ける。</p>
+<h3>スケーリング則が重要な理由</h3>
+<p>スケーリング則なしでは、圧縮比 <span class="math">\(N^* / N_{\text{full}}\)</span> は交差検証やエンジニアリング判断で設定する自由パラメータになる。これはコストがかかり不安定だ。予算をタスク難易度に対するスケーリング則の予測に固定することで、ProbeScaleはタスクの特性から自動的に圧縮比を導出する。単純な決定境界を持つタスクは積極的に圧縮され、複雑な言語構造を持つタスクはより保守的に圧縮される。</p>
+<p>著者らは標準的な経験的スケーリング則の形式を使用する。</p>
+<div class="math">$$L(N) = \left(\frac{N_c}{N}\right)^\alpha + L_\infty$$</div>
+<p>ここで <span class="math">\(L(N)\)</span> はパラメータ数 <span class="math">\(N\)</span> における損失、<span class="math">\(N_c\)</span> は臨界スケール、<span class="math">\(\alpha\)</span> は冪乗指数、<span class="math">\(L_\infty\)</span> は削減不可能な損失フロアだ。これを逆にすることで、目標損失レベルに対する最小 <span class="math">\(N^*\)</span> が得られる。</p>
+<h3>学習不要なデプロイメント</h3>
+<p>重要な実用的特徴：ProbeScaleはベースモデルへの勾配更新を必要としない。線形プローブは安価に訓練でき（凍結した表現に対する単層分類器）、サブネットワーク選択はプロービングスコアに対する組合せ最適化だ。完全なパイプライン——プロービング、スケーリング則キャリブレーション、サブネットワーク抽出——は推論前の前処理ステップとして実行され、元のモデルの重みに変更を加えない。</p>
+<p>これは各プルーニングステップ後に反復的なファインチューニングを必要とする構造化プルーニング手法や、新しい生徒モデルをゼロから訓練する知識蒸留と対照的だ。</p>
+<h2>先行研究との比較</h2>
+<table>
+<thead>
+<tr>
+<th>手法</th>
+<th>学習不要</th>
+<th>タスク考慮</th>
+<th>原理的予算</th>
+<th>マルチタスク</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>マグニチュードプルーニング</td>
+<td>✓</td>
+<td>✗</td>
+<td>✗</td>
+<td>✗</td>
+</tr>
+<tr>
+<td>構造化プルーニング + ファインチューン</td>
+<td>✗</td>
+<td>✗</td>
+<td>✗</td>
+<td>✗</td>
+</tr>
+<tr>
+<td>知識蒸留</td>
+<td>✗</td>
+<td>✓</td>
+<td>✗</td>
+<td>✓</td>
+</tr>
+<tr>
+<td>タスク固有プロービング（先行研究）</td>
+<td>✓</td>
+<td>✓</td>
+<td>✗</td>
+<td>✗</td>
+</tr>
+<tr>
+<td>ProbeScale（本研究）</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+</tr>
+</tbody>
+</table>
+<p>既存のプロービングベースの圧縮手法はタスク関連層を識別するが、どこまで削るかの原理的基準を欠く。既存のスケーリング則ベースの手法は最適モデルサイズを予測するが、既存モデルのどの部分がタスクに関連するかを考慮しない。ProbeScaleは両シグナルを統合選択基準に組み合わせた初の手法だ。</p>
+<h2>実験結果の読み方</h2>
+<p>ProbeScaleはGLUEとSuperGLUEの一連のタスクで<strong>RoBERTa-Large</strong>（355Mパラメータ、エンコーダーのみ）と<strong>T5-Base</strong>（220Mパラメータ、エンコーダー-デコーダー）で評価されている。</p>
+<p><strong>パラメータ削減。</strong> ProbeScaleが選択したサブネットワークは、フルモデルより<strong>5〜10倍少ないパラメータ</strong>で<strong>フルモデル性能の95〜98%を達成</strong>する。参考として、同程度の圧縮比での標準的な構造化プルーニングより大幅に優れている。</p>
+<p><strong>ヒューリスティックベースラインとの比較。</strong> ProbeScaleは3つのヒューリスティックベースラインを一貫して上回る。
+- <em>最後の<span class="math">\(k\)</span>層のみ</em>：最後の<span class="math">\(k\)</span>層だけを保持すると、特に初期の文脈化に依存するタスクで著しく性能が低下する。
+- <em>均一層選択</em>：<span class="math">\(n\)</span>層ごとに選択するとタスク関連性を無視し、層の重要度分布が不均一なタスクで性能を失う。
+- <em>同じ予算へのマグニチュードプルーニング</em>：同じパラメータ数での重みレベルのプルーニングはProbeScaleより2〜5%低く、タスク固有デプロイメントでは重みレベルプルーニングより層レベルの構造選択が優れていることを確認している。</p>
+<p><strong>スケーリング則キャリブレーション。</strong> スケーリング則から予測した予算 <span class="math">\(N^*\)</span> は経験的に最適な予算（性能が低下し始める圧縮レベル）と密接に一致する。これにより圧縮比の信頼できる代理指標としてスケーリング則アプローチが検証され、コストのかかる交差検証が不要になる。</p>
+<p><strong>マルチタスク設定。</strong> マルチタスク変種では、ProbeScaleはスケーリング則で推定したタスク難易度に比例して層の予算を割り当て、タスク間の優雅な性能トレードオフを持つサブネットワークを生成する。</p>
+<h2>アルゴリズムの重要部分の解説</h2>
+<h3>関連性シグナルとして層プロービングが機能する理由</h3>
+<p>層の関連性を測るための線形プローブの使用は<strong>プロービング仮説</strong>に基づいている：ある層の表現に対して訓練した線形分類器がタスク出力を予測できるなら、タスク関連特徴がその層から線形的にデコード可能だということだ。これはタスク関連性の強いシグナルで、上位層の表現との絡まりなしに識別能力を検定するからだ。</p>
+<p>形式的には、層 <span class="math">\(l\)</span> の隠れ表現 <span class="math">\(\mathbf{h}_l \in \mathbb{R}^d\)</span> に対して、線形プローブは以下を学習する。</p>
+<div class="math">$$\hat{y} = \text{softmax}(W \mathbf{h}_l + b)$$</div>
+<p>プロービング精度 <span class="math">\(a_l\)</span> はこの分類器の検証精度だ。<span class="math">\(a_l\)</span> が高い層はタスクに構造的に重要で、<span class="math">\(a_l\)</span> が低い層はモデルのタスク関連情報コンテンツを劣化させずに削除できる。</p>
+<h3>ナップサック定式化とその扱いやすさ</h3>
+<p>サブネットワーク選択問題は一般にNP困難（0/1ナップサックの変種）だが、問題の構造——重みを持つアイテム（層）とパラメータ予算制約——が実用的なモデルサイズで扱いやすくする。RoBERTa-Largeでは <span class="math">\(L \leq 24\)</span> 層、パラメータカウント予算の動的計画法の解は <span class="math">\(O(L \cdot N^*)\)</span> の時間で動作し、標準CPUでミリ秒のオーダーだ。</p>
+<h3>スケーリング則の逆算</h3>
+<p>スケーリング則のパラメータ <span class="math">\(\{N_c, \alpha, L_\infty\}\)</span> を求めるために、異なる予算での少数のプローブ評価点に法則をフィットさせる。著者らは3〜5個の評価点でスケーリング則を信頼できるほど精度よくフィットできることを示し、キャリブレーションコストは無視できる（これらは線形プローブの評価であり、フルモデルの評価ではない）。</p>
+<h2>限界と課題</h2>
+<ol>
+<li>
+<p><strong>エンコーダーのみとエンコーダー-デコーダーモデル</strong>：論文はRoBERTa（エンコーダーのみ）とT5（エンコーダー-デコーダー）で評価しているが、デコーダーのみの自己回帰モデル（GPTスタイル）は含まれていない。因果言語モデルのプロービングスコアがマスク型やエンコーダー-デコーダーモデルのものと同様に振る舞うかは未解決だ。</p>
+</li>
+<li>
+<p><strong>静的タスク分布</strong>：ProbeScaleはデプロイ時に対象タスクが分かっていることを前提とする。タスクの混合が動的に変わるシステムでは、サブネットワークを再計算する必要があり、遅延が生じる。</p>
+</li>
+<li>
+<p><strong>関連性シグナルとしての線形プローブ</strong>：線形プロービングの仮定は、非線形にデコード可能だが合成的に重要な特徴を符号化する層を過小評価する可能性がある。いくつかのタスクは個別の層ではなく層の組み合わせに依存し、選択目標の独立性仮定に違反する。</p>
+</li>
+<li>
+<p><strong>スケーリング則の汎化</strong>：少数の評価点でフィットしたスケーリング則パラメータはすべてのタスクやモデルアーキテクチャに完全には汎化しないかもしれない。キャリブレーション誤差は不正確な予算推定に伝播する。</p>
+</li>
+<li>
+<p><strong>層の連続性</strong>：論文のサブネットワーク選択は選択された層が連続していることを要求しない。非連続な層の選択は（スキップコネクションの除去など）モデルの変更を必要とし、すべてのアーキテクチャで簡単ではない可能性がある。</p>
+</li>
+</ol>
+<h2>今後の展望</h2>
+<p><strong>著者らの提案する方向：</strong>
+- 自己回帰デコーダーのみのモデル（Llama、Mistral、Phiファミリー）へのProbeScaleの拡張
+- ストリーミングマルチタスクシステムのための動的サブネットワーク選択（現在のリクエストに応じてアクティブなサブネットワークが適応）
+- ハードウェア対応選択：パラメータ数とともにデバイス固有のレイテンシ/メモリ制約を予算に組み込む</p>
+<p><strong>その他の有望な方向：</strong>
+- <strong>量子化との統合</strong>：ProbeScaleのサブネットワーク抽出と量子化の組み合わせ——選択された層をさらに量子化し、スケーリング則がパラメータ数×ビット幅の合同予算を予測する
+- <strong>連合サブネットワーク選択</strong>：プライバシーに配慮したデプロイメントでは、各デバイスがローカルデータで独自のプロービングスコアを計算し、サーバーが生データを共有せずに集約してパーソナライズされたサブネットワークを選択できる
+- <strong>オンラインプローブ適応</strong>：本番環境での分布シフトが発生した場合、プローブを最小限のオーバーヘッドでオンライン更新し、進化するタスク特性を追跡できる
+- <strong>クロスモデル層転移</strong>：あるモデルアーキテクチャで計算したプロービングスコアが同系列の新しいモデルへの転移可能であれば、新しいモデルのゼロショットサブネットワーク選択が実現できる</p>
+<h2>エッジ・オンデバイスへの示唆</h2>
+<p>ProbeScaleはリソース制約のあるデバイスに有能な言語モデルを展開するという実用的な課題に直接的な意義を持つ。</p>
+<p><strong>学習不要はデプロイサイクルの高速化を意味する。</strong> エッジデバイスメーカーやアプリ開発者にとって、前処理ステップで事前学習済みSLMからタスク最適化サブネットワークに移行できる——学習インフラなしで——ことは、モデル選択から本番稼働までの時間を劇的に短縮する。</p>
+<p><strong>タスク対応圧縮は利用コンテキストを尊重する。</strong> 単一のベースモデル（例えばスマートフォンにダウンロードされたSLM）を、キーボード予測、音声コマンド解析、メール要約など異なるオンデバイスアプリケーション向けの複数の軽量サブネットワークに特化できる。それぞれ別のモデルをダウンロードする必要なく、各サブネットワークがタスクにチューニングされる。</p>
+<p><strong>原理的な予算設定はハードウェアエンジニアを助ける。</strong> MLエンジニアと経験的に圧縮比を交渉する代わりに、ハードウェアチームはスケーリング則の予測を使って、タスク性能目標の観点からメモリと計算要件を正当化できる——MLとシステムの分野をつなぐ翻訳層だ。</p>
+<p><strong>5〜10倍の削減は真に新しいデバイスカテゴリーを可能にする。</strong> 355MパラメータのRoBERTaモデルはマイクロコントローラークラスのデバイスには実現不可能だ。35〜70MパラメータのProbeScaleサブネットワークなら制約のあるフラッシュとSRAMの予算に収まる可能性があり、エッジの最前線での言語理解への扉を開く。</p>
+<h2>原文リンク</h2>
+<p><a href="https://arxiv.org/abs/2606.01806">Original Paper</a></p>
+<script type="text/javascript">if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width < 768) ? "left" : align;
+        indent = (screen.width < 768) ? "0em" : indent;
+        linebreak = (screen.width < 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+
+    var configscript = document.createElement('script');
+    configscript.type = 'text/x-mathjax-config';
+    configscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'none' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        availableFonts: ['STIX', 'TeX']," +
+        "        preferredFont: 'STIX'," +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(configscript);
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+</script>
+    </article>
+
+        <div class="tags">
+            <p>tags: <a href="/tag/slm.html">SLM</a>, <a href="/tag/ai.html">AI</a>, <a href="/tag/paper-review.html">paper-review</a></p>
+        </div>
+
+    <hr>
+
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <ul class="list-inline text-center">
+                            <li>
+                                <a href="http://twitter.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-twitter fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="http://github.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-github fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                    </ul>
+<p class="copyright text-muted">
+    Blog powered by <a href="http://getpelican.com">Pelican</a>,
+    which takes great advantage of <a href="http://python.org">Python</a>. <br />        &copy;  toohsk
+</p>                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- jQuery -->
+    <script src="/theme/js/jquery.min.js"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="/theme/js/bootstrap.min.js"></script>
+
+        <!-- Custom Theme JavaScript -->
+        <script src="/theme/js/clean-blog.min.js"></script>
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-LR14KRYZ4L"></script>
+<script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-LR14KRYZ4L');
+</script>
+</body>
+
+</html>

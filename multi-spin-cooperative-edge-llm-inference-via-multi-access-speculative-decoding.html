@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+            <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+        <title>Multi-SPIN: Cooperative Edge LLM Inference via Multi-Access Speculative Decoding</title>
+
+            <link href="/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Full Atom Feed" />
+            <link href="/feeds/{slug}.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Categories Atom Feed" />
+        <!-- Bootstrap Core CSS -->
+        <link href="/theme/css/bootstrap.min.css" rel="stylesheet">
+
+        <!-- Custom CSS -->
+        <link href="/theme/css/clean-blog.min.css" rel="stylesheet">
+
+        <!-- Code highlight color scheme -->
+            <link href="/theme/css/code_blocks/github.css" rel="stylesheet">
+
+
+        <!-- Custom Fonts -->
+        <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+        <link href='https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+        <link href='https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/css'>
+
+        <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+        <!--[if lt IE 9]>
+            <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+            <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+
+
+        <meta name="description" content="Multi-SPIN distributes speculative decoding across heterogeneous edge devices — on-device SLMs draft tokens while an edge server LLM...">
+
+        <meta name="author" content="toohsk">
+
+        <meta name="tags" content="SLM">
+        <meta name="tags" content="AI">
+        <meta name="tags" content="paper-review">
+
+	                <meta property="og:locale" content="">
+		<meta property="og:site_name" content="Atsushi's blog">
+
+	<meta property="og:type" content="article">
+            <meta property="article:author" content="/author/toohsk.html">
+	<meta property="og:url" content="/multi-spin-cooperative-edge-llm-inference-via-multi-access-speculative-decoding.html">
+	<meta property="og:title" content="Multi-SPIN: Cooperative Edge LLM Inference via Multi-Access Speculative Decoding">
+	<meta property="article:published_time" content="2026-06-13 00:00:00+09:00">
+            <meta property="og:description" content="Multi-SPIN distributes speculative decoding across heterogeneous edge devices — on-device SLMs draft tokens while an edge server LLM...">
+
+            <meta property="og:image" content="/images/blog_cover.jpg">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:site" content="@toohsk">
+        <meta name="twitter:title" content="Multi-SPIN: Cooperative Edge LLM Inference via Multi-Access Speculative Decoding">
+
+            <meta name="twitter:image" content="/images/blog_cover.jpg">
+
+            <meta name="twitter:description" content="Multi-SPIN distributes speculative decoding across heterogeneous edge devices — on-device SLMs draft tokens while an edge server LLM...">
+</head>
+
+<body class="article-multi-spin-cooperative-edge-llm-inference-via-multi-access-speculative-decoding">
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+        <div class="container-fluid">
+            <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header page-scroll">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="/">Atsushi's blog</a>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav navbar-right">
+
+                </ul>
+            </div>
+            <!-- /.navbar-collapse -->
+        </div>
+        <!-- /.container -->
+    </nav>
+
+    <!-- Page Header -->
+        <header class="intro-header" style="background-image: url('/images/blog_cover.jpg')">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <div class="post-heading">
+                        <h1>Multi-SPIN: Cooperative Edge LLM Inference via Multi-Access Speculative Decoding</h1>
+                        <span class="meta">Posted by
+                                <a href="/author/toohsk.html">toohsk</a>
+                             on 土 13 6月 2026
+                        </span>
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+    <!-- Post Content -->
+    <article>
+        <h2>Why This Paper Matters</h2>
+<p>Speculative decoding is one of the most compelling tricks in modern LLM inference: a small, fast "draft" model proposes a sequence of tokens, a larger "verifier" model checks them in a single forward pass, and if the drafts are accepted the system gets multiple tokens for roughly the cost of one. The catch has always been a deployment mismatch: speculative decoding was designed as a single-device, single-user technique. At the edge — where you have tens or hundreds of heterogeneous devices (phones, wearables, IoT nodes) all wanting LLM capabilities from a shared edge server — the picture is fundamentally different.</p>
+<p>Why is multi-user edge inference hard? Three reasons:</p>
+<ol>
+<li><strong>Computation heterogeneity.</strong> Device A may draft 10 tokens/second; device B drafts 2. If you batch verification on the server, the server must wait for the slowest drafter in the batch.</li>
+<li><strong>Communication heterogeneity.</strong> Wireless channels vary by user, location, and mobility. Uploading a longer draft costs bandwidth; allocating too much to one user starves the rest.</li>
+<li><strong>Coupling between draft quality and draft length.</strong> Longer drafts increase the chance that some tokens are rejected, wasting both the device's compute and the uplink bandwidth consumed to transmit them.</li>
+</ol>
+<p>These three tensions don't exist in the single-device setting, and naive extensions of prior work collapse under them. Multi-SPIN is the first paper to model all three jointly and derive principled, closed-form control policies for a multi-user edge system.</p>
+<h2>Core Technical Contribution</h2>
+<h3>System Architecture</h3>
+<p>Multi-SPIN organizes inference around two tiers:</p>
+<ul>
+<li><strong>Device tier</strong>: Each user device runs a small language model (SLM) that drafts <span class="math">\(\gamma\)</span> candidate tokens per round.</li>
+<li><strong>Edge server tier</strong>: The server runs the target LLM and receives draft sequences from all users over a shared wireless channel. It verifies all drafts in a single forward pass (batched) and returns the accepted prefix to each device.</li>
+</ul>
+<p>The fundamental cycle is: (1) device drafts → (2) upload drafts → (3) server verifies in batch → (4) server returns accepted tokens → (5) device updates KV cache and starts next round.</p>
+<h3>The Draft Length as the Central Control Variable</h3>
+<p>The paper's core insight is that <strong>draft length <span class="math">\(\gamma_i\)</span> for user <span class="math">\(i\)</span> is the knob that couples all the tensions above</strong>. Increasing <span class="math">\(\gamma_i\)</span>:
+- Increases device-side compute time (the SLM has to generate more tokens)
+- Increases uplink bandwidth usage (more tokens to transmit)
+- Increases expected tokens generated per round if acceptance rate is high — but decreases marginal gain per token if acceptance rate is low</p>
+<p>So the optimal <span class="math">\(\gamma_i\)</span> is not "as large as possible" — it depends on the user's SLM speed, channel quality, and acceptance rate.</p>
+<h3>The Optimization Problem</h3>
+<p>The paper defines <strong>sum token goodput</strong> as the system-level objective: the total number of tokens accepted across all users per unit time. Formally:</p>
+<div class="math">$$G = \sum_{i=1}^{K} \frac{\mathbb{E}[\text{accepted tokens from user } i]}{\text{round latency}}$$</div>
+<p>where the round latency depends on the slowest user in the batch (for synchronized verification) and the bandwidth allocation <span class="math">\(\{b_i\}\)</span> to each user.</p>
+<p>The authors formulate the <strong>multi-access draft control problem</strong> as:</p>
+<div class="math">$$\max_{\{\gamma_i\}, \{b_i\}} \sum_i G_i \quad \text{subject to} \quad \sum_i b_i \leq B, \quad \gamma_i \in \mathbb{Z}^+$$</div>
+<p>where <span class="math">\(B\)</span> is the total available bandwidth. This is a mixed integer optimization with a coupling constraint (bandwidth sum) and a coupling in the objective (latency is determined by the maximum round time across users).</p>
+<h3>Two Regimes and Their Closed-Form Solutions</h3>
+<p><strong>Case 1 — Homogeneous draft lengths</strong> (<span class="math">\(\gamma_i = \gamma\)</span> for all <span class="math">\(i\)</span>): Forcing all users to draft the same number of tokens allows the server to batch cleanly (all drafts arrive together). The optimization reduces to choosing a single <span class="math">\(\gamma\)</span> and the bandwidth split <span class="math">\(\{b_i\}\)</span>. The paper shows that the optimal bandwidth policy <strong>compensates weaker users</strong>: users with poor computation-communication (C2) capabilities get more bandwidth to equalize their contribution to the bottleneck round latency. Intuitively, the server is waiting for the slowest device anyway, so reducing that slowdown is the highest-leverage action.</p>
+<p><strong>Case 2 — Heterogeneous draft lengths</strong>: Allowing <span class="math">\(\gamma_i\)</span> to differ removes the synchronization constraint (the server can verify partial batches). This introduces an extra degree of freedom that the authors show can strictly improve goodput. The optimal policy here <strong>rewards users with higher token acceptance rates</strong> by giving them longer drafts and more bandwidth — because their extra tokens are more likely to be accepted and therefore contribute to the goodput sum. The decomposition method converts the coupled problem into per-user sub-problems that can be solved in closed form.</p>
+<h3>Why Closed-Form Matters</h3>
+<p>Prior edge-inference work relies on iterative algorithms or neural controllers that must be re-trained or re-run online as channel conditions change. Closed-form solutions are deployable in real-time on the edge server with negligible overhead — just a formula evaluation as conditions are monitored.</p>
+<h2>Comparison to Prior Work</h2>
+<table>
+<thead>
+<tr>
+<th>System</th>
+<th>Multi-user</th>
+<th>Bandwidth-aware</th>
+<th>Heterogeneous drafts</th>
+<th>Closed-form</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Standard speculative decoding (Leviathan et al.)</td>
+<td>✗</td>
+<td>✗</td>
+<td>✗</td>
+<td>—</td>
+</tr>
+<tr>
+<td>SPIN (heterogeneous single-server)</td>
+<td>✗</td>
+<td>✗</td>
+<td>✓</td>
+<td>✗</td>
+</tr>
+<tr>
+<td>SLED (edge serving)</td>
+<td>✓</td>
+<td>✓</td>
+<td>✗</td>
+<td>✗</td>
+</tr>
+<tr>
+<td>Multi-SPIN (this work)</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+</tr>
+</tbody>
+</table>
+<p>SLED (arXiv:2506.09397) addresses edge LLM serving but treats devices as passive query sources and doesn't leverage on-device SLMs as draft producers. SPIN (arXiv:2503.15921) uses heterogeneous speculative models but is a single-server, not multi-user, design. Multi-SPIN is the first to close all four boxes simultaneously.</p>
+<h2>Reading the Results</h2>
+<p>The key metric, <strong>sum token goodput</strong>, captures what actually matters at the edge: how many useful tokens the system delivers per second across all users. The paper's theoretical analysis predicts — and simulations confirm — several non-obvious behaviors:</p>
+<p><strong>Goodput vs. draft length</strong>: Goodput peaks at an intermediate <span class="math">\(\gamma^*\)</span>. Too-short drafts underutilize server compute; too-long drafts cause network bottlenecks and high rejection rates. The peak <span class="math">\(\gamma^*\)</span> shifts right (toward longer drafts) as channel quality improves or SLM acceptance rates improve.</p>
+<p><strong>Heterogeneous vs. homogeneous draft policy</strong>: Heterogeneous draft control consistently outperforms homogeneous by 15–40% in simulated diverse-device networks. The gain is largest when device capability spread is wide (e.g., mixing smartphones and IoT sensors).</p>
+<p><strong>Bandwidth allocation impact</strong>: Optimal bandwidth allocation improves goodput by 10–20% over equal-split allocation in the homogeneous case, and by up to 35% in the heterogeneous case, confirming that intelligent radio resource management is essential for multi-user edge LLM systems.</p>
+<h2>Key Notes on the Algorithm</h2>
+<h3>The Goodput-Latency Decomposition</h3>
+<p>The elegance of the paper is that it separates goodput into two factors:</p>
+<div class="math">$$G_i = \underbrace{\mathbb{E}[\alpha(\gamma_i)]}_{\text{accepted tokens}} \cdot \underbrace{\frac{1}{T_{\text{round}}(\gamma_i, b_i)}}_{\text{round rate}}$$</div>
+<p>where <span class="math">\(\alpha(\gamma_i)\)</span> is the expected number of accepted tokens from a draft of length <span class="math">\(\gamma_i\)</span>, and <span class="math">\(T_{\text{round}}\)</span> is the round time (compute + transmit). Because <span class="math">\(\alpha(\gamma)\)</span> follows a known distribution (derived from the token acceptance probability <span class="math">\(p\)</span>, the probability that any given draft token matches the verifier distribution), this decomposition makes the problem analytically tractable.</p>
+<p>The <strong>acceptance function</strong> <span class="math">\(\mathbb{E}[\alpha(\gamma)]\)</span> for a draft of length <span class="math">\(\gamma\)</span> with per-token acceptance rate <span class="math">\(p\)</span> is:</p>
+<div class="math">$$\mathbb{E}[\alpha(\gamma)] = \frac{1 - p^{\gamma+1}}{1 - p}$$</div>
+<p>This is the geometric series sum — it grows sublinearly in <span class="math">\(\gamma\)</span>, explaining why very long drafts have diminishing returns.</p>
+<h3>The Bandwidth-Compute Trade-off</h3>
+<p>For user <span class="math">\(i\)</span> with uplink rate <span class="math">\(r_i = b_i \cdot \text{(spectral efficiency)}\)</span>, the transmission time for <span class="math">\(\gamma_i\)</span> tokens is:</p>
+<div class="math">$$T_{\text{tx},i} = \frac{\gamma_i \cdot \ell_{\text{token}}}{r_i}$$</div>
+<p>The total round time is the maximum over all users (synchronous case) or the per-user latency (asynchronous case). Optimizing over <span class="math">\(b_i\)</span> subject to <span class="math">\(\sum b_i \leq B\)</span> then yields the compensation / reward policies described above.</p>
+<h2>Limitations</h2>
+<p>The authors acknowledge several important constraints:</p>
+<ol>
+<li><strong>Perfect channel state information (CSI)</strong>: The closed-form policies assume the server knows each user's current channel quality. In practice, CSI estimation has latency and errors, especially with mobile users.</li>
+<li><strong>Static acceptance rates</strong>: The token acceptance rate <span class="math">\(p_i\)</span> is treated as a constant per user, but it depends on the prompt, the SLM quality, and the target model — all of which vary.</li>
+<li><strong>Synchronous batching model</strong>: While the heterogeneous case relaxes some synchronization, the analysis still assumes discrete rounds rather than streaming token generation.</li>
+<li><strong>Single edge server</strong>: The paper models one edge server and doesn't address multi-server or hierarchical scenarios (edge → cloud).</li>
+</ol>
+<h2>Future Work</h2>
+<p>The authors suggest extending the framework to:
+- <strong>Non-stationary channels</strong>: Adaptive draft control that tracks channel dynamics in real time
+- <strong>SLM fine-tuning in the loop</strong>: Personalizing the on-device SLM based on accepted/rejected drafts to improve acceptance rates over time
+- <strong>Multi-hop architectures</strong>: Hierarchical systems where edge servers themselves act as SLMs for upstream cloud verifiers</p>
+<p>Beyond the authors' directions, several promising extensions emerge:</p>
+<ul>
+<li><strong>Privacy-preserving draft generation</strong>: On-device SLMs could generate drafts that never expose the full prompt to the edge server — only the draft tokens — reducing data exposure.</li>
+<li><strong>Federated SLM training</strong>: Accepted draft statistics could be used as a federated signal to improve on-device SLMs without centralizing user data.</li>
+<li><strong>Cross-device draft sharing</strong>: In scenarios where multiple users query similar topics, shared draft pools could reduce per-user computation.</li>
+<li><strong>Integration with edge caching</strong>: KV cache sharing across users on the same edge server could further accelerate batch verification.</li>
+</ul>
+<h2>Implications for Edge / On-Device Deployment</h2>
+<p>Multi-SPIN represents a genuinely practical architecture for the next generation of edge AI infrastructure. Several implications stand out:</p>
+<p><strong>SLMs become load-balancing agents.</strong> Rather than asking "should I run the model on-device or offload to cloud?", Multi-SPIN reframes on-device SLMs as active contributors to a shared inference pipeline. Even a weak SLM that accepts only 50% of its tokens reduces server load by roughly half compared to full-cloud inference.</p>
+<p><strong>Wireless resource management is now an LLM inference parameter.</strong> Network engineers and ML engineers need to talk. The bandwidth allocation policy directly affects which users get good LLM responses — this is a new kind of quality-of-service problem.</p>
+<p><strong>Closed-form policies are deployment-ready.</strong> Unlike approaches that require training neural controllers or running iterative optimization, Multi-SPIN's closed-form solutions can be deployed immediately on standard edge servers with sub-millisecond policy evaluation time.</p>
+<p><strong>Heterogeneous device ecosystems are the norm, not the exception.</strong> Real deployments mix high-end phones, mid-range tablets, IoT sensors, and wearables. Multi-SPIN is specifically designed for this reality, making it practically relevant in a way that homogeneous-device benchmarks are not.</p>
+<h2>Links</h2>
+<p><a href="https://arxiv.org/abs/2606.04581">Original Paper</a></p>
+<script type="text/javascript">if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width < 768) ? "left" : align;
+        indent = (screen.width < 768) ? "0em" : indent;
+        linebreak = (screen.width < 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+
+    var configscript = document.createElement('script');
+    configscript.type = 'text/x-mathjax-config';
+    configscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'none' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        availableFonts: ['STIX', 'TeX']," +
+        "        preferredFont: 'STIX'," +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(configscript);
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+</script>
+    </article>
+
+        <div class="tags">
+            <p>tags: <a href="/tag/slm.html">SLM</a>, <a href="/tag/ai.html">AI</a>, <a href="/tag/paper-review.html">paper-review</a></p>
+        </div>
+
+    <hr>
+
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <ul class="list-inline text-center">
+                            <li>
+                                <a href="http://twitter.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-twitter fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="http://github.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-github fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                    </ul>
+<p class="copyright text-muted">
+    Blog powered by <a href="http://getpelican.com">Pelican</a>,
+    which takes great advantage of <a href="http://python.org">Python</a>. <br />        &copy;  toohsk
+</p>                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- jQuery -->
+    <script src="/theme/js/jquery.min.js"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="/theme/js/bootstrap.min.js"></script>
+
+        <!-- Custom Theme JavaScript -->
+        <script src="/theme/js/clean-blog.min.js"></script>
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-LR14KRYZ4L"></script>
+<script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-LR14KRYZ4L');
+</script>
+</body>
+
+</html>

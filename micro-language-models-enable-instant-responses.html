@@ -194,17 +194,17 @@
 <p>The 4–8 word range is specifically tuned: long enough to give the user the psychological impression of an instant response, short enough to be generated in tens of milliseconds on a microcontroller-class device.</p>
 <h2>Key Notes of This Paper</h2>
 <h3>The Opener-as-Prefix Formulation</h3>
-<p>Formally, the μLM generates tokens $w_1, w_2, \ldots, w_k$ where $k \in [4, 8]$, conditioned on the dialogue context $C$:</p>
-<p>$$\hat{w}<em w__1:k="w_{1:k">{1:k} = \arg\max</em> \mid C)$$}} P_{\mu}(w_{1:k</p>
-<p>where $P_{\mu}$ is the μLM's distribution. The cloud model then generates:</p>
-<p>$$w_{k+1}, w_{k+2}, \ldots \sim P_{\text{cloud}}(\cdot \mid C, \hat{w}_{1:k})$$</p>
-<p>The entire response visible to the user is $[\hat{w}<em k_1:="k+1:">{1:k}, w</em>]$. The key constraint is that the cloud model must condition on the opener, not regenerate from scratch — otherwise the continuator mode provides no benefit.</p>
-<p>This formulation means the μLM is optimized for <strong>prefix quality</strong>, not full-response quality. A prefix $\hat{w}_{1:k}$ is good if: (a) it is plausible given $C$, and (b) it is easily extendable by the cloud model toward a coherent complete response.</p>
+<p>Formally, the μLM generates tokens <span class="math">\(w_1, w_2, \ldots, w_k\)</span> where <span class="math">\(k \in [4, 8]\)</span>, conditioned on the dialogue context <span class="math">\(C\)</span>:</p>
+<div class="math">$$\hat{w}_{1:k} = \arg\max_{w_{1:k}} P_{\mu}(w_{1:k} \mid C)$$</div>
+<p>where <span class="math">\(P_{\mu}\)</span> is the μLM's distribution. The cloud model then generates:</p>
+<div class="math">$$w_{k+1}, w_{k+2}, \ldots \sim P_{\text{cloud}}(\cdot \mid C, \hat{w}_{1:k})$$</div>
+<p>The entire response visible to the user is <span class="math">\([\hat{w}_{1:k}, w_{k+1:}]\)</span>. The key constraint is that the cloud model must condition on the opener, not regenerate from scratch — otherwise the continuator mode provides no benefit.</p>
+<p>This formulation means the μLM is optimized for <strong>prefix quality</strong>, not full-response quality. A prefix <span class="math">\(\hat{w}_{1:k}\)</span> is good if: (a) it is plausible given <span class="math">\(C\)</span>, and (b) it is easily extendable by the cloud model toward a coherent complete response.</p>
 <h3>The Graceful Recovery Mechanism</h3>
-<p>For error correction, the paper introduces a structural criterion: when $P_{\text{cloud}}(w_{k+1} \mid C, \hat{w}_{1:k})$ is below a threshold $\tau$ (i.e., the cloud model assigns low probability to any natural continuation), the system triggers recovery. Specifically:</p>
+<p>For error correction, the paper introduces a structural criterion: when <span class="math">\(P_{\text{cloud}}(w_{k+1} \mid C, \hat{w}_{1:k})\)</span> is below a threshold <span class="math">\(\tau\)</span> (i.e., the cloud model assigns low probability to any natural continuation), the system triggers recovery. Specifically:</p>
 <ul>
 <li>If the opener can be bridged (cloud can generate a short "connector" phrase that corrects trajectory), it does so</li>
-<li>If not, it falls back to regenerating from $C$ alone, accepting the latency cost</li>
+<li>If not, it falls back to regenerating from <span class="math">\(C\)</span> alone, accepting the latency cost</li>
 </ul>
 <p>This asymmetric cost structure means the system <strong>never sacrifices correctness for speed</strong> — it only uses the μLM opener when the cloud model can validate it.</p>
 <h2>Limitations</h2>
@@ -246,6 +246,68 @@
 <p>The broader architectural lesson is that edge-cloud latency can be "absorbed" by having the edge take over just enough work to keep the user engaged — a form of <strong>perceptual latency hiding</strong> borrowed from graphics (where frame interpolation masks rendering delays).</p>
 <h2>Links</h2>
 <p><a href="https://hf.co/papers/2604.19642">Original Paper</a></p>
+<script type="text/javascript">if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width < 768) ? "left" : align;
+        indent = (screen.width < 768) ? "0em" : indent;
+        linebreak = (screen.width < 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+
+    var configscript = document.createElement('script');
+    configscript.type = 'text/x-mathjax-config';
+    configscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'none' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        availableFonts: ['STIX', 'TeX']," +
+        "        preferredFont: 'STIX'," +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(configscript);
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+</script>
     </article>
 
         <div class="tags">

@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+            <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+        <title>PAAC：プライバシーを守りながらクラウドLLMの性能を活用するデバイス-クラウド協調エージェント</title>
+
+            <link href="/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Full Atom Feed" />
+            <link href="/feeds/{slug}.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Categories Atom Feed" />
+        <!-- Bootstrap Core CSS -->
+        <link href="/theme/css/bootstrap.min.css" rel="stylesheet">
+
+        <!-- Custom CSS -->
+        <link href="/theme/css/clean-blog.min.css" rel="stylesheet">
+
+        <!-- Code highlight color scheme -->
+            <link href="/theme/css/code_blocks/github.css" rel="stylesheet">
+
+
+        <!-- Custom Fonts -->
+        <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+        <link href='https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+        <link href='https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/css'>
+
+        <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+        <!--[if lt IE 9]>
+            <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+            <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+
+
+        <meta name="description" content="PAACtはプランナー-エグゼキュータの分解をデバイス-クラウドの信頼境界に合わせ、型付きプレースホルダートークンと決定論的レジストリによって、クラウドが生の機密データに触れることなく推論できる仕組みを実現し、精度を15〜36%向上させつつ漏洩を2〜6倍削減した。">
+
+        <meta name="author" content="toohsk">
+
+        <meta name="tags" content="SLM">
+        <meta name="tags" content="AI">
+        <meta name="tags" content="論文解説">
+
+	                <meta property="og:locale" content="">
+		<meta property="og:site_name" content="Atsushi's blog">
+
+	<meta property="og:type" content="article">
+            <meta property="article:author" content="/author/toohsk.html">
+	<meta property="og:url" content="/paacpuraibashi-woshou-rinagarakuraudollmnoxing-neng-wohuo-yong-surudebaisu-kuraudoxie-diao-e-ziento.html">
+	<meta property="og:title" content="PAAC：プライバシーを守りながらクラウドLLMの性能を活用するデバイス-クラウド協調エージェント">
+	<meta property="article:published_time" content="2026-05-14 00:00:00+09:00">
+            <meta property="og:description" content="PAACtはプランナー-エグゼキュータの分解をデバイス-クラウドの信頼境界に合わせ、型付きプレースホルダートークンと決定論的レジストリによって、クラウドが生の機密データに触れることなく推論できる仕組みを実現し、精度を15〜36%向上させつつ漏洩を2〜6倍削減した。">
+
+            <meta property="og:image" content="/images/blog_cover.jpg">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:site" content="@toohsk">
+        <meta name="twitter:title" content="PAAC：プライバシーを守りながらクラウドLLMの性能を活用するデバイス-クラウド協調エージェント">
+
+            <meta name="twitter:image" content="/images/blog_cover.jpg">
+
+            <meta name="twitter:description" content="PAACtはプランナー-エグゼキュータの分解をデバイス-クラウドの信頼境界に合わせ、型付きプレースホルダートークンと決定論的レジストリによって、クラウドが生の機密データに触れることなく推論できる仕組みを実現し、精度を15〜36%向上させつつ漏洩を2〜6倍削減した。">
+</head>
+
+<body class="article-paacpuraibashi-woshou-rinagarakuraudollmnoxing-neng-wohuo-yong-surudebaisu-kuraudoxie-diao-e-ziento">
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+        <div class="container-fluid">
+            <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header page-scroll">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="/">Atsushi's blog</a>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav navbar-right">
+
+                </ul>
+            </div>
+            <!-- /.navbar-collapse -->
+        </div>
+        <!-- /.container -->
+    </nav>
+
+    <!-- Page Header -->
+        <header class="intro-header" style="background-image: url('/images/blog_cover.jpg')">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <div class="post-heading">
+                        <h1>PAAC：プライバシーを守りながらクラウドLLMの性能を活用するデバイス-クラウド協調エージェント</h1>
+                        <span class="meta">Posted by
+                                <a href="/author/toohsk.html">toohsk</a>
+                             on 木 14 5月 2026
+                        </span>
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+    <!-- Post Content -->
+    <article>
+        <h2>なぜこの研究が重要か</h2>
+<p>個人タスクを処理するLLMエージェント — メールスレッドから会議を設定する、健康上の質問に答える、確定申告を補助する — は必然的に機密データに触れる。展開アーキテクチャの両極端はそれぞれ何か本質的なものを犠牲にする。</p>
+<p><strong>クラウドエージェント</strong>はフロンティアモデルのフルパワーを活用できる。GPT-4クラスのエージェントは複雑なメールチェーンを横断して推論し、完璧な予定表エントリを作れる。しかしそのためにメール内容 — 名前、医療詳細、財務数値、個人的な関係性 — を平文で受け取らなければならない。多くのユーザー・多くのユースケースでこれは受け入れられない。</p>
+<p><strong>デバイスエージェント</strong>はすべてのデータをローカルに保ちプライバシーを守る。しかし現在のデバイス上SLMはクラウドモデルより能力が大幅に劣り、特に複雑な多段階推論でその差が顕著だ。スマートフォン上の1Bパラメータモデルしか使えないエージェントは、ユーザーが最も支援を必要とするタスクで失敗する。</p>
+<p>単純なハイブリッド — クエリを「機密」か「非機密」に分類してルーティングする — はエージェントタスクでは機能しない。実際のタスクは機密・非機密コンテンツを細粒度で混在させる：一つの計画ステップが、人の予定の空き状況（非機密）、その人の健康状態（機密）、公開されているレストランの電話番号（非機密）について同時に推論する必要があるかもしれない。これをクエリ単位でクリーンに分離できない。</p>
+<p>既存のサニタイゼーション手法（NERベースのリダクション、差分プライバシーメカニズム）にはエージェントコンテキストでの致命的な失敗モードがある：<strong>構造的整合性（Structural Fidelity）の破壊</strong>だ。エージェントが<code>create_calendar_event(name="田中花子", time="15:00")</code>を呼び出す必要がある場合、「田中花子」を<code>[人名]</code>に置き換えると実行できないアクションになる。サニタイザーは、各値の内容を隠しながらもその意味的役割を保持しなければならない — そして現在のツールはこれができない。</p>
+<h2>技術的なアプローチ</h2>
+<p>PAAC（Privacy-Aware Agentic Collaboration）は、プランナー-エグゼキュータの分解軸を通常の計算境界ではなく、デバイス-クラウドの<strong>信頼境界</strong>に合わせる。</p>
+<h3>アーキテクチャ</h3>
+<p><strong>デバイス上エージェント（機密スパン識別器 + キーファインディング抽出器）：</strong>
+- 各エージェントステップで、デバイス上のSLMが現在のコンテキスト内でプライバシー機密なスパンを識別する
+- 構造化されたタクソノミーの<strong>型付きプレースホルダートークン</strong>に置き換えることを提案する：<code>&lt;PERSON_0&gt;</code>、<code>&lt;LOCATION_1&gt;</code>、<code>&lt;HEALTH_CONDITION_0&gt;</code>、<code>&lt;FINANCIAL_VALUE_2&gt;</code>など
+- クラウドエージェントがアクションを返した後、デバイスエージェントは実行結果をコンパクトな<strong>キーファインディング</strong>に蒸留する。これにより次のステップでクラウドに再び生データを渡さずに済む</p>
+<p><strong>決定論的レジストリ（デバイス上、非LLM）：</strong>
+- 型付きプレースホルダーと元の値を相互に対応付けるルックアップテーブル
+- 置換（機密値→プレースホルダー）と逆置換（プレースホルダー→元の値）をすべて決定論的に実行する
+- LLMは元の機密値に触れることなく、どのスパンにどの型のプレースホルダーを割り当てるかを「提案」するだけ</p>
+<p><strong>クラウドエージェント（推論者 + プランナー）：</strong>
+- 型付きプレースホルダーが組み込まれたサニタイズ済みコンテキストを受け取る
+- プレースホルダーを不透明トークンとして推論する：<code>&lt;PERSON_0&gt;</code>は「その正体はデバイスが知っているが、クラウドには不明な何者か」として扱われる
+- プレースホルダーを使ったアクションシーケンスを返す（例：<code>send_email(to=&lt;PERSON_0&gt;, subject="フォローアップ")</code>）
+- アクションを実行する前にデバイスのレジストリが実際の値に逆置換する</p>
+<h3>なぜ型付きプレースホルダーが機能するのか</h3>
+<p>鍵となる洞察は、<strong>内容を隠しても推論上の役割は保持できる</strong>ということだ。「<code>&lt;PERSON_0&gt;</code>と<code>&lt;LOCATION_1&gt;</code>で<code>&lt;DATE_0&gt;</code>に面会する」という文は、その人の正体や場所が「がん治療センター」であることをクラウドが知らなくても、スケジュール競合の推論、フォローアップリマインダーの生成、一貫した多段階計画の立案に十分な構造を伝えている。</p>
+<p>型注釈が不可欠だ：プレースホルダーが<code>&lt;HEALTH_CONDITION&gt;</code>型であることを知ることで、クラウドモデルは正確な値を知らなくても医療的コンテキスト・感度レベル・フォローアップアクションを適切に適用できる。これは単純なリダクションとは根本的に異なる — 単純なリダクションは内容と共に型情報まで破壊してしまう。</p>
+<h3>セキュリティモデル</h3>
+<p>PAACtの脅威モデルは<strong>誠実だが好奇心旺盛（Honest-but-Curious）なクラウドプロバイダー</strong>だ。クラウドモデルは役割を誠実に実行するが、送られてきたすべてを観察する。保証は、クラウドが見えるコンテキストに生の機密値が一切現れないことだ。決定論的レジストリにより、クラウドがトラフィックパターンを観察できても、不透明なプレースホルダートークンしか見えない。</p>
+<p>デバイス上LLMの役割は意図的に限定されている：スパン境界と型を提案するだけで、置換は行わない。これにより、スパン識別の誤りは限定的 — 最悪でも一つの機密スパンを見逃す（一つの値が漏洩する）だけであり、非機密コンテンツを機密と誤識別してタスクの有用性を組織的に破壊することはない。</p>
+<h2>先行研究との比較</h2>
+<p><strong>単純ルーティングベースライン</strong>：機密クエリをデバイスへ、非機密クエリをクラウドへ。混在機密性を持つエージェントタスクで失敗し、機密な推論ステップでもクラウドの推論能力を活用できない。</p>
+<p><strong>NERベースのリダクション</strong>：固有表現を<code>[人名]</code>、<code>[地名]</code>などに置き換える。ツール呼び出しにおける構造的整合性を破壊する（下流のAPI呼び出しで値を使えなくなる）。また固定タクソノミーの実体型に限定されるため、標準的NERカテゴリに収まらない機密情報（「彼女が先月始めた治療」など）を見逃す。</p>
+<p><strong>差分プライバシーメカニズム</strong>：埋め込みや出力にノイズを加えてメンバーシップ推論を防ぐ。離散的で構造化されたエージェントアクションでは機能しない — ノイズを加えると無効なAPI呼び出しになる。</p>
+<p><strong>最先端のデバイス-クラウドベースライン</strong>：PAACtは3つのエージェントベンチマーク（厳格なプライバシー設定下）で平均精度を<strong>15〜36%改善</strong>し、平均漏洩を<strong>2〜6倍削減</strong>する。最大の改善幅は固定エンティティタクソノミー外のプライバシーターゲット — まさにNERベース手法が失敗する領域 — で現れる。</p>
+<p><strong>10分野にわたる17の追加ベンチマーク</strong>（数学・科学・金融など）での一貫した改善は、このフレームワークの恩恵がプライバシー特化タスクを超えて広がることを示唆する。</p>
+<h2>実験結果の読み方</h2>
+<p>ベースラインとの比較で+15〜36%の精度向上は大きい。この範囲は、タスクの難しさを反映している：クラウドエージェントが型付きプレースホルダーを使って有用な推論ができるタスク（ほとんどのスケジューリング、計画、事実照合タスク）では精度向上が高く、機密スパンの構造が密すぎてプレースホルダーベース推論が一貫しないタスクでは小さい。</p>
+<p>漏洩2〜6倍削減は、すでに何らかのサニタイゼーションを適用したベースラインに対して計測されている。つまり「すべてをクラウドに送る」との比較ではなく、専用のプライバシー保護ベースラインに対して2〜6倍の漏洩削減を達成しながら精度も高い。</p>
+<h2>アルゴリズムの重要部分の解説</h2>
+<p>中核的なアルゴリズム機構は<strong>型付きプレースホルダー置換パイプライン</strong>だ：</p>
+<div class="highlight"><pre><span></span><code>ステップ1（デバイス）: 機密スパンを識別
+  コンテキスト: &quot;田中先生と△△病院で彼女の化学療法スケジュールについて昼食を&quot;
+  スパン: [(&quot;田中先生&quot;, PERSON), (&quot;△△病院&quot;, LOCATION), (&quot;化学療法スケジュール&quot;, HEALTH_CONDITION)]
+
+ステップ2（デバイスレジストリ）: 置換
+  サニタイズ済み: &quot;&lt;PERSON_0&gt;と&lt;LOCATION_0&gt;で彼女の&lt;HEALTH_CONDITION_0&gt;について昼食を&quot;
+  レジストリ: {PERSON_0: &quot;田中先生&quot;, LOCATION_0: &quot;△△病院&quot;, HEALTH_CONDITION_0: &quot;化学療法スケジュール&quot;}
+
+ステップ3（クラウド）: 推論と計画
+  入力: サニタイズ済みコンテキスト
+  出力: create_calendar_event(attendee=&lt;PERSON_0&gt;, location=&lt;LOCATION_0&gt;, note=&quot;&lt;HEALTH_CONDITION_0&gt;について話し合い&quot;)
+
+ステップ4（デバイスレジストリ）: 逆置換
+  アクション: create_calendar_event(attendee=&quot;田中先生&quot;, location=&quot;△△病院&quot;, note=&quot;化学療法スケジュールについて話し合い&quot;)
+
+ステップ5（デバイス）: アクションを実行してキーファインディングを抽出
+  ファインディング: &quot;木曜13時に&lt;PERSON_0&gt;と&lt;LOCATION_0&gt;で昼食を設定&quot;
+</code></pre></div>
+
+<p>ステップ5のキーファインディング蒸留は重要だ：次のステップでクラウドに渡せる形式に学習内容をまとめることで、会話履歴の蓄積を通じて生の値が「裏口からクラウドコンテキストに再侵入」することを防ぐ。</p>
+<p>型システムがこれを大規模に機能させる。デバイス上のSLMは正確な型割り当てを生成するようにファインチューニングされているが、これはスタンドアロンのアシスタントとしての汎用推論より単純で信頼性の高いタスクだ。1〜3Bパラメータのモデルでも、このロールに特化してファインチューニングすれば効果的なプライバシーガーディアンとして機能できる。</p>
+<h2>限界と課題</h2>
+<ul>
+<li>デバイス上のSLMが機密スパンを正確に識別できるだけの能力を持つ必要がある。非常に弱いSLMは機密情報を見逃したり過度にリダクションしてタスクの有用性を損なったりする可能性がある</li>
+<li>型付きプレースホルダータクソノミーは事前設計が必要で、すべてのドメインをカバーしない場合がある（法律や特定の医療サブフィールドなどはドメイン固有の型が必要）</li>
+<li>エージェントチェーンの複数ステップにまたがるプライバシーターゲット（非機密な詳細の組み合わせから個人を推定するなど）は対応外 — PAACtはステップ内のスパンプライバシーに焦点を当てる</li>
+<li>エージェントベンチマークで評価されている。実際の展開ではサイドチャネル攻撃（タイミング解析、モデル出力解析）など追加の攻撃面が存在する</li>
+</ul>
+<h2>今後の展望</h2>
+<p>著者が示唆する方向：
+- 機密情報が画像や音声に現れるマルチモーダルエージェントタスクへの拡張
+- 誠実だが好奇心旺盛（Honest-but-Curious）より強い脅威モデル下での形式的プライバシー保証
+- 新しいドメイン展開とともに成長する適応型型付きプレースホルダータクソノミー</p>
+<p>さらに発展的な研究方向：
+- <strong>連合スパン検出</strong>：複数のデバイスが機密サンプルを共有せずに連合学習でデバイス上スパン検出モデルを共同訓練する
+- <strong>意味保存型プレースホルダー埋め込み</strong>：不透明トークンの代わりに、正確な値を隠しながら意味的特性（感情極性、カテゴリ、数値の近似的大きさ）を捉える埋め込みを使い、クラウドのより豊かな推論を可能にする
+- <strong>監査可能な漏洩追跡</strong>：何の種類の情報がいつデバイスを離れたかの形式的監査ログ。ユーザーがポリシーをレビュー・設定できる
+- <strong>デバイス上LLM改善との統合</strong>：デバイス上モデルが向上するにつれ、分割点を動的にシフトできる。PAACtのアーキテクチャはこれを再設計なしに自然に受け入れる</p>
+<h2>エッジ・オンデバイスへの示唆</h2>
+<p>PAACtは、ハイブリッドシステムにおけるデバイス上の小型LLMの正しい役割は「ネットワークが切れたときに動くモデル」ではなく、<strong>ユーザーデータとクラウド推論の間を仲介するプライバシーガーディアン</strong>だという説得力ある主張をする。</p>
+<p>この再定義は、SLM設計の実践的な示唆を持つ。デバイス上のSLMを純粋な汎用言語生成品質のために最適化するのではなく、以下のために最適化すべきだ：
+1. <strong>機密スパン検出の再現率</strong>：機密情報を見逃さない高い感度
+2. <strong>型分類の精度</strong>：プレースホルダーカテゴリの正確な割り当て
+3. <strong>キーファインディング蒸留の品質</strong>：アクション結果のコンパクトで情報豊富な要約</p>
+<p>これらはスタンドアロンのアシスタントとしての汎用推論より、狭く、達成しやすいタスクだ。これらのロールに特化してファインチューニングされた1〜3Bパラメータのモデルは、単体では対応できないクエリでも効果的なプライバシーガーディアンとして機能できる。</p>
+<p>製品チームにとって、このことはデバイス上のLLMがハイブリッドシステムで最終的なユーザー向け回答を生成しないとしても、その役割への投資が正当化されることを意味する。適切に設計されたデバイス側サニタイザーからのプライバシーと精度の向上は、エンジニアリング投資を正当化する。</p>
+<h2>原文リンク</h2>
+<p><a href="https://huggingface.co/papers/2605.08646">Original Paper</a></p>
+    </article>
+
+        <div class="tags">
+            <p>tags: <a href="/tag/slm.html">SLM</a>, <a href="/tag/ai.html">AI</a>, <a href="/tag/lun-wen-jie-shuo.html">論文解説</a></p>
+        </div>
+
+    <hr>
+
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <ul class="list-inline text-center">
+                            <li>
+                                <a href="http://twitter.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-twitter fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="http://github.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-github fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                    </ul>
+<p class="copyright text-muted">
+    Blog powered by <a href="http://getpelican.com">Pelican</a>,
+    which takes great advantage of <a href="http://python.org">Python</a>. <br />        &copy;  toohsk
+</p>                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- jQuery -->
+    <script src="/theme/js/jquery.min.js"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="/theme/js/bootstrap.min.js"></script>
+
+        <!-- Custom Theme JavaScript -->
+        <script src="/theme/js/clean-blog.min.js"></script>
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-LR14KRYZ4L"></script>
+<script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-LR14KRYZ4L');
+</script>
+</body>
+
+</html>

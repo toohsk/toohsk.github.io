@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+            <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+        <title>Multi-SPIN：多元アクセス投機的デコーディングによる協調エッジLLM推論</title>
+
+            <link href="/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Full Atom Feed" />
+            <link href="/feeds/{slug}.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Categories Atom Feed" />
+        <!-- Bootstrap Core CSS -->
+        <link href="/theme/css/bootstrap.min.css" rel="stylesheet">
+
+        <!-- Custom CSS -->
+        <link href="/theme/css/clean-blog.min.css" rel="stylesheet">
+
+        <!-- Code highlight color scheme -->
+            <link href="/theme/css/code_blocks/github.css" rel="stylesheet">
+
+
+        <!-- Custom Fonts -->
+        <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+        <link href='https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+        <link href='https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/css'>
+
+        <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+        <!--[if lt IE 9]>
+            <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+            <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+
+
+        <meta name="description" content="Multi-SPINはデバイス上のSLMがトークンをドラフトし、エッジサーバーのLLMがそれをバッチで検証するという投機的デコーディングを異種エッジデバイス群に分散させ、ドラフト長と帯域幅割り当ての合同最適化を閉形式で解くことでシステム全体のトークンスループットを最大化する。">
+
+        <meta name="author" content="toohsk">
+
+        <meta name="tags" content="SLM">
+        <meta name="tags" content="AI">
+        <meta name="tags" content="paper-review">
+
+	                <meta property="og:locale" content="">
+		<meta property="og:site_name" content="Atsushi's blog">
+
+	<meta property="og:type" content="article">
+            <meta property="article:author" content="/author/toohsk.html">
+	<meta property="og:url" content="/multi-spinduo-yuan-akusesutou-ji-de-deko-deinguniyoruxie-diao-etsuzillmtui-lun.html">
+	<meta property="og:title" content="Multi-SPIN：多元アクセス投機的デコーディングによる協調エッジLLM推論">
+	<meta property="article:published_time" content="2026-06-13 00:00:00+09:00">
+            <meta property="og:description" content="Multi-SPINはデバイス上のSLMがトークンをドラフトし、エッジサーバーのLLMがそれをバッチで検証するという投機的デコーディングを異種エッジデバイス群に分散させ、ドラフト長と帯域幅割り当ての合同最適化を閉形式で解くことでシステム全体のトークンスループットを最大化する。">
+
+            <meta property="og:image" content="/images/blog_cover.jpg">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:site" content="@toohsk">
+        <meta name="twitter:title" content="Multi-SPIN：多元アクセス投機的デコーディングによる協調エッジLLM推論">
+
+            <meta name="twitter:image" content="/images/blog_cover.jpg">
+
+            <meta name="twitter:description" content="Multi-SPINはデバイス上のSLMがトークンをドラフトし、エッジサーバーのLLMがそれをバッチで検証するという投機的デコーディングを異種エッジデバイス群に分散させ、ドラフト長と帯域幅割り当ての合同最適化を閉形式で解くことでシステム全体のトークンスループットを最大化する。">
+</head>
+
+<body class="article-multi-spinduo-yuan-akusesutou-ji-de-deko-deinguniyoruxie-diao-etsuzillmtui-lun">
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+        <div class="container-fluid">
+            <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header page-scroll">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="/">Atsushi's blog</a>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav navbar-right">
+
+                </ul>
+            </div>
+            <!-- /.navbar-collapse -->
+        </div>
+        <!-- /.container -->
+    </nav>
+
+    <!-- Page Header -->
+        <header class="intro-header" style="background-image: url('/images/blog_cover.jpg')">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <div class="post-heading">
+                        <h1>Multi-SPIN：多元アクセス投機的デコーディングによる協調エッジLLM推論</h1>
+                        <span class="meta">Posted by
+                                <a href="/author/toohsk.html">toohsk</a>
+                             on 土 13 6月 2026
+                        </span>
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+    <!-- Post Content -->
+    <article>
+        <h2>なぜこの研究が重要か</h2>
+<p>投機的デコーディングは現代のLLM推論における最も有力な手法の一つだ。小さく高速な「ドラフト」モデルがトークン列を提案し、大きな「検証器」モデルがそれを1回のフォワードパスでチェックする。ドラフトが採択されれば、1トークン分のコストで複数トークンを得られる計算になる。問題はこれが常に単一デバイス・単一ユーザー向けに設計されてきたことだ。エッジ環境——スマートフォン、ウェアラブル、IoTノードなど十数台から数百台の異種デバイスが共有エッジサーバーにLLM機能を求める——では状況が根本的に異なる。</p>
+<p>マルチユーザーエッジ推論がなぜ難しいのか。主に3つの理由がある。</p>
+<ol>
+<li><strong>計算の異種性。</strong> デバイスAは毎秒10トークンをドラフトできるが、デバイスBは2トークンしか出せない。バッチ検証をする場合、サーバーは最も遅いドラフターを待たなければならない。</li>
+<li><strong>通信の異種性。</strong> 無線チャネルはユーザー、位置、移動状態によって変動する。長いドラフトは帯域幅を消費し、一人のユーザーに割り当てすぎると他のユーザーが貧しくなる。</li>
+<li><strong>ドラフト品質とドラフト長の結合。</strong> ドラフトが長いほど一部のトークンが棄却される可能性が上がり、デバイスの計算資源と送信した帯域幅が無駄になる。</li>
+</ol>
+<p>これら3つの緊張関係は単一デバイス設定では存在せず、先行研究のナイーブな拡張ではうまく対処できない。Multi-SPINはこれら3つを合同でモデル化し、マルチユーザーエッジシステムに対する原理的な閉形式制御ポリシーを導出した初の論文だ。</p>
+<h2>技術的なアプローチ</h2>
+<h3>システムアーキテクチャ</h3>
+<p>Multi-SPINの推論は2層で構成される。</p>
+<ul>
+<li><strong>デバイス層</strong>：各ユーザーデバイスが小型言語モデル（SLM）を実行し、1ラウンドあたり <span class="math">\(\gamma\)</span> 個の候補トークンをドラフトする。</li>
+<li><strong>エッジサーバー層</strong>：サーバーがターゲットLLMを実行し、共有無線チャネル経由で全ユーザーからドラフト列を受信。1回のフォワードパス（バッチ処理）で全ドラフトを検証し、採択されたプレフィックスを各デバイスに返す。</li>
+</ul>
+<p>基本サイクルは、(1) デバイスがドラフト → (2) ドラフトをアップロード → (3) サーバーがバッチ検証 → (4) サーバーが採択トークンを返送 → (5) デバイスがKVキャッシュを更新して次のラウンドへ、という流れだ。</p>
+<h3>主要制御変数としてのドラフト長</h3>
+<p>論文の核心的洞察は、<strong>ユーザー <span class="math">\(i\)</span> のドラフト長 <span class="math">\(\gamma_i\)</span> が上述の緊張関係すべてを結合するノブである</strong>という点だ。<span class="math">\(\gamma_i\)</span> を増やすと、</p>
+<ul>
+<li>デバイス側の計算時間が増加（SLMがより多くのトークンを生成する必要がある）</li>
+<li>アップリンク帯域幅の使用量が増加（より多くのトークンを送信する）</li>
+<li>採択率が高ければ1ラウンドあたりの期待生成トークン数が増加する一方、採択率が低ければ1トークンあたりの限界利得が減少</li>
+</ul>
+<p>したがって最適な <span class="math">\(\gamma_i\)</span> は「できるだけ大きく」ではなく、ユーザーのSLM速度、チャネル品質、採択率に依存する。</p>
+<h3>最適化問題</h3>
+<p>論文の<strong>合計トークングッドプット</strong>（システムレベルの目標指標）は次のように定式化される。</p>
+<div class="math">$$G = \sum_{i=1}^{K} \frac{\mathbb{E}[\text{ユーザー } i \text{ からの採択トークン数}]}{\text{ラウンド遅延}}$$</div>
+<p>ここでラウンド遅延は、バッチ内の最も遅いユーザーと帯域幅割り当て <span class="math">\(\{b_i\}\)</span> に依存する。</p>
+<p>著者らはこれを<strong>多元アクセスドラフト制御問題</strong>として定式化する。</p>
+<div class="math">$$\max_{\{\gamma_i\}, \{b_i\}} \sum_i G_i \quad \text{subject to} \quad \sum_i b_i \leq B, \quad \gamma_i \in \mathbb{Z}^+$$</div>
+<p>ここで <span class="math">\(B\)</span> は利用可能な総帯域幅だ。これは結合制約（帯域幅の総和）と目的関数の結合（遅延が全ユーザーの最大ラウンド時間で決まる）を持つ混合整数最適化問題となる。</p>
+<h3>2つのレジームとその閉形式解</h3>
+<p><strong>ケース1 — 均一ドラフト長</strong>（<span class="math">\(\gamma_i = \gamma\)</span>、全ユーザー同一）：全ユーザーが同じトークン数をドラフトするため、サーバーのバッチ処理がクリーンに行える。最適な帯域幅ポリシーは<strong>弱いユーザーを補償する</strong>形になる。計算通信（C2）能力が低いユーザーに多くの帯域幅を割り当て、ボトルネックとなるラウンド遅延への寄与を平準化する。サーバーはどうせ最も遅いデバイスを待つのだから、その遅れを減らすことが最もレバレッジの高いアクションだ。</p>
+<p><strong>ケース2 — 異種ドラフト長</strong>：<span class="math">\(\gamma_i\)</span> を個別に設定できるようにすると同期制約が緩和され、著者らはこれがグッドプットを厳密に改善できることを示した。最適ポリシーは<strong>トークン採択率が高いユーザーに報酬を与える</strong>——長いドラフトと多くの帯域幅を割り当てる——なぜなら彼らの追加トークンは採択される可能性が高く、グッドプットの合計に貢献するからだ。分解法により結合問題を個別の準問題に変換し、閉形式で解ける。</p>
+<h3>閉形式解の重要性</h3>
+<p>先行のエッジ推論研究は、反復アルゴリズムや、チャネル条件が変化するたびに再訓練・再実行が必要なニューラルコントローラに頼っている。閉形式解はエッジサーバー上でリアルタイムに展開でき、ポリシー評価のオーバーヘッドは無視できるほど小さい——条件を監視しながら数式を評価するだけだ。</p>
+<h2>先行研究との比較</h2>
+<table>
+<thead>
+<tr>
+<th>システム</th>
+<th>マルチユーザー</th>
+<th>帯域幅考慮</th>
+<th>異種ドラフト</th>
+<th>閉形式解</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>標準投機的デコーディング（Leviathan et al.）</td>
+<td>✗</td>
+<td>✗</td>
+<td>✗</td>
+<td>—</td>
+</tr>
+<tr>
+<td>SPIN（異種単一サーバー）</td>
+<td>✗</td>
+<td>✗</td>
+<td>✓</td>
+<td>✗</td>
+</tr>
+<tr>
+<td>SLED（エッジサービング）</td>
+<td>✓</td>
+<td>✓</td>
+<td>✗</td>
+<td>✗</td>
+</tr>
+<tr>
+<td>Multi-SPIN（本研究）</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+</tr>
+</tbody>
+</table>
+<p>SLED（arXiv:2506.09397）はエッジLLMサービングを扱うが、デバイスを受動的なクエリ送信元として扱い、オンデバイスSLMをドラフト生成器として活用していない。SPIN（arXiv:2503.15921）は異種投機モデルを使うが、単一サーバー・単一ユーザー設計だ。Multi-SPINは4つのボックスすべてを同時に満たした初の論文である。</p>
+<h2>実験結果の読み方</h2>
+<p>主要指標である<strong>合計トークングッドプット</strong>は、エッジで実際に重要なこと——システム全体がユーザー全員に毎秒何個の有用なトークンを届けるか——を直接捉えている。論文の理論分析が予測し、シミュレーションが確認したのは次の非自明な挙動だ。</p>
+<p><strong>グッドプット対ドラフト長</strong>：グッドプットは中間的な <span class="math">\(\gamma^*\)</span> でピークを迎える。短すぎるドラフトはサーバーの計算資源を使い切れず、長すぎるドラフトはネットワークボトルネックと高い棄却率を招く。ピーク <span class="math">\(\gamma^*\)</span> はチャネル品質が改善するか、SLMの採択率が向上するにつれて右（長いドラフト方向）にシフトする。</p>
+<p><strong>異種対均一ドラフトポリシー</strong>：異種ドラフト制御は、多様なデバイスネットワークのシミュレーションにおいて均一制御より15〜40%高いグッドプットを達成する。差益はデバイス能力のばらつきが大きいとき（例：スマートフォンとIoTセンサーの混在）に最大となる。</p>
+<p><strong>帯域幅割り当ての影響</strong>：最適帯域幅割り当ては均一分割と比較して、均一ケースで10〜20%、異種ケースで最大35%のグッドプット改善をもたらし、マルチユーザーエッジLLMシステムにおいてインテリジェントな無線リソース管理が不可欠であることを確認している。</p>
+<h2>アルゴリズムの重要部分の解説</h2>
+<h3>グッドプット-遅延分解</h3>
+<p>論文の優雅さは、グッドプットを2つの因子に分離したことにある。</p>
+<div class="math">$$G_i = \underbrace{\mathbb{E}[\alpha(\gamma_i)]}_{\text{採択トークン数}} \cdot \underbrace{\frac{1}{T_{\text{round}}(\gamma_i, b_i)}}_{\text{ラウンド率}}$$</div>
+<p>ここで <span class="math">\(\alpha(\gamma_i)\)</span> はドラフト長 <span class="math">\(\gamma_i\)</span> から得られる期待採択トークン数、<span class="math">\(T_{\text{round}}\)</span> はラウンド時間（計算 + 送信）だ。<span class="math">\(\alpha(\gamma)\)</span> は既知の分布（トークン採択確率 <span class="math">\(p\)</span> から導出）に従うため、この分解が問題を解析的に扱えるようにする。</p>
+<p>ドラフト長 <span class="math">\(\gamma\)</span> で採択率 <span class="math">\(p\)</span> の<strong>採択関数</strong> <span class="math">\(\mathbb{E}[\alpha(\gamma)]\)</span> は、</p>
+<div class="math">$$\mathbb{E}[\alpha(\gamma)] = \frac{1 - p^{\gamma+1}}{1 - p}$$</div>
+<p>これは等比級数の和——<span class="math">\(\gamma\)</span> に対して劣線形に増加し、非常に長いドラフトが収穫逓減をもたらす理由を説明している。</p>
+<h3>帯域幅-計算のトレードオフ</h3>
+<p>アップリンクレート <span class="math">\(r_i = b_i \cdot \text{（スペクトル効率）}\)</span> のユーザー <span class="math">\(i\)</span> に対して、<span class="math">\(\gamma_i\)</span> トークンの送信時間は、</p>
+<div class="math">$$T_{\text{tx},i} = \frac{\gamma_i \cdot \ell_{\text{token}}}{r_i}$$</div>
+<p>総ラウンド時間は全ユーザーの最大値（同期ケース）または個別のユーザー遅延（非同期ケース）となる。<span class="math">\(\sum b_i \leq B\)</span> の制約下で <span class="math">\(b_i\)</span> を最適化することで、上述の補償/報酬ポリシーが導出される。</p>
+<h2>限界と課題</h2>
+<p>著者らはいくつかの重要な制約を認めている。</p>
+<ol>
+<li><strong>完全なチャネル状態情報（CSI）</strong>：閉形式ポリシーはサーバーが各ユーザーの現在のチャネル品質を知っていることを前提とする。実際には、特にモバイルユーザーではCSI推定に遅延と誤差が伴う。</li>
+<li><strong>静的採択率</strong>：トークン採択率 <span class="math">\(p_i\)</span> はユーザーごとに定数として扱われるが、実際にはプロンプト、SLMの品質、ターゲットモデルによって変動する。</li>
+<li><strong>同期バッチングモデル</strong>：異種ケースではいくらか同期制約を緩和しているが、ストリーミングトークン生成ではなく離散ラウンドを前提としている。</li>
+<li><strong>単一エッジサーバー</strong>：1台のエッジサーバーをモデル化しており、マルチサーバーや階層的シナリオ（エッジ→クラウド）は扱っていない。</li>
+</ol>
+<h2>今後の展望</h2>
+<p>著者らが示唆する拡張方向：
+- <strong>非定常チャネル</strong>：チャネルダイナミクスをリアルタイムで追跡する適応ドラフト制御
+- <strong>ループ内SLMファインチューニング</strong>：採択/棄却されたドラフトに基づいてオンデバイスSLMをパーソナライズし、採択率を経時的に改善
+- <strong>マルチホップアーキテクチャ</strong>：エッジサーバー自体が上流のクラウド検証器に対してSLMとして機能する階層的システム</p>
+<p>著者ら以外の有望な拡張：</p>
+<ul>
+<li><strong>プライバシー保護ドラフト生成</strong>：オンデバイスSLMがエッジサーバーに完全なプロンプトを公開せずにドラフトを生成——ドラフトトークンのみを送信——することでデータ露出を減らせる。</li>
+<li><strong>連合SLM訓練</strong>：採択されたドラフト統計をユーザーデータを中央集権化せずにオンデバイスSLMを改善するための連合シグナルとして活用できる。</li>
+<li><strong>クロスデバイスドラフト共有</strong>：類似トピックを複数ユーザーが問い合わせるシナリオでは、共有ドラフトプールがユーザーごとの計算コストを削減できる。</li>
+<li><strong>エッジキャッシングとの統合</strong>：同じエッジサーバー上のユーザー間でのKVキャッシュ共有により、バッチ検証をさらに加速できる。</li>
+</ul>
+<h2>エッジ・オンデバイスへの示唆</h2>
+<p>Multi-SPINは次世代エッジAIインフラのための実用的なアーキテクチャを示している。特に注目すべき示唆を挙げる。</p>
+<p><strong>SLMが負荷分散エージェントになる。</strong>「デバイス上でモデルを実行するか、クラウドにオフロードするか」という問いの代わりに、Multi-SPINはオンデバイスSLMを共有推論パイプラインの能動的な参加者として再位置づける。トークンの50%しか採択しない弱いSLMでさえ、完全なクラウド推論と比べてサーバーの負荷をおよそ半分に減らせる。</p>
+<p><strong>無線リソース管理がLLM推論のパラメータになった。</strong>ネットワークエンジニアとMLエンジニアの対話が必要だ。帯域幅割り当てポリシーはどのユーザーが良いLLM応答を受け取るかに直接影響する——これは新しい種類のサービス品質問題だ。</p>
+<p><strong>閉形式ポリシーはすぐに展開できる。</strong>ニューラルコントローラの訓練や反復最適化の実行を必要とするアプローチとは異なり、Multi-SPINの閉形式解はサブミリ秒のポリシー評価時間で標準エッジサーバーにすぐに展開できる。</p>
+<p><strong>異種デバイスエコシステムが標準だ。</strong>実際の展開環境はハイエンドスマートフォン、ミッドレンジタブレット、IoTセンサー、ウェアラブルが混在する。Multi-SPINはまさにこの現実向けに設計されており、均一デバイスベンチマークより実用的な意義を持つ。</p>
+<h2>原文リンク</h2>
+<p><a href="https://arxiv.org/abs/2606.04581">Original Paper</a></p>
+<script type="text/javascript">if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width < 768) ? "left" : align;
+        indent = (screen.width < 768) ? "0em" : indent;
+        linebreak = (screen.width < 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+
+    var configscript = document.createElement('script');
+    configscript.type = 'text/x-mathjax-config';
+    configscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'none' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        availableFonts: ['STIX', 'TeX']," +
+        "        preferredFont: 'STIX'," +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(configscript);
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+</script>
+    </article>
+
+        <div class="tags">
+            <p>tags: <a href="/tag/slm.html">SLM</a>, <a href="/tag/ai.html">AI</a>, <a href="/tag/paper-review.html">paper-review</a></p>
+        </div>
+
+    <hr>
+
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <ul class="list-inline text-center">
+                            <li>
+                                <a href="http://twitter.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-twitter fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="http://github.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-github fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                    </ul>
+<p class="copyright text-muted">
+    Blog powered by <a href="http://getpelican.com">Pelican</a>,
+    which takes great advantage of <a href="http://python.org">Python</a>. <br />        &copy;  toohsk
+</p>                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- jQuery -->
+    <script src="/theme/js/jquery.min.js"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="/theme/js/bootstrap.min.js"></script>
+
+        <!-- Custom Theme JavaScript -->
+        <script src="/theme/js/clean-blog.min.js"></script>
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-LR14KRYZ4L"></script>
+<script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-LR14KRYZ4L');
+</script>
+</body>
+
+</html>

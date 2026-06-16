@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+            <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+        <title>GRPOを超えて：小さなモデルを訓練するためのSparse-to-Dense報酬原理</title>
+
+            <link href="/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Full Atom Feed" />
+            <link href="/feeds/{slug}.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Categories Atom Feed" />
+        <!-- Bootstrap Core CSS -->
+        <link href="/theme/css/bootstrap.min.css" rel="stylesheet">
+
+        <!-- Custom CSS -->
+        <link href="/theme/css/clean-blog.min.css" rel="stylesheet">
+
+        <!-- Code highlight color scheme -->
+            <link href="/theme/css/code_blocks/github.css" rel="stylesheet">
+
+
+        <!-- Custom Fonts -->
+        <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+        <link href='https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+        <link href='https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/css'>
+
+        <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+        <!--[if lt IE 9]>
+            <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+            <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+
+
+        <meta name="description" content="ラベル付き検証可能データが希少なとき、それを直接小さな展開モデルのGRPOに使うのは非効率だ。まず大きな教師モデルでスパース強化学習を行い、その結果をデンスな監督として小さな生徒モデルに転送することで、Qwen3-1.7BのMATH精度が75.4%から78.5%に向上し、こ...">
+
+        <meta name="author" content="toohsk">
+
+        <meta name="tags" content="SLM">
+        <meta name="tags" content="AI">
+        <meta name="tags" content="論文解説">
+
+	                <meta property="og:locale" content="">
+		<meta property="og:site_name" content="Atsushi's blog">
+
+	<meta property="og:type" content="article">
+            <meta property="article:author" content="/author/toohsk.html">
+	<meta property="og:url" content="/grpowochao-etexiao-sanamoderuwoxun-lian-surutamenosparse-to-densebao-chou-yuan-li.html">
+	<meta property="og:title" content="GRPOを超えて：小さなモデルを訓練するためのSparse-to-Dense報酬原理">
+	<meta property="article:published_time" content="2026-05-14 00:00:00+09:00">
+            <meta property="og:description" content="ラベル付き検証可能データが希少なとき、それを直接小さな展開モデルのGRPOに使うのは非効率だ。まず大きな教師モデルでスパース強化学習を行い、その結果をデンスな監督として小さな生徒モデルに転送することで、Qwen3-1.7BのMATH精度が75.4%から78.5%に向上し、こ...">
+
+            <meta property="og:image" content="/images/blog_cover.jpg">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:site" content="@toohsk">
+        <meta name="twitter:title" content="GRPOを超えて：小さなモデルを訓練するためのSparse-to-Dense報酬原理">
+
+            <meta name="twitter:image" content="/images/blog_cover.jpg">
+
+            <meta name="twitter:description" content="ラベル付き検証可能データが希少なとき、それを直接小さな展開モデルのGRPOに使うのは非効率だ。まず大きな教師モデルでスパース強化学習を行い、その結果をデンスな監督として小さな生徒モデルに転送することで、Qwen3-1.7BのMATH精度が75.4%から78.5%に向上し、こ...">
+</head>
+
+<body class="article-grpowochao-etexiao-sanamoderuwoxun-lian-surutamenosparse-to-densebao-chou-yuan-li">
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+        <div class="container-fluid">
+            <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header page-scroll">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="/">Atsushi's blog</a>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav navbar-right">
+
+                </ul>
+            </div>
+            <!-- /.navbar-collapse -->
+        </div>
+        <!-- /.container -->
+    </nav>
+
+    <!-- Page Header -->
+        <header class="intro-header" style="background-image: url('/images/blog_cover.jpg')">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <div class="post-heading">
+                        <h1>GRPOを超えて：小さなモデルを訓練するためのSparse-to-Dense報酬原理</h1>
+                        <span class="meta">Posted by
+                                <a href="/author/toohsk.html">toohsk</a>
+                             on 木 14 5月 2026
+                        </span>
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+    <!-- Post Content -->
+    <article>
+        <h2>なぜこの研究が重要か</h2>
+<p>小さな言語モデル（SLM）を複雑な推論 — 数学・コーディング・形式的問題解決 — に優れさせることは、実用的なSLM展開における最難問の一つだ。DeepSeek-R1以降の主流レシピはGRPO（Group Relative Policy Optimization）と検証可能報酬の組み合わせだ：モデルに問題を与え、複数の解を生成させ、どれが正解かを確認し、正確さのシグナルで強化学習によりポリシーを更新する。</p>
+<p>これは7Bパラメータ以上では良く機能する。1.7Bパラメータ — モバイルやエッジ展開に関連するレンジ — では機能が低下する。問題は報酬シグナルとモデル能力の根本的なミスマッチだ：</p>
+<p><strong>スパース報酬は効率的な探索ができないモデルを罰する。</strong> GRPOのシグナルは解全体のチェックから来る — 解は正解か不正解かのどちらかだ。困難な数学問題での1.7Bモデルにとって、独力で正解を生成できる確率は非常に低い。ほとんどの訓練例は報酬0（すべての解が不正解）を生み出し、そのような例での各勾配ステップはノイズだ。モデルは学習シグナルを得られない — たとえ大きなモデルなら活用できる真の構造がその問題に含まれていても。</p>
+<p><strong>これは強化学習における既知の問題</strong>だ：スパース報酬はエージェントが十分な頻度で報酬生成状態に到達できる場合にのみ機能する。小さなモデルは定義上、探索能力が少ない。8Bモデルで機能するのと同じスパース報酬RLレシピを1.7Bモデルに適用するのは、専門家向けのハイキングコースを初心者に使わせるようなものだ。</p>
+<p><strong>知識蒸留（Knowledge Distillation）</strong>は標準的な対処法だ：スパース報酬の探索問題を回避するため、小さなモデルが大きな教師モデルの出力を模倣するように訓練する。On-Policy Distillation（OPD）は教師の対数確率から密なトークンレベルの監督を提供する。しかし新たな問題が生まれる：<strong>強化学習で改善される前の</strong>教師から蒸留している。最適でない振る舞いを圧縮している。</p>
+<p>本論文の洞察は、これら二つのアプローチ（スパースRLとデンス蒸留）が同じ問題の異なる部分に対応しており、異なるモデルに異なる段階で適用すべきだと認識することだ。</p>
+<h2>技術的なアプローチ</h2>
+<p><strong>Sparse-to-Dense報酬原理</strong>は次のように述べる：</p>
+<blockquote>
+<p>希少なラベル付き検証可能データを上流の最強モデルに使い（スパースRLで探索効率を最大化し）、その結果得られた振る舞いをデンスな監督（OPD）を通じて展開サイズの生徒モデルに転送する。</p>
+</blockquote>
+<p>これは3段階のパイプラインに分解される：</p>
+<h3>ステップ1：教師のRL（大きなモデルへのスパース報酬）</h3>
+<p>検証可能な数学報酬を使って8Bまたは14Bの教師モデルにGRPOを適用する。このスケールでは、モデルは困難な問題の相当な割合で独立して正解を見つけられる。スパース報酬シグナルは有益だ — 教師が実際に報酬生成状態に到達できるから。</p>
+<p>ステップ1後、教師はRLによって形成され、数学がより得意になり、<strong>報酬形状の推論軌跡</strong> — 正解に特徴的な詳細な思考の連鎖 — を生成することがより上手になっている。</p>
+<h3>ステップ2：ブリッジ（小さな生徒へのデンス転送）</h3>
+<p>これが核心的な貢献だ。元の教師からOPDを直接適用する代わりに、ブリッジは<strong>RL改善後の</strong>教師から展開サイズの生徒に蒸留する：</p>
+<p><strong>ステップ2a：順方向KLウォームアップ（Forward-KL Warmup）</strong>
+- RL改善後の教師から訓練問題に対するロールアウトを生成する
+- 教師ロールアウトに対する前向きKL最小化の教師ありファインチューニングで生徒を訓練する：<code>min_θ KL(π_teacher || π_student)</code>
+- これにより、オンポリシー補正の前に生徒の分布を教師のRL改善された分布に引き寄せる
+- 順方向KLはモード被覆型（mode-covering）：生徒は教師が使うすべてのモードに確率質量を割り当てなければならない。これにより、教師に似た推論パターンを生成できる領域に生徒を初期化する</p>
+<p><strong>ステップ2b：オンポリシー蒸留（OPD）</strong>
+- オンポリシーモードに切り替える：現在の生徒からロールアウトを生成し、そのロールアウトに対する教師の対数確率を計算し、教師フィードバックへの逆方向KLで生徒を訓練する
+- これによりForward-KLウォームアップで導入された分布ミスマッチ（生徒生成コンテキスト vs. 教師生成コンテキスト）を修正する
+- OPDはデンスなトークンレベルの勾配シグナルを提供する：生徒のロールアウトが解レベルで完全に誤っていても、各トークンでの教師の対数確率は、どの部分的推論パスが正しい方向に向かっていたかのシグナルを提供する</p>
+<p>この組み合わせ — 初期化のためのForward-KLウォームアップ、オンポリシー補正のためのOPD — が評価されたすべての設定で一貫して最強のブリッジだ。</p>
+<h3>ステップ3：生徒側スパースRL（オプション）</h3>
+<p>ブリッジ後、生徒はもはやコールドではない。今や教師の推論スタイルを学んでいるため、頻繁に正解に到達する推論軌跡を生成する。この時点で、生徒側のGRPOが有効になる：</p>
+<ul>
+<li>コールドQwen3-1.7BへのGRPO：弱いシグナル、限定的な改善</li>
+<li>ブリッジ後の同じ生徒へのGRPO：MATH精度が<strong>75.4%から78.5%</strong>に改善（+3.1pp）、マッチドリプレイコントロールを<strong>2.8ポイント</strong>上回る</li>
+</ul>
+<p>ブリッジは生徒の品質を直接改善するだけでなく、<strong>以前は無効だった後続のRLを可能にする</strong>。</p>
+<h2>先行研究との比較</h2>
+<table>
+<thead>
+<tr>
+<th>アプローチ</th>
+<th>ラベルデータの配分</th>
+<th>シグナル密度</th>
+<th>生徒品質</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>生徒への直接GRPO</td>
+<td>すべてのデータを小さなモデルに</td>
+<td>スパース</td>
+<td>ベースライン</td>
+</tr>
+<tr>
+<td>元の教師からのSFT蒸留</td>
+<td>訓練データ生成に使用</td>
+<td>デンスだが教師が最適でない</td>
+<td>ブリッジ以下</td>
+</tr>
+<tr>
+<td>元の教師からのOPD</td>
+<td>デンス転送、RLなし</td>
+<td>デンス</td>
+<td>SFTより良い</td>
+</tr>
+<tr>
+<td><strong>Sparse-to-Dense（本論文）</strong></td>
+<td><strong>大きな教師でRL、その後デンス転送</strong></td>
+<td><strong>スパースその後デンス</strong></td>
+<td><strong>最良</strong></td>
+</tr>
+</tbody>
+</table>
+<p>重要な発見：<strong>RL前の同じ教師から</strong>蒸留することは、<strong>RL後の教師から</strong>蒸留することより劣る。教師上でのRL改善が鍵となる要素 — 教師の振る舞い分布をスパース報酬シグナルに向けて形成し、教師のロールアウトを生徒にとってより学習しやすいものにする。</p>
+<p>Qwen3とLlamaファミリーで評価。展開サイズの生徒はQwen3-1.7B。教師は8Bおよび14Bモデル。</p>
+<h2>実験結果の読み方</h2>
+<p><strong>MATH精度：</strong>
+- コールドQwen3-1.7BへのGRPO直接適用：ベースライン
+- ステップ2ブリッジ後（Forward-KLウォームアップ + OPD）：同予算の1.7B GRPO直接適用と競合または上回る
+- ステップ3生徒側GRPO後：<strong>78.5%</strong> vs <strong>75.4%</strong>（コールド生徒GRPO比+3.1pp）</p>
+<p><strong>AIMEのパフォーマンス：</strong>
+- ブリッジ+RLレシピが8Bおよび14B教師設定の両方でステップ3前の最良のAIMEエンドポイントを生む
+- AIMEはより難しいベンチマーク（競技数学）でスパース報酬シグナルがよりノイジー — ブリッジの恩恵がここで最も顕著</p>
+<p><strong>リプレイコントロール：</strong>
+- ブリッジの恩恵を単純に「より長く訓練する」ことと区別するため、マッチドリプレイコントロール（同計算予算、異なるデータ配分）と比較
+- ブリッジはMATHでリプレイコントロールを<strong>2.8ポイント</strong>上回る</p>
+<p>最も重要な結果は概念的だ：<strong>ラベルデータの段階的配分は、一括配分より優れる</strong>。これは「最良のアルゴリズムを展開生徒に直接適用すべき」というほとんどのSLM訓練レシピの暗黙の前提を覆す。</p>
+<h2>アルゴリズムの重要部分の解説</h2>
+<p>中心的な洞察は、希少な検証可能訓練データのための<strong>リソース配分原理</strong>として述べられる：</p>
+<p><strong>最もその恩恵を受けられないモデルにラベルデータ予算を使うな。</strong></p>
+<p>1.7Bの生徒はスパース報酬下でMATHの問題を効率的に探索できない。8Bの教師はできる。直接GRPO経由で生徒に使われる訓練例は部分的に無駄になる — モデルが十分な頻度で正解を見つけられず学習シグナルを得られない。同じ例を教師に使えば、報酬形状の豊かな軌跡を生み出し、デンスな監督で生徒に蒸留できる。</p>
+<p>数式で表現すると、<code>R</code>を例あたりの期待RL報酬（モデルが問題を独立して解ける確率）とすると：</p>
+<div class="highlight"><pre><span></span><code>R_teacher(8B, 難問) &gt;&gt; R_student(1.7B, 難問)
+</code></pre></div>
+
+<p>教師はその例を生産的に活用できる；生徒はほぼ活用できない。ブリッジは教師の生産的学習をデンスな監督で生徒に転送する — 生徒が独立して探索することを必要としない。</p>
+<p>ブリッジにおけるForward-KL / Reverse-KLの区別が重要だ：</p>
+<ul>
+<li><strong>Forward-KLウォームアップ</strong>：<code>min_θ KL(π_T || π_S)</code> — モード被覆型。生徒がすべての教師推論パターンをカバーすることを保証。教師ロールアウト（安定的、多様）で実行。</li>
+<li><strong>OPD（Reverse-KL）</strong>：<code>min_θ KL(π_S || π_T)</code> — モード探索型。オンポリシー分布を修正。生徒ロールアウト（ウォームアップからの露出バイアスに対処）で実行。</li>
+</ul>
+<p>どちらのステップを省いても性能が低下する：ウォームアップなしのOPDは分布ミスマッチを残す；ウォームアップなし（コールド生徒からのOPD）は悪い初期化から始まり収束が遅い。</p>
+<p>イメージとして：Forward-KLは生徒に「教師の地図の全体像を覚えさせる」フェーズ、OPDは「自分が実際に歩き始めた地形と地図のズレを修正する」フェーズだと考えると分かりやすい。</p>
+<h2>限界と課題</h2>
+<ul>
+<li>主に数学的推論（MATHとAIMEベンチマーク）で検証されている。原理はコード実行・形式検証などの検証可能報酬を持つ任意のドメインに汎化すべきだが、実証されていない</li>
+<li>大きな教師モデル（8Bまたは14B）へのアクセスと実行能力が必要 — リソース制約された設定では常に利用可能とは限らない</li>
+<li>ステップ1の教師RLは計算集約的。このフレームワークは生徒をうまく訓練するのに必要なラベルデータ量を減らすが、総計算予算を減らすわけではない（教師でGRPOを実行する必要がある）</li>
+<li>ブリッジのハイパーパラメータ（Forward-KLウォームアップをどれくらい続けるかvs. OPD）は経験的に決定される；論文は原理的なスケジュールを提供しない</li>
+</ul>
+<h2>今後の展望</h2>
+<p>著者が示唆する方向：
+- コード生成や他の検証可能ドメインへの拡張
+- RL改善された教師アンサンブルからの蒸留（マルチ教師ブリッジ）</p>
+<p>さらに発展的な研究方向として考えられること：
+- <strong>反復的Sparse-to-Denseサイクル</strong>：改善された生徒を新しい出発点として使い、そこからRLで新しい教師を訓練し、繰り返す。各サイクルが生徒のパラメータスケールでより多くの性能を引き出せる可能性がある
+- <strong>エッジSLMのためのドメイン固有ブリッジ</strong>：検証可能報酬が存在する制約されたドメイン（医療、法律、科学）向けの特化した1〜3Bモデルの訓練にこのレシピを適用する
+- <strong>データ効率の良いブリッジ</strong>：現在のブリッジは教師ロールアウトを訓練データとして使う。より少ない高品質な教師ロールアウトのセットを選択して精度向上を保ちながらブリッジの計算量を最小化できるか
+- <strong>アーキテクチャ横断蒸留</strong>：現在のフレームワークは同ファミリーの教師と生徒を前提とする（両方ともQwen3またはLlama）。アーキテクチャをまたぐOPDはあまり研究されていないが、エッジハードウェア最適化アーキテクチャ（Mambaなど）の生徒モデルへの展開では価値があるかもしれない</p>
+<h2>エッジ・オンデバイスへの示唆</h2>
+<p>この論文は、SLM開発において最も実践的な問いに直接取り組んでいる：1〜2Bパラメータのモデルを、そのパラメータ数では不可能に思える困難な推論問題を解けるように訓練するにはどうすればいいか？</p>
+<p>答えは、小さなモデルにより多くのデータを与えることでも、より良いオプティマイザーを使うことでもない。<strong>訓練データの配分を再設計すること</strong>：ラベルデータをより豊かな学習シグナルを生み出せる場所で使い（スパースRLで大きな教師に）、そこから得られた振る舞い改善をデンスな監督で目標の展開サイズに転送する。</p>
+<p>モバイルや組み込み展開向けのSLMを訓練するチームにとって、運用上の示唆：
+1. 教師のRLステップをスキップしない。RL前の元の教師からの蒸留は、RL改善後の教師からの蒸留より著しく弱い。
+2. 二段階ブリッジ（Forward-KLウォームアップ → OPD）を使う。どちらのステップ単独でも組み合わせより弱い。
+3. 生徒側のRLをブリッジの前ではなく後に段階的に実施する。ブリッジはコールドポリシー（RLの訓練シグナルが乏しい）から温かいポリシー（RLの訓練シグナルが有効）に生徒を変換する。</p>
+<p>現世代のエッジ対応モデル（Qwen3-1.7B、Phi-4-mini、SmolLM2-1.7B）に適用すると、このレシピは検証可能推論タスクで7Bクラスのモデルとのギャップを意味ある形で縮小できる可能性がある — これがコーディング支援・数学チュータリング・構造化文書分析などのオンデバイスユースケースを現在制限しているギャップだ。</p>
+<h2>原文リンク</h2>
+<p><a href="https://huggingface.co/papers/2605.12483">Original Paper</a></p>
+    </article>
+
+        <div class="tags">
+            <p>tags: <a href="/tag/slm.html">SLM</a>, <a href="/tag/ai.html">AI</a>, <a href="/tag/lun-wen-jie-shuo.html">論文解説</a></p>
+        </div>
+
+    <hr>
+
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <ul class="list-inline text-center">
+                            <li>
+                                <a href="http://twitter.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-twitter fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="http://github.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-github fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                    </ul>
+<p class="copyright text-muted">
+    Blog powered by <a href="http://getpelican.com">Pelican</a>,
+    which takes great advantage of <a href="http://python.org">Python</a>. <br />        &copy;  toohsk
+</p>                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- jQuery -->
+    <script src="/theme/js/jquery.min.js"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="/theme/js/bootstrap.min.js"></script>
+
+        <!-- Custom Theme JavaScript -->
+        <script src="/theme/js/clean-blog.min.js"></script>
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-LR14KRYZ4L"></script>
+<script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-LR14KRYZ4L');
+</script>
+</body>
+
+</html>
