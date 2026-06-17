@@ -161,23 +161,19 @@ N_PROBE_TRAIN = 300    # images used to TRAIN the per-layer linear CTC probes
 N_PROBE_VAL   = 120    # images used to MEASURE probe performance (= layer relevance R_l)
 PROBE_EPOCHS  = 12     # epochs for each linear probe (cheap: only a linear layer is trained)
 PROBE_LR      = 1e-3
+TRAIN_BATCH   = 4      # base batch size (probe trainer uses TRAIN_BATCH*4 over cached features)
 
-# --- subnetwork fine-tuning + evaluation ---
-# Recovery is done by FREEZING the pretrained decoder and fine-tuning only the kept
-# encoder layers. Fine-tuning the whole 333M model (incl. the pristine 247M decoder) at
-# a high LR destroys the decoder (catastrophic forgetting -> CER > 100% / runaway output).
-# Freezing the decoder keeps it intact and forces the selected layers to reproduce the
-# final-layer representation the decoder already knows how to read -- stable and faithful
-# to ProbeScale (head fixed, subnetwork adapted).
-FREEZE_DECODER = True  # set False to fine-tune end-to-end (needs a much smaller LR, e.g. 5e-6)
-N_FT_TRAIN = 1500      # images to fine-tune each extracted subnetwork
+# --- subnetwork fine-tuning + evaluation (Option B: CTC head) ---
+# The compressed model is [embeddings -> selected encoder layers -> linear CTC head],
+# faithful to the paper's "encoder layers + small task head". No generative decoder,
+# so recovery is mostly head-training: stable and light. CTC-specific knobs
+# (CTC_BATCH / CTC_EPOCHS / ENC_LR / HEAD_LR) are defined in the training cell below.
+N_FT_TRAIN = 1500      # images to fine-tune each subnetwork (encoder block + CTC head)
 N_EVAL     = 300       # test images for final CER / WER
-FT_EPOCHS  = 3
-FT_LR      = 5e-5      # encoder-only LR; raise/lower this and FT_EPOCHS if loss stalls/diverges
-TRAIN_BATCH = 4
-GRAD_ACCUM  = 4        # effective batch = TRAIN_BATCH * GRAD_ACCUM = 16
+FT_EPOCHS  = 3         # base epoch count (CTC head gets max(FT_EPOCHS, 4))
+FT_LR      = 5e-5      # encoder LR while adapting the kept layers
 EVAL_BATCH  = 16
-MAX_LEN     = 64       # max target token length
+MAX_LEN     = 64       # max target token length (used by the original-TrOCR baseline only)
 
 # --- budgets to evaluate (number of encoder layers to keep) ---
 # 6 = 50%, 4 = 33% of the 12-layer encoder. These are aggressive; recovery is hard.
@@ -483,27 +479,33 @@ for k in K_BUDGETS:
 """)
 
 # ---------------------------------------------------------------------------
-md(r"""## 5. サブネットワークの抽出と fine-tune
+md(r"""## 5. サブネットワークの構築・学習・評価（案B: 論文忠実な CTC ヘッド）
 
-**対応**: 論文 Algorithm 1 line 34–35／第3節 *Subnetwork Extraction and Fine-tuning*。
+**対応**: 論文 Algorithm 1 line 34–35 ／ 第3節 *Subnetwork Extraction and Fine-tuning*。
 
-論文の記述「$\Theta_S = \{\theta_l\,|\,l\in S\}\cup\theta_{emb}\cup\theta'_{head}$」に従い、選んだ層 $S^{*}$ だけでエンコーダの層 `ModuleList` を作り直します。入力（パッチ）埋め込み $\theta_{emb}$ と最終 LayerNorm は保持し、デコーダ（=タスクヘッド $\theta'_{head}$ に相当）はそのまま（次元 768 は不変なのでクロスアテンションは問題なし）。
+論文は「エンコーダ層 + 小さなタスクヘッド $\theta'_{head}$」を抽出し、ヘッドを再学習します（必要なら数エポックの fine-tune）。OCR の忠実な対応として、圧縮モデルを
 
-> **重要 — 回復は「デコーダ凍結 + エンコーダのみ学習」**: 連続ブロックの先頭層をスキップすると、本来 1〜（先頭-1）層が担っていた変換を失い、デコーダが期待する表現分布からズレます。ここで**モデル全体を高い学習率で回すと、無傷の 247M デコーダが破壊され出力が暴走します（CER が 100% を超える）**。そこで `FREEZE_DECODER=True` で**デコーダを凍結し、選んだエンコーダ層だけ**を fine-tune します。これは「選んだ層が、凍結デコーダの読める最終表現を再現する」よう促すもので、ProbeScale の主旨（ヘッドは固定、サブネット側を適応）に忠実かつ安定です。下の `finetune` は warmup 付きコサインスケジュール・勾配クリップ・勾配累積つき。学習中の loss が下がることを確認してください（停滞→`FT_LR`/`FT_EPOCHS` を上げる、発散→`FT_LR` を下げる）。Colab の計算予算では論文ほどの維持率に届かないことがありますが、**同一予算でのベースライン比較（ProbeScale vs Top-k / Uniform-k）**は有効です。
+$$\text{パッチ埋め込み }\theta_{emb}\;\rightarrow\;\text{選択エンコーダ層 }S^{*}\;\rightarrow\;\text{線形 CTC ヘッド}$$
+
+とします（**巨大な生成デコーダは使いません**）。これにより、
+
+- 論文の機構（層＋軽量ヘッド）と一致する
+- 回復は主にヘッド学習なので**安定・軽量**（生成デコーダが壊れて暴走する問題が消える）
+- ProbeScale の層選択効果が CER に素直に反映される
+
+比較の基準 *Original* は **12 層フルエンコーダ + 同じ CTC ヘッド**（論文の「元の SLM」に相当）。圧縮率はエンコーダのパラメータ比で測ります。
+
+> 注: 元の TrOCR（seq2seq, 333.9M, CER≈5%）は強力ですが、それは別アーキテクチャ（生成デコーダ）の値です。ここでは「**同じ CTC ヘッドの下でエンコーダ層数・選択を変えたときの挙動**」を見るため、フルエンコーダ CTC を基準に比較します。生成デコーダ版は論文の将来課題（generative SLM）で、Colab 予算では回復しきれないことを前段で確認済みです。
 """)
 
 code(r"""
-# [Paper Alg.1 line 34 / Sec.3 "Subnetwork Extraction"]
-#   Construct M_S using selected layers S*.  Theta_S = {theta_l | l in S} ∪ theta_emb ∪ theta'_head.
-#   Embeddings theta_emb are retained; the decoder plays the role of the task head theta'_head.
-# NOTE: the exact attribute that holds the encoder's transformer stack differs across
-# transformers versions / vision backbones (DeiT/ViT) -> we locate it dynamically instead
-# of hard-coding `encoder.encoder.layer` (which breaks with: ViTModel has no attribute 'encoder').
+# ---- ProbeScale subnetwork as a CTC recognizer: encoder block + linear CTC head ----
+# This mirrors the paper's "encoder layers + small task head" exactly (head = the probe).
 def _locate_encoder_layers(vision_model):
-    '''Return (parent_module, attr_name, ModuleList) holding the L transformer layers.'''
+    '''Return (parent_module, attr_name, ModuleList) holding the transformer layers.'''
     cands = [(n, mod) for n, mod in vision_model.named_modules()
              if isinstance(mod, nn.ModuleList) and len(mod) == L]
-    if not cands:                                  # fallback: take the longest ModuleList
+    if not cands:
         lists = [(n, mod) for n, mod in vision_model.named_modules()
                  if isinstance(mod, nn.ModuleList)]
         if not lists:
@@ -511,170 +513,185 @@ def _locate_encoder_layers(vision_model):
         cands = [max(lists, key=lambda nm: len(nm[1]))]
     name, module_list = cands[0]
     parent = vision_model
-    for p in name.split(".")[:-1]:                 # walk to the parent of the ModuleList
+    for p in name.split(".")[:-1]:
         parent = getattr(parent, p)
     return parent, name.split(".")[-1], module_list
 
 
-def build_subnetwork(layer_indices):
-    '''Return a TrOCR model whose encoder keeps only `layer_indices` = S* (deep-copied).'''
-    m = copy.deepcopy(full_model)
-    parent, attr, enc_layers = _locate_encoder_layers(m.encoder)         # locate theta_l stack
-    new_layers = nn.ModuleList([enc_layers[i] for i in layer_indices])   # keep only theta_l, l in S*
-    setattr(parent, attr, new_layers)                                    # theta_emb kept untouched
-    for cfg in (getattr(m.encoder, "config", None), getattr(m.config, "encoder", None)):
-        if cfg is not None and hasattr(cfg, "num_hidden_layers"):
-            cfg.num_hidden_layers = len(layer_indices)
-    return m.to(device)
+class CTCRecognizer(nn.Module):
+    '''theta_emb -> selected encoder layers -> linear CTC head (= the paper's task head).'''
+    def __init__(self, encoder, hidden, vocab):
+        super().__init__()
+        self.encoder = encoder
+        self.head = nn.Linear(hidden, vocab)
+    def forward(self, pixel_values):
+        h = self.encoder(pixel_values).last_hidden_state   # (B, T, H)
+        return self.head(h)                                # (B, T, V)
 
 
-# one-time sanity print of where the encoder layers live in this transformers version
+# [Paper Alg.1 line 34] Construct M_S = embeddings + layers in S* + a fresh CTC head.
+def build_ctc_subnetwork(layer_indices):
+    enc = copy.deepcopy(full_model.encoder)                          # theta_emb kept
+    parent, attr, enc_layers = _locate_encoder_layers(enc)
+    setattr(parent, attr, nn.ModuleList([enc_layers[i] for i in layer_indices]))  # keep theta_l, l in S*
+    cfg = getattr(enc, "config", None)
+    if cfg is not None and hasattr(cfg, "num_hidden_layers"):
+        cfg.num_hidden_layers = len(layer_indices)
+    return CTCRecognizer(enc, HIDDEN, V).to(device)
+
+
 _p, _a, _ml = _locate_encoder_layers(full_model.encoder)
 print(f"encoder layer stack: {type(_p).__name__}.{_a}  (len={len(_ml)})")
+""")
+
+code(r"""
+# CTC-track hyper-parameters (no generative decoder -> can use a bigger batch)
+CTC_BATCH  = 8
+CTC_EPOCHS = max(FT_EPOCHS, 4)   # the head is trained from scratch, give it a few epochs
+ENC_LR     = FT_LR               # gently adapt the kept encoder layers
+HEAD_LR    = 1e-3                # the random CTC head needs a larger LR to converge
 
 
-# [Paper Alg.1 line 35 / Sec.3] Fine-tune M_S on task T for a few epochs.
-# Recovery recipe: freeze the decoder (default) and adapt only the kept encoder layers,
-# with AdamW + cosine warmup schedule, gradient clipping, and gradient accumulation
-# (effective batch = TRAIN_BATCH * GRAD_ACCUM). Watch the printed loss go down -- if it
-# stalls, raise FT_LR/FT_EPOCHS; if it diverges (loss up, CER>100%), lower FT_LR.
-def finetune(model, dataset, epochs=FT_EPOCHS, lr=FT_LR, batch=TRAIN_BATCH, accum=GRAD_ACCUM):
-    if FREEZE_DECODER:
-        for p in model.decoder.parameters():
-            p.requires_grad_(False)
+# [Paper Alg.1 line 35] Fine-tune the subnetwork (encoder block + CTC head) for a few epochs.
+def train_ctc(model, dataset, epochs=CTC_EPOCHS, batch=CTC_BATCH):
     model.train()
-    if FREEZE_DECODER:
-        model.decoder.eval()                 # keep the frozen decoder deterministic (no dropout)
-    train_params = [p for p in model.parameters() if p.requires_grad]
-    n_train = sum(p.numel() for p in train_params)
-    print(f"    trainable params: {n_train/1e6:.1f}M ({'encoder-only' if FREEZE_DECODER else 'full model'})")
-    opt = torch.optim.AdamW(train_params, lr=lr, weight_decay=0.01)
+    opt = torch.optim.AdamW([
+        {"params": model.encoder.parameters(), "lr": ENC_LR},
+        {"params": model.head.parameters(),    "lr": HEAD_LR},
+    ], weight_decay=0.01)
+    ctc = nn.CTCLoss(blank=0, zero_infinity=True)
     n = len(dataset)
     steps_per_epoch = math.ceil(n / batch)
-    total_opt_steps = max(1, math.ceil(steps_per_epoch * epochs / accum))
-    sched = get_cosine_schedule_with_warmup(opt, int(0.1 * total_opt_steps), total_opt_steps)
+    total = max(1, steps_per_epoch * epochs)
+    sched = get_cosine_schedule_with_warmup(opt, int(0.1 * total), total)
     scaler = torch.amp.GradScaler("cuda", enabled=(device == "cuda"))
     for ep in range(epochs):
         order = np.random.permutation(n)
         running = 0.0; seen = 0
-        opt.zero_grad()
-        for bi, i in enumerate(range(0, n, batch)):
+        for i in range(0, n, batch):
             bidx = order[i:i + batch].tolist()
             sub = dataset.select(bidx)
             images = [im.convert("RGB") for im in sub["image"]]
-            texts  = [t if isinstance(t, str) else "" for t in sub["text"]]   # guard None / non-str labels
+            texts  = [t if isinstance(t, str) else "" for t in sub["text"]]
             pv = processor(images=images, return_tensors="pt").pixel_values.to(device)
-            labels = processor.tokenizer(
-                text=texts, padding="max_length", max_length=MAX_LEN,
-                truncation=True, return_tensors="pt").input_ids
-            labels[labels == processor.tokenizer.pad_token_id] = -100
-            labels = labels.to(device)
+            tgts, tlens = [], []
+            for t in texts:
+                ids = encode_text(t)[:T_tokens - 1]      # CTC needs target_len <= input_len
+                tgts.append(torch.tensor(ids, dtype=torch.long)); tlens.append(len(ids))
+            targets = torch.cat(tgts).to(device) if tgts else torch.zeros(0, dtype=torch.long, device=device)
+            tlens = torch.tensor(tlens, device=device)
+            opt.zero_grad()
             with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=(device == "cuda")):
-                loss = model(pixel_values=pv, labels=labels).loss / accum
+                logits = model(pv)                       # (B, T, V)
+            logp = logits.float().log_softmax(-1).transpose(0, 1)   # (T, B, V), fp32 for CTC stability
+            in_len = torch.full((logits.size(0),), logits.size(1), dtype=torch.long, device=device)
+            loss = ctc(logp, targets, in_len, tlens)
             scaler.scale(loss).backward()
-            running += loss.item() * accum; seen += 1
-            if (bi + 1) % accum == 0 or (i + batch) >= n:        # optimizer step every `accum` microbatches
-                scaler.unscale_(opt)
-                torch.nn.utils.clip_grad_norm_(train_params, 1.0)
-                scaler.step(opt); scaler.update(); opt.zero_grad()
-                sched.step()
+            scaler.unscale_(opt)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            scaler.step(opt); scaler.update(); sched.step()
+            running += loss.item(); seen += 1
             if seen % 100 == 0:
-                print(f"    ep{ep} {seen}/{steps_per_epoch} loss={running/seen:.3f} lr={sched.get_last_lr()[0]:.1e}")
+                print(f"    ep{ep} {seen}/{steps_per_epoch} loss={running/seen:.3f}")
     return model
+
+
+@torch.no_grad()
+def eval_ctc(model, dataset, n=N_EVAL, batch=EVAL_BATCH):
+    model.eval()
+    preds, refs = [], []
+    for i in range(0, n, batch):
+        sub = dataset.select(range(i, min(i + batch, n)))
+        images = [im.convert("RGB") for im in sub["image"]]
+        pv = processor(images=images, return_tensors="pt").pixel_values.to(device)
+        with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=(device == "cuda")):
+            logits = model(pv)
+        for b in range(logits.size(0)):
+            preds.append(ctc_greedy_decode(logits[b].float()))
+        refs += [t if isinstance(t, str) else "" for t in sub["text"]]
+    refs_safe  = [r if len(r) > 0 else " " for r in refs]
+    preds_safe = [p if len(p) > 0 else " " for p in preds]
+    return {"cer": jiwer.cer(refs_safe, preds_safe), "wer": jiwer.wer(refs_safe, preds_safe)}
 """)
 
 code(r"""
-results = []   # one row per (k, method)
-
-# reference row: original model (k = L)
-results.append({
-    "method": "Original", "k": L, "layers": list(range(1, L + 1)),
-    "total_M": full_report["total"]/1e6, "encoder_M": full_report["encoder"]/1e6,
-    "total_ratio": 1.0, "encoder_ratio": 1.0,
-    "cer": baseline_metrics["cer"], "wer": baseline_metrics["wer"],
-})
-
+results = []
 selectors = {
-    "ProbeScale": lambda k: select_probescale(relevance, k),   # Eq.(2): R-weighted contiguous block
-    "Top-k":      lambda k: select_topk(k),                     # baseline
-    "Uniform-k":  lambda k: select_uniform(k),                 # baseline
+    "ProbeScale": lambda k: select_probescale(relevance, k),   # Eq.(2)
+    "Top-k":      lambda k: select_topk(k),
+    "Uniform-k":  lambda k: select_uniform(k),
 }
 
-# This loop is the top-level driver of Algorithm 1 (lines 32-35) for each budget:
-#   line 32  R_T = CalculateRelevance(...)   -> already computed as `relevance`
-#   line 33  S*  = SelectSubnetwork(...)     -> selectors[method](k)
-#   line 34  M_S = build_subnetwork(S*)
-#   line 35  fine-tune M_S, then evaluate
+# ---- Reference: full 12-layer encoder + CTC head (the paper's "Original SLM") ----
+print("=== Reference: full encoder (12L) + CTC head ===")
+ref_model = train_ctc(build_ctc_subnetwork(list(range(L))), ft_train)
+enc_full = count_params(ref_model.encoder)
+ref = eval_ctc(ref_model, eval_test, n=N_EVAL)
+print(f"  -> CER={ref['cer']*100:.2f}%  WER={ref['wer']*100:.2f}%  (encoder {enc_full/1e6:.1f}M)")
+results.append({"method": "Original(12L)", "k": L, "layers": list(range(1, L + 1)),
+                "encoder_M": enc_full/1e6, "encoder_ratio": 1.0,
+                "cer": ref["cer"], "wer": ref["wer"]})
+del ref_model; gc.collect(); torch.cuda.empty_cache() if device == "cuda" else None
+
+# ---- ProbeScale vs baselines at each budget (Algorithm 1 lines 32-35) ----
 for k in K_BUDGETS:
     for method in METHODS:
-        layers = selectors[method](k)                          # Alg.1 line 33: pick S*
+        layers = selectors[method](k)                         # Alg.1 line 33: S*
         print(f"\n=== {method} | k={k} | layers={[i+1 for i in layers]} ===")
-        sub = build_subnetwork(layers)                         # Alg.1 line 34: extract M_S
-        rep = model_param_report(sub)
-        print("  params (M):", {kk: round(v/1e6, 1) for kk, v in rep.items()})
-        print("  fine-tuning...")
-        sub = finetune(sub, ft_train)                          # Alg.1 line 35: fine-tune M_S
-        m, _, _ = evaluate_model(sub, eval_test, n=N_EVAL)     # final CER/WER on task T
-        print(f"  -> CER={m['cer']*100:.2f}%  WER={m['wer']*100:.2f}%")
-        results.append({
-            "method": method, "k": k, "layers": [i + 1 for i in layers],
-            "total_M": rep["total"]/1e6, "encoder_M": rep["encoder"]/1e6,
-            "total_ratio": rep["total"]/full_report["total"],
-            "encoder_ratio": rep["encoder"]/full_report["encoder"],
-            "cer": m["cer"], "wer": m["wer"],
-        })
-        del sub
-        gc.collect(); torch.cuda.empty_cache() if device == "cuda" else None
+        m = build_ctc_subnetwork(layers)                      # Alg.1 line 34: M_S
+        enc_p = count_params(m.encoder)
+        print(f"  encoder params: {enc_p/1e6:.1f}M ({enc_p/enc_full*100:.1f}% of full encoder)")
+        m = train_ctc(m, ft_train)                            # Alg.1 line 35: fine-tune
+        met = eval_ctc(m, eval_test, n=N_EVAL)
+        print(f"  -> CER={met['cer']*100:.2f}%  WER={met['wer']*100:.2f}%")
+        results.append({"method": method, "k": k, "layers": [i + 1 for i in layers],
+                        "encoder_M": enc_p/1e6, "encoder_ratio": enc_p/enc_full,
+                        "cer": met["cer"], "wer": met["wer"]})
+        del m; gc.collect(); torch.cuda.empty_cache() if device == "cuda" else None
 """)
 
 # ---------------------------------------------------------------------------
 md(r"""## 6. 結果の比較 — 圧縮率と精度
 
-- **圧縮**: エンコーダ単体の比率 `encoder_ratio` とモデル全体の比率 `total_ratio`
-- **精度**: CER / WER と、元モデルに対する **精度維持率**（論文の "95–98% retained" に対応; ここでは CER ベースの相対精度 `(1−CER_sub)/(1−CER_orig)`）
+- **圧縮**: エンコーダのパラメータ比 `encoder_ratio_%`（フル12層エンコーダ基準）
+- **精度**: CER / WER と、基準（フルエンコーダ CTC）に対する **精度維持率** `acc_retained_% = (1-CER_sub)/(1-CER_orig)`（論文の "95-98% retained" に対応）
 """)
 
 code(r"""
-# This table reproduces the paper's Table 1 (Params |Theta_S|, ratio |Theta_S|/|Theta|, Acc.).
-# The paper reports e.g. "retains ~98.3% (94.9/96.5) of the original accuracy" (Sec.5):
-#   retention = acc_sub / acc_orig.  For OCR we use character accuracy = 1 - CER.
+# Reproduces the paper's Table 1 (Params, ratio, Acc.) for the CTC track.
 df = pd.DataFrame(results)
-orig_acc = 1 - baseline_metrics["cer"]                  # acc_orig = 1 - CER_orig
-df["char_acc"] = 1 - df["cer"]                          # acc_sub  = 1 - CER_sub
-df["acc_retained_%"] = (df["char_acc"] / orig_acc) * 100   # paper's "% of original retained"
+orig_acc = 1 - df.loc[0, "cer"]                         # Original(12L) char accuracy
+df["char_acc"] = 1 - df["cer"]
+df["acc_retained_%"] = (df["char_acc"] / orig_acc) * 100
 df["CER_%"] = df["cer"] * 100
 df["WER_%"] = df["wer"] * 100
 df["encoder_ratio_%"] = df["encoder_ratio"] * 100
-df["total_ratio_%"] = df["total_ratio"] * 100
 
 show = df[["method", "k", "layers", "encoder_M", "encoder_ratio_%",
-           "total_M", "total_ratio_%", "CER_%", "WER_%", "acc_retained_%"]].copy()
-for c in ["encoder_M", "encoder_ratio_%", "total_M", "total_ratio_%",
-          "CER_%", "WER_%", "acc_retained_%"]:
+           "CER_%", "WER_%", "acc_retained_%"]].copy()
+for c in ["encoder_M", "encoder_ratio_%", "CER_%", "WER_%", "acc_retained_%"]:
     show[c] = show[c].round(2)
 show
 """)
 
 code(r"""
-# ----- side-by-side comparison per budget -----
 print("="*78)
-print("COMPRESSION & ACCURACY SUMMARY")
+print("COMPRESSION & ACCURACY SUMMARY (CTC track)")
 print("="*78)
-print(f"Original TrOCR: encoder={full_report['encoder']/1e6:.1f}M, "
-      f"total={full_report['total']/1e6:.1f}M, "
-      f"CER={baseline_metrics['cer']*100:.2f}%, WER={baseline_metrics['wer']*100:.2f}%\n")
+orig = df.iloc[0]
+print(f"Original(12L) + CTC head: encoder={orig['encoder_M']:.1f}M, "
+      f"CER={orig['CER_%']:.2f}%, WER={orig['WER_%']:.2f}%\n")
 for k in K_BUDGETS:
     print(f"--- Budget k={k} layers (encoder {k}/{L} = {k/L*100:.0f}% depth) ---")
-    sub = df[(df.k == k)]
-    for _, r in sub.iterrows():
-        print(f"  {r['method']:11s} | enc {r['encoder_M']:5.1f}M "
-              f"({r['encoder_ratio_%']:4.1f}%) | CER {r['CER_%']:5.2f}% | "
-              f"WER {r['WER_%']:5.2f}% | acc retained {r['acc_retained_%']:5.1f}%")
+    for _, r in df[df.k == k].iterrows():
+        print(f"  {r['method']:13s} | enc {r['encoder_M']:5.1f}M "
+              f"({r['encoder_ratio_%']:4.1f}%) | CER {r['CER_%']:6.2f}% | "
+              f"WER {r['WER_%']:6.2f}% | acc retained {r['acc_retained_%']:5.1f}%")
     print()
 """)
 
 code(r"""
-# ----- Figure 2 style: accuracy vs parameter ratio trade-off -----
+# Figure 2 style: accuracy vs parameter ratio trade-off
 plt.figure(figsize=(8, 5))
 markers = {"ProbeScale": "o", "Top-k": "s", "Uniform-k": "^"}
 colors  = {"ProbeScale": "#C44E52", "Top-k": "#4C72B0", "Uniform-k": "#55A868"}
@@ -682,11 +699,11 @@ for method in METHODS:
     sub = df[df.method == method].sort_values("encoder_ratio")
     plt.plot(sub["encoder_ratio_%"], (1 - sub["cer"]) * 100,
              marker=markers[method], color=colors[method], label=method, linewidth=2, markersize=9)
-plt.scatter([100], [(1 - baseline_metrics["cer"]) * 100], color="black",
-            marker="*", s=250, zorder=5, label="Original")
+plt.scatter([100], [(1 - df.loc[0, "cer"]) * 100], color="black",
+            marker="*", s=250, zorder=5, label="Original(12L)")
 plt.xlabel("Encoder parameter ratio (%)")
 plt.ylabel("Character accuracy (1 - CER) %")
-plt.title("Performance vs. efficiency trade-off (IAM OCR)")
+plt.title("Performance vs. efficiency trade-off (IAM OCR, CTC head)")
 plt.legend(); plt.grid(alpha=0.3)
 plt.show()
 """)
@@ -694,51 +711,50 @@ plt.show()
 # ---------------------------------------------------------------------------
 md(r"""## 7. 定性的な確認（任意）
 
-ProbeScale で選んだ最小予算のサブネットを再構築し、実際の予測を元モデルと並べて見てみます。
+フルエンコーダ CTC と、ProbeScale で選んだ最小予算のサブネットの予測を並べて見ます。
 """)
 
 code(r"""
 k_show = min(K_BUDGETS)
-ps_layers = select_probescale(relevance, k_show)
-ps_model = finetune(build_subnetwork(ps_layers), ft_train)
+full_ctc = train_ctc(build_ctc_subnetwork(list(range(L))), ft_train)
+ps_ctc   = train_ctc(build_ctc_subnetwork(select_probescale(relevance, k_show)), ft_train)
 
 n_show = 4
 sub = eval_test.select(range(n_show))
 images = [im.convert("RGB") for im in sub["image"]]
 pv = processor(images=images, return_tensors="pt").pixel_values.to(device)
 with torch.no_grad():
-    g_full = full_model.generate(pv, max_new_tokens=MAX_LEN)
-    g_ps   = ps_model.generate(pv, max_new_tokens=MAX_LEN)
-pred_full = processor.batch_decode(g_full, skip_special_tokens=True)
-pred_ps   = processor.batch_decode(g_ps, skip_special_tokens=True)
+    lf = full_ctc(pv); lp = ps_ctc(pv)
+pred_full = [ctc_greedy_decode(lf[b].float()) for b in range(n_show)]
+pred_ps   = [ctc_greedy_decode(lp[b].float()) for b in range(n_show)]
 
 fig, axes = plt.subplots(n_show, 1, figsize=(10, 2.0 * n_show))
 for ax, img, gt, pf, pp in zip(axes, sub["image"], sub["text"], pred_full, pred_ps):
     ax.imshow(img, cmap="gray"); ax.axis("off")
-    ax.set_title(f"GT: {gt}\nOriginal: {pf}\nProbeScale(k={k_show}): {pp}",
+    ax.set_title(f"GT: {gt}\nFull-12L CTC: {pf}\nProbeScale(k={k_show}) CTC: {pp}",
                  loc="left", fontsize=9)
 plt.tight_layout(); plt.show()
 
-del ps_model; gc.collect(); torch.cuda.empty_cache() if device == "cuda" else None
+del full_ctc, ps_ctc; gc.collect(); torch.cuda.empty_cache() if device == "cuda" else None
 """)
 
 # ---------------------------------------------------------------------------
 md(r"""## 8. まとめ
 
-- **ProbeScale を OCR タスクへ忠実に移植**しました: TrOCR のビジョンエンコーダ各層に線形 CTC プローブを当てて層関連度 $R_l$ を算出し（Step 1）、連続ブロック選択 (Algorithm 1) で最も寄与の大きい $k$ 層を残し（Step 2）、短い fine-tune で回復（Step 3）。
-- **圧縮**: エンコーダを 12→{6,4} 層に削減し、エンコーダのパラメータを約 50% / 33% に圧縮。デコーダ込みの全体比率も表に出力されます。
-- **精度**: 同じ層数のベースライン（Top-k / Uniform-k）に対して、ProbeScale が CER/WER で優位になることを確認するための表・グラフを出力します（論文 Table 1 / Fig. 2 に対応）。
+- **ProbeScale を OCR に論文忠実な形で移植**しました: 各エンコーダ層に線形 CTC プローブを当てて層関連度 $R_l$ を算出（Step 1, 式(1)）→ 連続ブロック選択（Step 2, 式(2)/Algorithm 1）→ **選択層 + 線形 CTC ヘッド**としてサブネットを構築・短く学習（Step 3, line 34–35）。
+- これは論文の機構「**エンコーダ層 + 軽量タスクヘッド（=プローブ）**」と一致し、生成デコーダの回復問題を回避します（生成版＝論文の将来課題で、Colab では回復困難なことを確認済み）。
 
-### 結果の読み方
-- 「どれくらい圧縮できたか」→ 結果表の `encoder_ratio_%` / `total_ratio_%`
-- 「精度はどう変化したか」→ `CER_% / WER_%` と元モデルに対する `acc_retained_%`
+### ご依頼の2点
+- **どれくらい圧縮できたか** → 結果表 `encoder_ratio_%`（12→{6,4} 層で約 50% / 33%）。さらに生成デコーダ(247M)を使わない CTC 認識器なので、元 TrOCR(333.9M) 比ではモデル全体も大幅に小型化。
+- **精度はどう変化したか** → `CER_% / WER_%` と、フルエンコーダ CTC 基準の `acc_retained_%`。同一予算で **ProbeScale vs Top-k / Uniform-k** を比較（論文 Table 1 / Fig. 2 に対応）。
 
-### さらに実験を深めるには
-- `K_BUDGETS` に他の値を追加して圧縮率-精度カーブを密にする
-- `N_FT_TRAIN` / `FT_EPOCHS` を増やして fine-tune を強化（論文は3エポック）
-- プローブ重み付け（複数プロパティ $P_T$）を導入: 例えば「文字認識」+「単語境界」など複数プローブを線形結合
-- `microsoft/trocr-base-printed` + 印刷文字データセットなど、別ドメインで再現
+### さらに深めるには
+- `K_BUDGETS` に 8（=67%）など追加して圧縮率-精度カーブを密にする
+- `CTC_EPOCHS` / `N_FT_TRAIN` を増やしてヘッド・エンコーダの学習を強化
+- 複数プローブ（文字認識＋単語境界など）の重み付き結合で $R_l$ を多面的にする
+- `microsoft/trocr-base-printed` + 印刷文字データセットなど別ドメインで再現
 """)
+
 
 # ---------------------------------------------------------------------------
 nb = {

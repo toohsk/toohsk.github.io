@@ -6,15 +6,15 @@
 
 論文 **ProbeScale: Probing Analysis to Optimize Neural Scaling Laws for Efficient Small Language Model Inference**（Sourav Das, arXiv:2606.01806）のアルゴリズムを、**AI OCR（画像→文字列抽出）タスク**へ適用して再現する Google Colab ノートブックです。
 
-- **ベースモデル**: [`microsoft/trocr-base-handwritten`](https://huggingface.co/microsoft/trocr-base-handwritten)（Vision-Encoder-Decoder。DeiT エンコーダ12層を圧縮対象にする）
+- **ベースモデル**: [`microsoft/trocr-base-handwritten`](https://huggingface.co/microsoft/trocr-base-handwritten) の **ビジョンエンコーダ（DeiT 12層）** を圧縮対象にする
 - **データセット**: [`Teklia/IAM-line`](https://huggingface.co/datasets/Teklia/IAM-line)（IAM 手書き行、image→text）
-- **実装するもの**:
-  1. **Step 1 – 層プロービング**: 各エンコーダ層の特徴に線形 CTC プローブを載せ、文字認識性能 `V_l = 1 − CER` を層関連度 `R_l` として算出
-  2. **Step 2 – 連続ブロック選択 (Algorithm 1)**: 関連度の総和を最大化する連続 `k` 層を選択
-  3. **Step 3 – サブネット抽出 + fine-tune**: 選んだ層だけ残してデコーダはそのまま、短く fine-tune
+- **方式（案B: 論文忠実な CTC ヘッド）**: 論文は「エンコーダ層 + 軽量タスクヘッド」を抽出してヘッドを再学習します。OCR の忠実な対応として、圧縮モデルを **`[パッチ埋め込み → 選択エンコーダ層 → 線形 CTC ヘッド]`** とし、巨大な生成デコーダは使いません（生成デコーダ版は論文の将来課題で、Colab 予算では回復困難なことを実験で確認済み）。
+  1. **Step 1 – 層プロービング**: 各エンコーダ層の特徴に線形 CTC プローブを載せ、文字認識性能 `V_l = 1 − CER` を層関連度 `R_l` として算出（式(1)）
+  2. **Step 2 – 連続ブロック選択 (Algorithm 1)**: 関連度の総和を最大化する連続 `k` 層を選択（式(2)）
+  3. **Step 3 – サブネット構築 + 学習**: 選択層 + 線形 CTC ヘッドを構築し、短く学習（line 34–35）
 - **比較する指標**:
-  - **圧縮率**: 元モデル vs 圧縮モデルのパラメータ数・比率（エンコーダ単体／全体）
-  - **精度**: テストの **CER / WER**、および元モデルに対する精度維持率。ベースライン Top-k / Uniform-k と並べて比較（論文 Table 1 / Fig. 2 に対応）
+  - **圧縮率**: フル12層エンコーダ基準のエンコーダ・パラメータ比（`encoder_ratio_%`）。さらに生成デコーダ(247M)を持たないため元 TrOCR(333.9M) 比でも大幅に小型
+  - **精度**: テストの **CER / WER**、およびフルエンコーダ CTC に対する精度維持率。ベースライン Top-k / Uniform-k と並べて比較（論文 Table 1 / Fig. 2 に対応）
 
 ### 使い方（Colab）
 
@@ -28,7 +28,7 @@
 
 - **Step 1**（層プロービング）= Algorithm 1 `CalculateRelevance` / 式(1)
 - **Step 2**（連続ブロック選択）= Algorithm 1 `SelectSubnetwork` / 式(2)
-- **Step 3**（抽出 + fine-tune）= Algorithm 1 line 34–35 / 第3節 *Subnetwork Extraction and Fine-tuning*
+- **Step 3**（選択層 + CTC ヘッドの構築・学習）= Algorithm 1 line 34–35 / 第3節 *Subnetwork Extraction and Fine-tuning*
 
 ### 補足
 
