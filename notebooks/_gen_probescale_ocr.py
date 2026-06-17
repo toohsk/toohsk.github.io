@@ -106,10 +106,19 @@ Fine-tune M_S on task T                                 # (line 35)
 md(r"""## 0. セットアップ
 
 GPU ランタイムを選択してください（メニュー: ランタイム → ランタイムのタイプを変更 → ハードウェアアクセラレータ → GPU）。
+
+> **重要 (Colab)**: 下のセルは依存関係をインストールします。Colab に同梱の Pillow を壊さないよう、**Pillow はアップグレードせず固定**しています。初回インストール後に Pillow などが入れ替わった場合は、**一度ランタイムを再起動**（ランタイム → セッションを再起動）してから、このインストールセルは飛ばして次の import セルから実行してください。
 """)
 
 code(r"""
-!pip -q install -U "transformers>=4.40" "datasets>=2.18" jiwer accelerate matplotlib pandas pillow
+# transformers / datasets などをインストール。
+# 注意: Colab 同梱の Pillow を `-U ... pillow` で 12.x に上げると PIL のファイルが
+# 混在し `cannot import name '_Ink' from 'PIL._typing'` で import に失敗します。
+# そのため Pillow はアップグレード対象から外し、整合した版に固定します。
+!pip -q install "transformers>=4.40" "datasets>=2.18" jiwer accelerate
+!pip -q install --force-reinstall --no-deps "Pillow==11.3.0"
+print("\n=== インストール完了 ===")
+print("PIL 周りが入れ替わった初回は、ランタイムを再起動してから import セル以降を実行してください。")
 """)
 
 code(r"""
