@@ -131,7 +131,7 @@ from torch.utils.data import DataLoader, Dataset
 import pandas as pd
 import matplotlib.pyplot as plt
 from datasets import load_dataset
-from transformers import TrOCRProcessor, VisionEncoderDecoderModel
+from transformers import TrOCRProcessor, VisionEncoderDecoderModel, get_cosine_schedule_with_warmup
 import jiwer
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -163,16 +163,24 @@ PROBE_EPOCHS  = 12     # epochs for each linear probe (cheap: only a linear laye
 PROBE_LR      = 1e-3
 
 # --- subnetwork fine-tuning + evaluation ---
-N_FT_TRAIN = 1200      # images to fine-tune each extracted subnetwork
-N_EVAL     = 400       # test images for final CER / WER
-FT_EPOCHS  = 1
-FT_LR      = 5e-6
+# NOTE: dropping half the encoder feeds raw patch embeddings into a mid-stack block,
+# so the kept layers must RE-LEARN what the removed layers did before the 247M decoder
+# can read them. That needs a real recovery budget -- too small an LR / too few steps
+# leaves every variant collapsed (~20% acc). Increase the values below for closer-to-paper
+# retention (at the cost of Colab runtime).
+N_FT_TRAIN = 1500      # images to fine-tune each extracted subnetwork
+N_EVAL     = 300       # test images for final CER / WER
+FT_EPOCHS  = 3
+FT_LR      = 3e-5      # 10x the previous value; layer-pruned models need a real LR to recover
 TRAIN_BATCH = 4
+GRAD_ACCUM  = 4        # effective batch = TRAIN_BATCH * GRAD_ACCUM = 16
 EVAL_BATCH  = 16
 MAX_LEN     = 64       # max target token length
 
 # --- budgets to evaluate (number of encoder layers to keep) ---
-K_BUDGETS = [6, 4]     # full encoder has 12 layers -> 6 = 50%, 4 = 33% of encoder depth
+# 6 = 50%, 4 = 33% of the 12-layer encoder. These are aggressive; recovery is hard.
+# Tip: add 8 (=67%) for a gentler point that recovers closer to the original.
+K_BUDGETS = [6, 4]
 METHODS   = ["ProbeScale", "Top-k", "Uniform-k"]
 """)
 
@@ -477,7 +485,9 @@ md(r"""## 5. サブネットワークの抽出と fine-tune
 
 **対応**: 論文 Algorithm 1 line 34–35／第3節 *Subnetwork Extraction and Fine-tuning*。
 
-論文の記述「$\Theta_S = \{\theta_l\,|\,l\in S\}\cup\theta_{emb}\cup\theta'_{head}$」に従い、選んだ層 $S^{*}$ だけでエンコーダの層 `ModuleList` を作り直します。入力（パッチ）埋め込み $\theta_{emb}$ と最終 LayerNorm は保持し、デコーダ（=タスクヘッド $\theta'_{head}$ に相当）はそのまま（次元 768 は不変なのでクロスアテンションは問題なし）。連続ブロックでも先頭層をスキップすると分布がずれるため、論文どおり（"Optionally, $M_S$ is fine-tuned ... for a few epochs"）短く fine-tune して回復させます。
+論文の記述「$\Theta_S = \{\theta_l\,|\,l\in S\}\cup\theta_{emb}\cup\theta'_{head}$」に従い、選んだ層 $S^{*}$ だけでエンコーダの層 `ModuleList` を作り直します。入力（パッチ）埋め込み $\theta_{emb}$ と最終 LayerNorm は保持し、デコーダ（=タスクヘッド $\theta'_{head}$ に相当）はそのまま（次元 768 は不変なのでクロスアテンションは問題なし）。
+
+> **重要 — 回復学習の必要性**: 連続ブロックの先頭層をスキップすると、本来 1〜（先頭-1）層が担っていた変換を失い、デコーダが期待する表現分布から大きくズレます。論文（RoBERTa/T5 の分類）は「層が既にラベルを線形に符号化」しており軽量ヘッドの付け替えだけで 95–98% 回復しますが、**生成型 OCR は 247M のデコーダがエンコーダ最終出力を読む**ため回復が本質的に難しく、**まとまった fine-tune が必須**です。学習率・エポック・データが小さすぎると全手法が ~20% 程度に崩壊します（その場合は `FT_LR` / `FT_EPOCHS` / `N_FT_TRAIN` を上げる）。下の `finetune` は warmup 付きコサインスケジュール・勾配クリップ・勾配累積で安定的に回復させます。学習中の loss が下がっていることを確認してください。Colab の計算予算では論文ほどの維持率に届かないことがありますが、**同一予算でのベースライン比較（ProbeScale vs Top-k / Uniform-k）**は有効です。
 """)
 
 code(r"""
@@ -522,15 +532,22 @@ print(f"encoder layer stack: {type(_p).__name__}.{_a}  (len={len(_ml)})")
 
 
 # [Paper Alg.1 line 35 / Sec.3] Fine-tune M_S on task T for a few epochs.
-def finetune(model, dataset, epochs=FT_EPOCHS, lr=FT_LR, batch=TRAIN_BATCH):
+# Recovery recipe: AdamW + cosine schedule with warmup, gradient clipping, and
+# gradient accumulation (effective batch = TRAIN_BATCH * GRAD_ACCUM). Watch the
+# printed loss go down -- if it stays flat, raise FT_LR or FT_EPOCHS.
+def finetune(model, dataset, epochs=FT_EPOCHS, lr=FT_LR, batch=TRAIN_BATCH, accum=GRAD_ACCUM):
     model.train()
-    opt = torch.optim.AdamW(model.parameters(), lr=lr)
-    scaler = torch.amp.GradScaler("cuda", enabled=(device == "cuda"))
+    opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.01)
     n = len(dataset)
+    steps_per_epoch = math.ceil(n / batch)
+    total_opt_steps = max(1, math.ceil(steps_per_epoch * epochs / accum))
+    sched = get_cosine_schedule_with_warmup(opt, int(0.1 * total_opt_steps), total_opt_steps)
+    scaler = torch.amp.GradScaler("cuda", enabled=(device == "cuda"))
     for ep in range(epochs):
         order = np.random.permutation(n)
-        running = 0.0; steps = 0
-        for i in range(0, n, batch):
+        running = 0.0; seen = 0
+        opt.zero_grad()
+        for bi, i in enumerate(range(0, n, batch)):
             bidx = order[i:i + batch].tolist()
             sub = dataset.select(bidx)
             images = [im.convert("RGB") for im in sub["image"]]
@@ -541,15 +558,17 @@ def finetune(model, dataset, epochs=FT_EPOCHS, lr=FT_LR, batch=TRAIN_BATCH):
                 truncation=True, return_tensors="pt").input_ids
             labels[labels == processor.tokenizer.pad_token_id] = -100
             labels = labels.to(device)
-            opt.zero_grad()
             with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=(device == "cuda")):
-                out = model(pixel_values=pv, labels=labels)
-                loss = out.loss
+                loss = model(pixel_values=pv, labels=labels).loss / accum
             scaler.scale(loss).backward()
-            scaler.step(opt); scaler.update()
-            running += loss.item(); steps += 1
-            if steps % 50 == 0:
-                print(f"    ep{ep} step{steps}/{math.ceil(n/batch)} loss={running/steps:.3f}")
+            running += loss.item() * accum; seen += 1
+            if (bi + 1) % accum == 0 or (i + batch) >= n:        # optimizer step every `accum` microbatches
+                scaler.unscale_(opt)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                scaler.step(opt); scaler.update(); opt.zero_grad()
+                sched.step()
+            if seen % 100 == 0:
+                print(f"    ep{ep} {seen}/{steps_per_epoch} loss={running/seen:.3f} lr={sched.get_last_lr()[0]:.1e}")
     return model
 """)
 
