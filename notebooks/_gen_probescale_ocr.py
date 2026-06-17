@@ -482,15 +482,41 @@ code(r"""
 # [Paper Alg.1 line 34 / Sec.3 "Subnetwork Extraction"]
 #   Construct M_S using selected layers S*.  Theta_S = {theta_l | l in S} ∪ theta_emb ∪ theta'_head.
 #   Embeddings theta_emb are retained; the decoder plays the role of the task head theta'_head.
+# NOTE: the exact attribute that holds the encoder's transformer stack differs across
+# transformers versions / vision backbones (DeiT/ViT) -> we locate it dynamically instead
+# of hard-coding `encoder.encoder.layer` (which breaks with: ViTModel has no attribute 'encoder').
+def _locate_encoder_layers(vision_model):
+    '''Return (parent_module, attr_name, ModuleList) holding the L transformer layers.'''
+    cands = [(n, mod) for n, mod in vision_model.named_modules()
+             if isinstance(mod, nn.ModuleList) and len(mod) == L]
+    if not cands:                                  # fallback: take the longest ModuleList
+        lists = [(n, mod) for n, mod in vision_model.named_modules()
+                 if isinstance(mod, nn.ModuleList)]
+        if not lists:
+            raise AttributeError("No ModuleList found inside the vision encoder")
+        cands = [max(lists, key=lambda nm: len(nm[1]))]
+    name, module_list = cands[0]
+    parent = vision_model
+    for p in name.split(".")[:-1]:                 # walk to the parent of the ModuleList
+        parent = getattr(parent, p)
+    return parent, name.split(".")[-1], module_list
+
+
 def build_subnetwork(layer_indices):
     '''Return a TrOCR model whose encoder keeps only `layer_indices` = S* (deep-copied).'''
     m = copy.deepcopy(full_model)
-    enc_layers = m.encoder.encoder.layer            # DeiT: VisionEncoderDecoder.encoder.encoder.layer
+    parent, attr, enc_layers = _locate_encoder_layers(m.encoder)         # locate theta_l stack
     new_layers = nn.ModuleList([enc_layers[i] for i in layer_indices])   # keep only theta_l, l in S*
-    m.encoder.encoder.layer = new_layers            # theta_emb (patch embeddings) kept untouched
-    m.encoder.config.num_hidden_layers = len(layer_indices)
-    m.config.encoder.num_hidden_layers = len(layer_indices)
+    setattr(parent, attr, new_layers)                                    # theta_emb kept untouched
+    for cfg in (getattr(m.encoder, "config", None), getattr(m.config, "encoder", None)):
+        if cfg is not None and hasattr(cfg, "num_hidden_layers"):
+            cfg.num_hidden_layers = len(layer_indices)
     return m.to(device)
+
+
+# one-time sanity print of where the encoder layers live in this transformers version
+_p, _a, _ml = _locate_encoder_layers(full_model.encoder)
+print(f"encoder layer stack: {type(_p).__name__}.{_a}  (len={len(_ml)})")
 
 
 # [Paper Alg.1 line 35 / Sec.3] Fine-tune M_S on task T for a few epochs.
