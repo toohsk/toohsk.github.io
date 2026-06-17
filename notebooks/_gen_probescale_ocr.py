@@ -252,7 +252,7 @@ def evaluate_model(model, dataset, n=None, batch=EVAL_BATCH, max_new_tokens=MAX_
         with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=(device == "cuda")):
             gen = model.generate(pv, max_new_tokens=max_new_tokens)
         preds += processor.batch_decode(gen, skip_special_tokens=True)
-        refs  += sub["text"]
+        refs  += [t if isinstance(t, str) else "" for t in sub["text"]]   # guard None / non-str
     # jiwer expects non-empty references
     refs_safe  = [r if len(r) > 0 else " " for r in refs]
     preds_safe = [p if len(p) > 0 else " " for p in preds]
@@ -293,7 +293,8 @@ code(r"""
 # ----- character vocabulary for the CTC probe (built from probe-train texts) -----
 charset = set()
 for t in probe_train["text"]:
-    charset.update(t)
+    if isinstance(t, str):                # guard None / non-str
+        charset.update(t)
 itos = ["<blank>"] + sorted(charset)     # index 0 = CTC blank
 stoi = {c: i for i, c in enumerate(itos)}
 V = len(itos)
@@ -325,6 +326,7 @@ def extract_layer_features(dataset, n):
         for li, hs in enumerate(enc_out.hidden_states):                  # h_li for li=0..L
             per_layer[li].append(hs.to("cpu", torch.float16))
         for t in sub["text"]:
+            t = t if isinstance(t, str) else ""        # guard None / non-str
             ids = encode_text(t)
             targets.append(torch.tensor(ids, dtype=torch.long))
             target_lens.append(len(ids))
@@ -523,7 +525,7 @@ print(f"encoder layer stack: {type(_p).__name__}.{_a}  (len={len(_ml)})")
 def finetune(model, dataset, epochs=FT_EPOCHS, lr=FT_LR, batch=TRAIN_BATCH):
     model.train()
     opt = torch.optim.AdamW(model.parameters(), lr=lr)
-    scaler = torch.cuda.amp.GradScaler(enabled=(device == "cuda"))
+    scaler = torch.amp.GradScaler("cuda", enabled=(device == "cuda"))
     n = len(dataset)
     for ep in range(epochs):
         order = np.random.permutation(n)
@@ -532,9 +534,10 @@ def finetune(model, dataset, epochs=FT_EPOCHS, lr=FT_LR, batch=TRAIN_BATCH):
             bidx = order[i:i + batch].tolist()
             sub = dataset.select(bidx)
             images = [im.convert("RGB") for im in sub["image"]]
+            texts  = [t if isinstance(t, str) else "" for t in sub["text"]]   # guard None / non-str labels
             pv = processor(images=images, return_tensors="pt").pixel_values.to(device)
             labels = processor.tokenizer(
-                sub["text"], padding="max_length", max_length=MAX_LEN,
+                text=texts, padding="max_length", max_length=MAX_LEN,
                 truncation=True, return_tensors="pt").input_ids
             labels[labels == processor.tokenizer.pad_token_id] = -100
             labels = labels.to(device)
