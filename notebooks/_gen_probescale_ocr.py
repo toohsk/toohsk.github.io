@@ -163,15 +163,17 @@ PROBE_EPOCHS  = 12     # epochs for each linear probe (cheap: only a linear laye
 PROBE_LR      = 1e-3
 
 # --- subnetwork fine-tuning + evaluation ---
-# NOTE: dropping half the encoder feeds raw patch embeddings into a mid-stack block,
-# so the kept layers must RE-LEARN what the removed layers did before the 247M decoder
-# can read them. That needs a real recovery budget -- too small an LR / too few steps
-# leaves every variant collapsed (~20% acc). Increase the values below for closer-to-paper
-# retention (at the cost of Colab runtime).
+# Recovery is done by FREEZING the pretrained decoder and fine-tuning only the kept
+# encoder layers. Fine-tuning the whole 333M model (incl. the pristine 247M decoder) at
+# a high LR destroys the decoder (catastrophic forgetting -> CER > 100% / runaway output).
+# Freezing the decoder keeps it intact and forces the selected layers to reproduce the
+# final-layer representation the decoder already knows how to read -- stable and faithful
+# to ProbeScale (head fixed, subnetwork adapted).
+FREEZE_DECODER = True  # set False to fine-tune end-to-end (needs a much smaller LR, e.g. 5e-6)
 N_FT_TRAIN = 1500      # images to fine-tune each extracted subnetwork
 N_EVAL     = 300       # test images for final CER / WER
 FT_EPOCHS  = 3
-FT_LR      = 3e-5      # 10x the previous value; layer-pruned models need a real LR to recover
+FT_LR      = 5e-5      # encoder-only LR; raise/lower this and FT_EPOCHS if loss stalls/diverges
 TRAIN_BATCH = 4
 GRAD_ACCUM  = 4        # effective batch = TRAIN_BATCH * GRAD_ACCUM = 16
 EVAL_BATCH  = 16
@@ -487,7 +489,7 @@ md(r"""## 5. サブネットワークの抽出と fine-tune
 
 論文の記述「$\Theta_S = \{\theta_l\,|\,l\in S\}\cup\theta_{emb}\cup\theta'_{head}$」に従い、選んだ層 $S^{*}$ だけでエンコーダの層 `ModuleList` を作り直します。入力（パッチ）埋め込み $\theta_{emb}$ と最終 LayerNorm は保持し、デコーダ（=タスクヘッド $\theta'_{head}$ に相当）はそのまま（次元 768 は不変なのでクロスアテンションは問題なし）。
 
-> **重要 — 回復学習の必要性**: 連続ブロックの先頭層をスキップすると、本来 1〜（先頭-1）層が担っていた変換を失い、デコーダが期待する表現分布から大きくズレます。論文（RoBERTa/T5 の分類）は「層が既にラベルを線形に符号化」しており軽量ヘッドの付け替えだけで 95–98% 回復しますが、**生成型 OCR は 247M のデコーダがエンコーダ最終出力を読む**ため回復が本質的に難しく、**まとまった fine-tune が必須**です。学習率・エポック・データが小さすぎると全手法が ~20% 程度に崩壊します（その場合は `FT_LR` / `FT_EPOCHS` / `N_FT_TRAIN` を上げる）。下の `finetune` は warmup 付きコサインスケジュール・勾配クリップ・勾配累積で安定的に回復させます。学習中の loss が下がっていることを確認してください。Colab の計算予算では論文ほどの維持率に届かないことがありますが、**同一予算でのベースライン比較（ProbeScale vs Top-k / Uniform-k）**は有効です。
+> **重要 — 回復は「デコーダ凍結 + エンコーダのみ学習」**: 連続ブロックの先頭層をスキップすると、本来 1〜（先頭-1）層が担っていた変換を失い、デコーダが期待する表現分布からズレます。ここで**モデル全体を高い学習率で回すと、無傷の 247M デコーダが破壊され出力が暴走します（CER が 100% を超える）**。そこで `FREEZE_DECODER=True` で**デコーダを凍結し、選んだエンコーダ層だけ**を fine-tune します。これは「選んだ層が、凍結デコーダの読める最終表現を再現する」よう促すもので、ProbeScale の主旨（ヘッドは固定、サブネット側を適応）に忠実かつ安定です。下の `finetune` は warmup 付きコサインスケジュール・勾配クリップ・勾配累積つき。学習中の loss が下がることを確認してください（停滞→`FT_LR`/`FT_EPOCHS` を上げる、発散→`FT_LR` を下げる）。Colab の計算予算では論文ほどの維持率に届かないことがありますが、**同一予算でのベースライン比較（ProbeScale vs Top-k / Uniform-k）**は有効です。
 """)
 
 code(r"""
@@ -532,12 +534,21 @@ print(f"encoder layer stack: {type(_p).__name__}.{_a}  (len={len(_ml)})")
 
 
 # [Paper Alg.1 line 35 / Sec.3] Fine-tune M_S on task T for a few epochs.
-# Recovery recipe: AdamW + cosine schedule with warmup, gradient clipping, and
-# gradient accumulation (effective batch = TRAIN_BATCH * GRAD_ACCUM). Watch the
-# printed loss go down -- if it stays flat, raise FT_LR or FT_EPOCHS.
+# Recovery recipe: freeze the decoder (default) and adapt only the kept encoder layers,
+# with AdamW + cosine warmup schedule, gradient clipping, and gradient accumulation
+# (effective batch = TRAIN_BATCH * GRAD_ACCUM). Watch the printed loss go down -- if it
+# stalls, raise FT_LR/FT_EPOCHS; if it diverges (loss up, CER>100%), lower FT_LR.
 def finetune(model, dataset, epochs=FT_EPOCHS, lr=FT_LR, batch=TRAIN_BATCH, accum=GRAD_ACCUM):
+    if FREEZE_DECODER:
+        for p in model.decoder.parameters():
+            p.requires_grad_(False)
     model.train()
-    opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.01)
+    if FREEZE_DECODER:
+        model.decoder.eval()                 # keep the frozen decoder deterministic (no dropout)
+    train_params = [p for p in model.parameters() if p.requires_grad]
+    n_train = sum(p.numel() for p in train_params)
+    print(f"    trainable params: {n_train/1e6:.1f}M ({'encoder-only' if FREEZE_DECODER else 'full model'})")
+    opt = torch.optim.AdamW(train_params, lr=lr, weight_decay=0.01)
     n = len(dataset)
     steps_per_epoch = math.ceil(n / batch)
     total_opt_steps = max(1, math.ceil(steps_per_epoch * epochs / accum))
@@ -564,7 +575,7 @@ def finetune(model, dataset, epochs=FT_EPOCHS, lr=FT_LR, batch=TRAIN_BATCH, accu
             running += loss.item() * accum; seen += 1
             if (bi + 1) % accum == 0 or (i + batch) >= n:        # optimizer step every `accum` microbatches
                 scaler.unscale_(opt)
-                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                torch.nn.utils.clip_grad_norm_(train_params, 1.0)
                 scaler.step(opt); scaler.update(); opt.zero_grad()
                 sched.step()
             if seen % 100 == 0:
