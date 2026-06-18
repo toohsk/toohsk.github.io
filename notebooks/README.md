@@ -2,6 +2,20 @@
 
 論文の再現・実験用ノートブック置き場です（ブログ本文 `content/` とは別管理）。
 
+ProbeScale（arXiv:2606.01806）関連で2冊あります。
+
+- **`ProbeScale_Paper_Repro.ipynb`** — 論文どおりの設定（**RoBERTa-Large × SST-2 分類**）で ProbeScale を追試し、**アルゴリズム実装が正しいか検証**するノートブック。維持率 95–98% / ProbeScale ≥ ベースライン が出れば実装妥当。
+- **`ProbeScale_OCR_TrOCR.ipynb`** — それを **AI OCR（画像→文字列）** へ拡張したノートブック（案B: 選択エンコーダ層 + 線形 CTC ヘッド）。選択ロジックは追試版と共通。
+
+> まず `ProbeScale_Paper_Repro.ipynb` で実装の妥当性を確認 → `ProbeScale_OCR_TrOCR.ipynb` で OCR 拡張、という順で読むのがおすすめです。
+
+## ProbeScale_Paper_Repro.ipynb（論文追試・実装検証）
+
+- **ベースモデル**: `roberta-large`（24層, 355M。`roberta-base` で高速化可）
+- **タスク/データ**: GLUE **SST-2**（`load_dataset("glue","sst2")`。`qnli` も選択可）
+- **流れ**: 各層 [CLS] に線形プローブ→ SST-2 精度 `V_l` を関連度 `R_l` に（式1）→ 連続ブロック選択（式2）→ 選択層 + 新分類ヘッドを3エポック fine-tune（論文どおり）→ Original / Top-k / Uniform-k と比較（Table 1 再現）
+- **検証ポイント**: `acc_retained_%` が 95–98% 付近、各予算で ProbeScale ≥ ベースライン。`select_probescale/topk/uniform` は OCR 版と同一実装。
+
 ## ProbeScale_OCR_TrOCR.ipynb
 
 論文 **ProbeScale: Probing Analysis to Optimize Neural Scaling Laws for Efficient Small Language Model Inference**（Sourav Das, arXiv:2606.01806）のアルゴリズムを、**AI OCR（画像→文字列抽出）タスク**へ適用して再現する Google Colab ノートブックです。
