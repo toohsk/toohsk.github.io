@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+            <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+        <title>KronQ：クロネッカー因子ヘッセ行列によるLLM量子化の革新</title>
+
+            <link href="/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Full Atom Feed" />
+            <link href="/feeds/{slug}.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Categories Atom Feed" />
+        <!-- Bootstrap Core CSS -->
+        <link href="/theme/css/bootstrap.min.css" rel="stylesheet">
+
+        <!-- Custom CSS -->
+        <link href="/theme/css/clean-blog.min.css" rel="stylesheet">
+
+        <!-- Code highlight color scheme -->
+            <link href="/theme/css/code_blocks/github.css" rel="stylesheet">
+
+
+        <!-- Custom Fonts -->
+        <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+        <link href='https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+        <link href='https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/css'>
+
+        <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+        <!--[if lt IE 9]>
+            <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+            <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+
+
+        <meta name="description" content="KronQはクロネッカー因子近似ヘッセ行列を用いて勾配共分散を量子化パイプラインに導入し、GPTQが完全に破綻する2ビット量子化でLLaMA-3-70Bにおいて7.93パープレキシティを達成した。">
+
+        <meta name="author" content="toohsk">
+
+        <meta name="tags" content="SLM">
+        <meta name="tags" content="AI">
+        <meta name="tags" content="論文解説">
+
+	                <meta property="og:locale" content="">
+		<meta property="og:site_name" content="Atsushi's blog">
+
+	<meta property="og:type" content="article">
+            <meta property="article:author" content="/author/toohsk.html">
+	<meta property="og:url" content="/kronqkuronetsuka-yin-zi-hetsusexing-lie-niyorullmliang-zi-hua-noge-xin.html">
+	<meta property="og:title" content="KronQ：クロネッカー因子ヘッセ行列によるLLM量子化の革新">
+	<meta property="article:published_time" content="2026-07-14 00:00:00+09:00">
+            <meta property="og:description" content="KronQはクロネッカー因子近似ヘッセ行列を用いて勾配共分散を量子化パイプラインに導入し、GPTQが完全に破綻する2ビット量子化でLLaMA-3-70Bにおいて7.93パープレキシティを達成した。">
+
+            <meta property="og:image" content="/images/blog_cover.jpg">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:site" content="@toohsk">
+        <meta name="twitter:title" content="KronQ：クロネッカー因子ヘッセ行列によるLLM量子化の革新">
+
+            <meta name="twitter:image" content="/images/blog_cover.jpg">
+
+            <meta name="twitter:description" content="KronQはクロネッカー因子近似ヘッセ行列を用いて勾配共分散を量子化パイプラインに導入し、GPTQが完全に破綻する2ビット量子化でLLaMA-3-70Bにおいて7.93パープレキシティを達成した。">
+</head>
+
+<body class="article-kronqkuronetsuka-yin-zi-hetsusexing-lie-niyorullmliang-zi-hua-noge-xin">
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+        <div class="container-fluid">
+            <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header page-scroll">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="/">Atsushi's blog</a>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav navbar-right">
+
+                </ul>
+            </div>
+            <!-- /.navbar-collapse -->
+        </div>
+        <!-- /.container -->
+    </nav>
+
+    <!-- Page Header -->
+        <header class="intro-header" style="background-image: url('/images/blog_cover.jpg')">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <div class="post-heading">
+                        <h1>KronQ：クロネッカー因子ヘッセ行列によるLLM量子化の革新</h1>
+                        <span class="meta">Posted by
+                                <a href="/author/toohsk.html">toohsk</a>
+                             on 火 14 7月 2026
+                        </span>
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+    <!-- Post Content -->
+    <article>
+        <h2>なぜこの研究が重要か</h2>
+<p>ポスト学習量子化（PTQ）は、大規模言語モデルをメモリ制約のあるハードウェアに展開するための最も実用的な技術の一つだ。2ビット重み量子化を適用すれば、70Bパラメータモデルの重みはfp16での約140GBから~17.5GBへと圧縮され、コンシューマ向けGPUに収まるサイズになる。しかし2ビット量子化は技術的に非常に困難で、情報損失が極端に大きく、ほとんどの手法は壊滅的に失敗する。</p>
+<p>現在最も広く使われている2次PTQ手法GPTQには、見落とされがちな根本的な欠陥がある：<strong>入力活性化統計のみ</strong>を使って量子化目標を構成しており、重み行列の全出力チャネルが再構成損失に等しく寄与するという誤った仮定をしている。大規模トランスフォーマーでは、出力チャネルによって量子化誤差に対する感度は大きく異なる。ある出力チャネルはアテンションヘッドに強く影響を与える一方、別のチャネルは損失への影響が軽微だ。これを均等に扱うのは量子化バジェットの無駄遣いである。</p>
+<p>KronQはこの問題を、<strong>勾配共分散</strong>を量子化パイプラインに導入することで解決する。完全なヘッセ行列のクロネッカー因子近似（K-FACと同じ手法）を用いることで、双方向の感度情報を計算効率よく取得できる。</p>
+<p>その効果は劇的だ：LLaMA-3-70Bの2ビット重み量子化において、GPTQとGPTAQは完全に発散（パープレキシティ&gt;2000）する一方、KronQは<strong>7.93パープレキシティ</strong>という使用可能な品質を達成した。</p>
+<h2>技術的なアプローチ</h2>
+<h3>クロネッカー因子ヘッセ行列の導出</h3>
+<p>出発点は層ごとの量子化目標だ。重み行列 <span class="math">\(W \in \mathbb{R}^{d_{out} \times d_{in}}\)</span> を <span class="math">\(\hat{W}\)</span> に量子化すると誤差 <span class="math">\(\Delta W = \hat{W} - W\)</span> が生じる。これによるモデル損失の増加は2次テイラー展開で近似できる：</p>
+<div class="math">$$\delta \mathcal{L} \approx \frac{1}{2} \text{vec}(\Delta W)^\top H \, \text{vec}(\Delta W)$$</div>
+<p>ここで <span class="math">\(H\)</span> は重み <span class="math">\(W\)</span> に関する損失のヘッセ行列だ。完全なヘッセ行列の計算は <span class="math">\(d_{out} \times d_{in}\)</span> 個の要素を持つ行列に対して非現実的なので、近似が必要になる。</p>
+<p>GPTQは<strong>入力活性化ヘッセ行列</strong>のみを使用：<span class="math">\(H \approx \mathbf{X}\mathbf{X}^\top \otimes I_{d_{out}}\)</span> と近似する。これは入力共分散と単位行列のクロネッカー積であり、出力次元には構造がないという仮定に相当する。</p>
+<p>KronQは代わりに<strong>クロネッカー因子近似</strong>を使用する：</p>
+<div class="math">$$H \approx \mathbf{G}^\top \mathbf{G} \otimes \mathbf{X}\mathbf{X}^\top$$</div>
+<p>ここで <span class="math">\(\mathbf{G} \in \mathbb{R}^{N \times d_{out}}\)</span> はキャリブレーションデータ（<span class="math">\(N\)</span> サンプル）から収集した出力側の勾配行列だ。これがK-FAC近似：ヘッセ行列は出力側因子（<span class="math">\(\mathbf{G}^\top \mathbf{G}\)</span>、勾配共分散）と入力側因子（<span class="math">\(\mathbf{X}\mathbf{X}^\top\)</span>、活性化共分散）の外積として因子分解される。完全な <span class="math">\(H\)</span> は両次元にわたる量子化誤差の伝播を捉える。</p>
+<h3>双方向インコヒーレンス処理</h3>
+<p>クロネッカー因子ヘッセ行列が得られれば、量子化品質は重み行列とそのヘッセ行列固有ベクトルとの「整合度」に依存する。高い重み振幅がヘッセ行列の高曲率方向と整合していると量子化損失が大きくなる。</p>
+<p>先行研究（QuIP、QuaRot、SpinQuant）は重み行列の<strong>入力側にランダム回転</strong>を適用して、高振幅重みと高曲率方向の整合を低減する。この「インコヒーレンス処理」は誤差をより均一に広げる。</p>
+<p>KronQはこれを<strong>両次元に拡張</strong>する：
+- <strong>入力側回転</strong> <span class="math">\(Q_X\)</span>：<span class="math">\(\mathbf{X}\mathbf{X}^\top\)</span> の固有ベクトルから導出
+- <strong>出力側回転</strong> <span class="math">\(Q_G\)</span>：<span class="math">\(\mathbf{G}^\top \mathbf{G}\)</span> の固有ベクトルから導出</p>
+<p>回転後の重みは <span class="math">\(\tilde{W} = Q_G W Q_X^\top\)</span> となる。<span class="math">\(\tilde{W}\)</span> を量子化してから変換を元に戻すことで、ヘッセ行列の構造に対して入力・出力の両次元を均等に扱う量子化器が得られる。出力側回転がKronQの核心的な革新点であり、GPTQが決して計算しない勾配共分散を必要とする。</p>
+<p>数学的直感：回転後、量子化誤差 <span class="math">\(\Delta \tilde{W}\)</span> の各要素は近似的に同様の大きさを持つ独立した成分になる。回転系でのクロネッカー因子ヘッセ行列は近似的に <span class="math">\(I \otimes I\)</span>（単位行列）になり、すべての要素が等しく損失に寄与するという「理想的」な状況になる。この状況では一様量子化が最適だ。</p>
+<h3>勾配対応混合精度配分</h3>
+<p>すべての層を同じビット幅に量子化すべきではない。混合精度量子化は感度の高い層により多くのビットを、ロバストな層にはより少ないビットを配分し、平均ビット幅の予算内に収める。</p>
+<p>KronQは層 <span class="math">\(l\)</span> の量子化に対する感度をクロネッカー因子ヘッセ行列のトレースから導出する：</p>
+<div class="math">$$\text{sensitivity}(l) = \frac{1}{d_{in} d_{out}} \text{tr}(\mathbf{G}_l^\top \mathbf{G}_l) \cdot \text{tr}(\mathbf{X}_l \mathbf{X}_l^\top)$$</div>
+<p>これは勾配トレース（損失がこの層の出力をどれだけ気にするか）と活性化トレース（この層への入力がどれだけ大きいか）の積だ。GPTQベースの感度指標は <span class="math">\(\text{tr}(\mathbf{X}_l \mathbf{X}_l^\top)\)</span> のみを使用し、損失がこの層の出力をどれだけ気にするかを無視している。</p>
+<h2>先行研究との比較</h2>
+<table>
+<thead>
+<tr>
+<th>手法</th>
+<th>入力側情報</th>
+<th>出力側情報</th>
+<th>混合精度</th>
+<th>2-bit LLaMA-3-70B PPL</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GPTQ</td>
+<td>✓（活性化）</td>
+<td>✗</td>
+<td>✗</td>
+<td>&gt;2000（発散）</td>
+</tr>
+<tr>
+<td>GPTAQ</td>
+<td>✓</td>
+<td>部分的（列ごとの勾配）</td>
+<td>✗</td>
+<td>&gt;2000（発散）</td>
+</tr>
+<tr>
+<td>QuIP#</td>
+<td>✓（回転）</td>
+<td>✗</td>
+<td>✗</td>
+<td>~9–10</td>
+</tr>
+<tr>
+<td>QuaRot</td>
+<td>✓（回転）</td>
+<td>✗</td>
+<td>✗</td>
+<td>~9–10</td>
+</tr>
+<tr>
+<td><strong>KronQ</strong></td>
+<td>✓（回転）</td>
+<td>✓（クロネッカー勾配）</td>
+<td>✓</td>
+<td><strong>7.93</strong></td>
+</tr>
+</tbody>
+</table>
+<p>この比較は際立っている。GPTQの等しい出力チャネル感度という仮定は2ビット精度において非常に誤りであり、モデルが完全に使えなくなるほどだ。</p>
+<h2>実験結果の読み方</h2>
+<p><strong>LLaMA-3-70Bでの2ビット重みのみ量子化</strong>：WikiText-2パープレキシティ7.93対GPTQとGPTAQの&gt;2000は、わずかな改善ではなく、機能するモデルと壊れたモデルの差だ。7.93のパープレキシティはfp16のベースライン（LLaMA-3-70Bの~6.x）に近く、最も攻撃的な圧縮率においても最小限の劣化しか示さない。</p>
+<p><strong>3ビットおよび4ビットでの結果</strong>：より高いビット幅では全手法が機能するモデルを生成するが、KronQはLLaMA-3ファミリー全体（8B、13B、70B）で一貫して低いパープレキシティを達成する。</p>
+<p><strong>計算オーバーヘッド</strong>：勾配統計の収集にはキャリブレーションデータ（実験では128〜512サンプル）の1回の順伝播・逆伝播が必要だ。これはGPTQのキャリブレーションコストの約2倍だが、量子化時の1回限りのコストであり、推論速度には影響しない。</p>
+<h2>アルゴリズムの重要部分の解説</h2>
+<h3>クロネッカー因子近似がなぜ計算効率的か</h3>
+<p>完全なヘッセ行列 <span class="math">\(H \in \mathbb{R}^{d_{in}d_{out} \times d_{in}d_{out}}\)</span> は大規模重み行列には扱いにくい。4096×4096の線形層では <span class="math">\(4096^4 \approx 2.8 \times 10^{14}\)</span> 個の要素がある。クロネッカー因子近似 <span class="math">\(H \approx A \otimes B\)</span>（<span class="math">\(A \in \mathbb{R}^{d_{out} \times d_{out}}\)</span>、<span class="math">\(B \in \mathbb{R}^{d_{in} \times d_{in}}\)</span>）はストレージを <span class="math">\(d_{out}^2 + d_{in}^2\)</span> 要素に削減し、クロネッカー積の恒等式を通じて効率的な行列ベクトル積を可能にする：</p>
+<div class="math">$$(A \otimes B) \, \text{vec}(X) = \text{vec}(B^\top X A)$$</div>
+<p><strong>この式が何を意味するか</strong>：重み行列 <span class="math">\(W\)</span> に対する量子化誤差の損失への影響を計算する際、直接ヘッセ行列を使うと <span class="math">\(O(d^4)\)</span> の計算が必要だが、クロネッカー因子分解を使えば <span class="math">\(O(d^2)\)</span> で計算できる。これにより大規模モデルでの実用的な2次量子化が初めて可能になる。</p>
+<p>回転行列 <span class="math">\(Q_G\)</span> と <span class="math">\(Q_X\)</span> はそれぞれ <span class="math">\(A = \mathbf{G}^\top \mathbf{G}\)</span> と <span class="math">\(B = \mathbf{X}\mathbf{X}^\top\)</span> の固有ベクトル行列だ。回転後、近似ヘッセ行列は <span class="math">\(\Lambda_G \otimes \Lambda_X\)</span>（対角固有値行列のクロネッカー積）になり、重み要素間で分離可能な量子化問題となる。これは正確にGPTQスタイルの列ごとの量子化で解ける。</p>
+<h3>勾配共分散が2ビットで決定的に重要な理由</h3>
+<p>4ビット量子化では各重みに16個の可能な値があり、要素ごとの量子化誤差は小さいため、出力チャネルの感度を無視しても壊滅的な劣化を引き起こさない。2ビットでは各重みに4つの値しかなく（通常スケーリング後に{-1.5, -0.5, 0.5, 1.5}）、1ステップサイズの量子化誤差でも無視できない損失増加をもたらす可能性がある。</p>
+<p>勾配共分散 <span class="math">\(\mathbf{G}^\top \mathbf{G}\)</span> はKronQにどの出力チャネルが感度が高いかを教える：大きな固有値は損失に強く影響を与える出力方向に対応する。これらの固有ベクトルに整合するように回転することで、KronQは量子化誤差が損失への影響という観点で出力チャネル間に可能な限り均等に広がることを保証する。</p>
+<p>GPTQは入力側の情報のみで全出力チャネルを同一視するため、2ビット精度では高感度チャネルが大きな量子化誤差にさらされる可能性があり、これがLLaMA-3-70Bで見られる発散の原因だ。</p>
+<h2>限界と課題</h2>
+<ol>
+<li>
+<p><strong>キャリブレーションデータの要件</strong>：KronQはキャリブレーションデータの1回の順伝播・逆伝播が必要で、GPTQスタイルのキャリブレーションコストの2倍になる。勾配計算が必要なため、一部のデプロイメントパイプラインでは容易でない。</p>
+</li>
+<li>
+<p><strong>勾配行列のメモリ</strong>：<span class="math">\(\mathbf{G}^\top \mathbf{G}\)</span> の保存には層ごとに <span class="math">\(O(d_{out}^2)\)</span> のメモリが必要だ。70Bモデルの最大射影行列では1層あたり~270MBとなり、すべての層の行列を同時にメモリに保持する必要がある。</p>
+</li>
+<li>
+<p><strong>評価スコープの限定</strong>：論文は重みのみの量子化（W-only PTQ）に焦点を当てている。重み+活性化量子化（INT8展開）に対するKronQの双方向回転の効果は未研究だ。</p>
+</li>
+<li>
+<p><strong>アーキテクチャ特異性</strong>：実験はLLaMA-3ファミリーモデルのみ。MoE、線形アテンション、Mambaスタイルのモデルでは感度プロファイルが異なる可能性がある。</p>
+</li>
+</ol>
+<h2>今後の展望</h2>
+<p><strong>著者が示す方向性</strong>：
+- 活性化量子化への拡張（INT8重み+活性化デプロイメント）
+- 2ビット重みストレージの理論的な速度ゲインを実現するためのハードウェア固有カーネル実装</p>
+<p><strong>さらなる発展的研究方向</strong>：
+- <strong>蒸留との組み合わせ</strong>：KronQの感度指標で高感度層を特定し、それらに優先して知識蒸留を適用することで精度回復が期待できる
+- <strong>量子化ファインチューニング</strong>：KronQの量子化をLoRAなどのパラメータ効率的なファインチューニングの出発点として使い、極端なビット幅での精度損失を回復しながらメモリ効率を維持する
+- <strong>クロスアーキテクチャへの拡張</strong>：Mambaスタイルの状態空間モデルやMoE層への一般化が有望な研究方向だ</p>
+<h2>エッジ・オンデバイスへの示唆</h2>
+<p><strong>2ビット量子化が新しいクラスのデプロイメントを可能にする</strong>。70Bパラメータモデルを2ビット重みストレージで~17.5GBに収めると、24GB GPU（RTX 3090/4090）や2枚の16GB GPUで推論が可能になり、これまでマルチGPUデータセンターが必要だった推論がコンシューマハードウェアで実現する。</p>
+<p><strong>SLM（7Bモデル）への影響はさらに直接的だ</strong>。7Bモデルに2ビット量子化を適用すると重みが~1.75GBになり、モバイルGPU、ハイエンドスマートフォン（8〜12GB LPDDR5統合メモリのデバイス）、またはオンチップSRAMがギガバイト範囲のエッジAIアクセラレータで実用的になる。</p>
+<p><strong>混合精度配分は不均質なハードウェアに自然にマッピングされる</strong>。モバイルAI向けSoCは階層型メモリ（高速オンチップSRAM + 低速オフチップDRAM）を持つことが多い。KronQの感度指標は最高感度層をオンチップメモリに（4ビットで）、大部分のパラメータをDRAMに2ビットで格納する戦略を導き、最も重要な層のメモリ帯域幅圧力を最小化できる。</p>
+<h2>原文リンク</h2>
+<p><a href="https://arxiv.org/abs/2607.07964">Original Paper</a></p>
+<script type="text/javascript">if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width < 768) ? "left" : align;
+        indent = (screen.width < 768) ? "0em" : indent;
+        linebreak = (screen.width < 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+
+    var configscript = document.createElement('script');
+    configscript.type = 'text/x-mathjax-config';
+    configscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'none' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        availableFonts: ['STIX', 'TeX']," +
+        "        preferredFont: 'STIX'," +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(configscript);
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+</script>
+    </article>
+
+        <div class="tags">
+            <p>tags: <a href="/tag/slm.html">SLM</a>, <a href="/tag/ai.html">AI</a>, <a href="/tag/lun-wen-jie-shuo.html">論文解説</a></p>
+        </div>
+
+    <hr>
+
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <ul class="list-inline text-center">
+                            <li>
+                                <a href="http://twitter.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-twitter fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="http://github.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-github fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                    </ul>
+<p class="copyright text-muted">
+    Blog powered by <a href="http://getpelican.com">Pelican</a>,
+    which takes great advantage of <a href="http://python.org">Python</a>. <br />        &copy;  toohsk
+</p>                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- jQuery -->
+    <script src="/theme/js/jquery.min.js"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="/theme/js/bootstrap.min.js"></script>
+
+        <!-- Custom Theme JavaScript -->
+        <script src="/theme/js/clean-blog.min.js"></script>
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-LR14KRYZ4L"></script>
+<script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-LR14KRYZ4L');
+</script>
+</body>
+
+</html>

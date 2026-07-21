@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+            <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+        <title>Soofi S 30B-A3B: Frontier Performance at 3B Active Parameters via Mamba-MoE Hybrid</title>
+
+            <link href="/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Full Atom Feed" />
+            <link href="/feeds/{slug}.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Categories Atom Feed" />
+        <!-- Bootstrap Core CSS -->
+        <link href="/theme/css/bootstrap.min.css" rel="stylesheet">
+
+        <!-- Custom CSS -->
+        <link href="/theme/css/clean-blog.min.css" rel="stylesheet">
+
+        <!-- Code highlight color scheme -->
+            <link href="/theme/css/code_blocks/github.css" rel="stylesheet">
+
+
+        <!-- Custom Fonts -->
+        <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+        <link href='https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+        <link href='https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/css'>
+
+        <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+        <!--[if lt IE 9]>
+            <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+            <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+
+
+        <meta name="description" content="Soofi S 30B-A3B achieves dense 14–27B model performance while activating only 3B parameters per token through a Mamba-MoE hybrid...">
+
+        <meta name="author" content="toohsk">
+
+        <meta name="tags" content="SLM">
+        <meta name="tags" content="AI">
+        <meta name="tags" content="paper-review">
+
+	                <meta property="og:locale" content="">
+		<meta property="og:site_name" content="Atsushi's blog">
+
+	<meta property="og:type" content="article">
+            <meta property="article:author" content="/author/toohsk.html">
+	<meta property="og:url" content="/soofi-s-30b-a3b-frontier-performance-at-3b-active-parameters-via-mamba-moe-hybrid.html">
+	<meta property="og:title" content="Soofi S 30B-A3B: Frontier Performance at 3B Active Parameters via Mamba-MoE Hybrid">
+	<meta property="article:published_time" content="2026-07-14 00:00:00+09:00">
+            <meta property="og:description" content="Soofi S 30B-A3B achieves dense 14–27B model performance while activating only 3B parameters per token through a Mamba-MoE hybrid...">
+
+            <meta property="og:image" content="/images/blog_cover.jpg">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:site" content="@toohsk">
+        <meta name="twitter:title" content="Soofi S 30B-A3B: Frontier Performance at 3B Active Parameters via Mamba-MoE Hybrid">
+
+            <meta name="twitter:image" content="/images/blog_cover.jpg">
+
+            <meta name="twitter:description" content="Soofi S 30B-A3B achieves dense 14–27B model performance while activating only 3B parameters per token through a Mamba-MoE hybrid...">
+</head>
+
+<body class="article-soofi-s-30b-a3b-frontier-performance-at-3b-active-parameters-via-mamba-moe-hybrid">
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+        <div class="container-fluid">
+            <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header page-scroll">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="/">Atsushi's blog</a>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav navbar-right">
+
+                </ul>
+            </div>
+            <!-- /.navbar-collapse -->
+        </div>
+        <!-- /.container -->
+    </nav>
+
+    <!-- Page Header -->
+        <header class="intro-header" style="background-image: url('/images/blog_cover.jpg')">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <div class="post-heading">
+                        <h1>Soofi S 30B-A3B: Frontier Performance at 3B Active Parameters via Mamba-MoE Hybrid</h1>
+                        <span class="meta">Posted by
+                                <a href="/author/toohsk.html">toohsk</a>
+                             on 火 14 7月 2026
+                        </span>
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+    <!-- Post Content -->
+    <article>
+        <h2>Why This Paper Matters</h2>
+<p>The economics of language model deployment are dominated by two costs: <strong>memory bandwidth</strong> (how fast you can stream weights from memory to the compute unit) and <strong>KV cache memory</strong> (how much context you can hold in flight). Both grow with parameter count and sequence length, and both are why large models are expensive to serve.</p>
+<p>Most efficiency work focuses on reducing parameter count outright — smaller models, pruned models, quantized models. But there's another axis: a model can have a large <strong>total</strong> parameter count (expensive to store, but you only pay the storage cost once) while activating only a small <strong>fraction</strong> of those parameters per forward pass. Mixture-of-Experts (MoE) architectures exploit this by routing each token through only a subset of expert layers.</p>
+<p>Soofi S takes this a step further with a <strong>hybrid Mamba-MoE</strong> design: of its 52 layers, 23 use Mamba-2 sequence mixing (which maintains a fixed-size recurrent state instead of a growing KV cache), 23 use sparse MoE feed-forward layers (only activating 3.2B of 31.6B parameters per token), and only 6 use standard GQA attention (which does maintain a KV cache). The result is a model where:</p>
+<ul>
+<li>The <strong>compute cost per token</strong> corresponds to a ~3B parameter model</li>
+<li>The <strong>memory cost</strong> of weights corresponds to a 31.6B parameter model (but you only pay this once per deployment)</li>
+<li>The <strong>KV cache</strong> stays near-constant as context grows (because only 6 of 52 layers use attention)</li>
+</ul>
+<p>The last point is what distinguishes Soofi S most sharply from dense transformers. At 40K context length with batch size 32, Soofi S achieves <strong>8–9× the aggregate decode throughput per GPU</strong> of dense 14–24B models. This isn't a marginal efficiency gain — it's an architectural property that makes long-context, high-concurrency serving economically viable.</p>
+<p>The paper's second contribution is equally important: complete training transparency. Unlike most open-weight releases that disclose weights but hide data recipes, Soofi S releases the full pretraining corpus statistics (per-source, per-language token counts), reproducible data construction scripts, the complete learning rate schedule, and all hyperparameters. It is the first sovereign German-English model to reach frontier capability at this level of openness.</p>
+<h2>Core Technical Contribution</h2>
+<h3>The Hybrid Mamba-MoE Architecture</h3>
+<p>Soofi S adopts the Nemotron 3 Nano reference architecture without modification. The 52-layer network interleaves:</p>
+<ul>
+<li><strong>23 Mamba-2 layers</strong>: Sequence mixing via a structured state space model. Mamba-2 maintains a fixed-dimensional recurrent state <span class="math">\(h_t \in \mathbb{R}^d\)</span> that is updated with each new token via a selective mechanism:</li>
+</ul>
+<div class="math">$$h_t = A_t h_{t-1} + B_t x_t, \quad y_t = C_t h_t$$</div>
+<p>Unlike attention, where the context representation grows with sequence length, the Mamba-2 state is always <span class="math">\(d\)</span>-dimensional regardless of sequence length. This makes the memory footprint for sequence state <strong>constant</strong> in context length.</p>
+<ul>
+<li>
+<p><strong>23 Granular MoE layers</strong>: Sparse feed-forward layers where each token is routed to a small subset of experts. With ~31.6B total parameters and ~3.2B active per token, roughly 10% of the parameter budget is active at any time. The granular (fine-grained) MoE design uses many small experts rather than a few large ones, which gives the router more granular control and reduces the variance of expert utilization.</p>
+</li>
+<li>
+<p><strong>6 GQA attention layers</strong>: Standard grouped-query attention with a KV cache, distributed sparsely through the network depth. These are the only layers that require storing per-token key-value pairs. By having only 6 such layers out of 52, the KV cache grows at roughly 6/52 ≈ 11.5% of the rate of a fully attention-based model of similar depth.</p>
+</li>
+</ul>
+<h3>Why KV Cache Dominates Long-Context Serving</h3>
+<p>For a dense transformer with <span class="math">\(L\)</span> layers, each with key and value projections of dimension <span class="math">\(d_{kv}\)</span>, the KV cache per sequence is:</p>
+<div class="math">$$\text{KV cache size} = 2 \cdot L \cdot d_{kv} \cdot T \cdot \text{bytes per element}$$</div>
+<p>where <span class="math">\(T\)</span> is the sequence length. This grows <strong>linearly with context length</strong> — serving a request with 100K tokens requires 100× the KV cache memory of a 1K token request. For a large model (e.g., Llama-3-70B with 80 layers and 8192 key/value dimensions), a single 100K-token sequence in fp16 requires:</p>
+<div class="math">$$2 \times 80 \times 8192 \times 100{,}000 \times 2 \approx 262 \text{ GB}$$</div>
+<p>This is why long-context serving is so expensive for dense transformers: the KV cache alone can exceed the weight memory. Multi-query attention and GQA reduce <span class="math">\(d_{kv}\)</span> but the linear scaling with context length remains.</p>
+<p>Soofi S changes the denominator: with only 6 GQA layers instead of 52, the KV cache growth rate is reduced by ~9×. At 40K context, the KV cache is 9× smaller than for a dense model of similar depth. This directly translates to the 8–9× throughput advantage measured in the paper.</p>
+<h3>The Three-Phase Training Curriculum</h3>
+<p>Soofi S is trained on a 26.68 trillion token corpus in three phases:</p>
+<ol>
+<li>
+<p><strong>Phase 1: Diverse pretraining</strong> (~20T tokens): A broad German-English mixture with extensive web crawl data, code, and multilingual content. The German-English ratio is deliberately up-weighted to prioritize German language quality.</p>
+</li>
+<li>
+<p><strong>Phase 2: High-quality annealing</strong> (~5T tokens + 1.58T constant LR): A curated, higher-quality subset. The Warmup-Stable-Decay (WSD) learning rate schedule is used — the decay phase is where the model consolidates its training signal.</p>
+</li>
+<li>
+<p><strong>Phase 3: Long-context extension</strong> (~100B tokens): Training with 1M-token sequences using context parallelism. This enables the model's 1M-token context window, which is practically valuable for document-level processing.</p>
+</li>
+</ol>
+<h3>Serving Efficiency Under the WSD Schedule</h3>
+<p>The paper uses a WSD (Warmup-Stable-Decay) learning rate schedule across all phases. The choice is deliberate: the stable plateau allows the model to train at full learning rate for a long period (which gives more opportunity for the Mamba and MoE components to specialize), while the decay phase refines the representations. The minus_sqrt decay shape (learning rate proportional to <span class="math">\(1/\sqrt{t}\)</span> during decay) is empirically observed to give better final performance than linear decay.</p>
+<h2>Comparison to Prior Work</h2>
+<p>Soofi S is compared against 16 open-weight models in the 3B–70B active parameter range, plus European sovereign models:</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Active params</th>
+<th>KV cache growth</th>
+<th>40K-context TPS/GPU</th>
+<th>English</th>
+<th>German</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Llama-3.1-14B (dense)</td>
+<td>14B</td>
+<td>Linear</td>
+<td>~1× (baseline)</td>
+<td>~83</td>
+<td>~71</td>
+</tr>
+<tr>
+<td>Llama-3.1-27B (dense)</td>
+<td>27B</td>
+<td>Linear</td>
+<td>~0.6×</td>
+<td>~87</td>
+<td>~76</td>
+</tr>
+<tr>
+<td>Qwen3-30B-A3B (MoE)</td>
+<td>3B active</td>
+<td>Linear (full attn)</td>
+<td>~2–3×</td>
+<td>~86</td>
+<td>~78</td>
+</tr>
+<tr>
+<td><strong>Soofi S 30B-A3B</strong></td>
+<td>3.2B active</td>
+<td><strong>Near-constant</strong></td>
+<td><strong>8–9×</strong></td>
+<td><strong>~90</strong></td>
+<td><strong>~83</strong></td>
+</tr>
+<tr>
+<td>OLMo 3 32B (dense)</td>
+<td>32B</td>
+<td>Linear</td>
+<td>&lt;1×</td>
+<td>~85</td>
+<td>~77</td>
+</tr>
+</tbody>
+</table>
+<p>The key differentiator versus other MoE models (like Qwen3-30B-A3B) is the Mamba-2 layers: pure MoE models still use full attention for sequence mixing, giving linear KV cache growth. Soofi S's hybrid design achieves near-constant cache because the Mamba layers handle most sequence mixing without any cache.</p>
+<p>European sovereign model comparison: models like BLOOM, Occiglot, and Bafög-Family are substantially outperformed on German benchmarks. Soofi S is the first European sovereign model to match frontier international models on English while achieving state-of-the-art German performance.</p>
+<h2>Reading the Results</h2>
+<p><strong>Capability Index</strong> (average of Code, GSM8K, GPQA-Diamond, English, German benchmarks, normalized to best model per group):
+- Soofi S achieves the highest Capability Index among fully open models, ahead of OLMo 3 32B and Apertus 70B
+- It matches dense 14–27B models on aggregate performance while activating 4–9× fewer parameters</p>
+<p><strong>Long-context serving efficiency</strong>:
+- At 40K context, batch 32: 8–9× aggregate decode TPS/GPU versus dense 14–24B models
+- The throughput advantage is <strong>scale-invariant with context</strong>: as context grows from 4K to 256K tokens, Soofi S maintains near-constant decode TPS while dense models degrade roughly linearly</p>
+<p><strong>German language performance</strong>: Best-in-class on German benchmarks including regional knowledge, outperforming all European sovereign models and matching international frontier models.</p>
+<p><strong>Code performance</strong>: Best code aggregate in both English and German among 17 open base models. Code generation benefits from Mamba's long-range dependency modeling within files.</p>
+<h2>Key Notes of This Paper</h2>
+<h3>How Mamba-2 Achieves Constant-State Sequence Mixing</h3>
+<p>Mamba-2 is a structured state space model (SSM) with a selective mechanism. The state equation is:</p>
+<div class="math">$$h_t = \bar{A} h_{t-1} + \bar{B} x_t$$</div>
+<div class="math">$$y_t = C h_t$$</div>
+<p>where <span class="math">\(\bar{A}\)</span> and <span class="math">\(\bar{B}\)</span> are input-dependent (selective) transition matrices computed from the input <span class="math">\(x_t\)</span> via learned projections. The key property: the state <span class="math">\(h_t \in \mathbb{R}^{N \times d}\)</span> has fixed dimension regardless of sequence length <span class="math">\(t\)</span>. No matter how many tokens have been processed, the "memory" is always a fixed-size matrix.</p>
+<p>The selectivity mechanism is critical: <span class="math">\(\bar{A}\)</span> and <span class="math">\(\bar{B}\)</span> depend on the current input, allowing the model to "decide" what to remember and what to forget at each step. This is in contrast to earlier fixed-coefficient SSMs (like S4) that apply the same dynamics regardless of content. The learned selectivity is what gives Mamba-2 language modeling capability comparable to attention.</p>
+<p><strong>The efficiency insight</strong>: generating the next token with Mamba-2 requires only a constant-time state update <span class="math">\((h_t \leftarrow \bar{A}h_{t-1} + \bar{B}x_t)\)</span> regardless of how many tokens have been generated. With attention, generating the next token requires attending over all previous tokens (O(T) computation and O(T) memory for the KV cache). At T=100K, this difference is enormous.</p>
+<h3>Granular MoE and the Expert Routing Mechanism</h3>
+<p>The MoE layers use a gating network (router) that assigns each input token to a subset of experts:</p>
+<div class="math">$$y = \sum_{i \in \text{TopK}(g(x))} g_i(x) \cdot E_i(x)$$</div>
+<p>where <span class="math">\(g(x)\)</span> is the routing score, <span class="math">\(\text{TopK}\)</span> selects the top-<span class="math">\(k\)</span> experts by score, and <span class="math">\(E_i\)</span> is the <span class="math">\(i\)</span>-th expert network. "Granular" MoE means each expert is a small FFN (smaller than in traditional 2-expert or 4-expert MoE designs), and the model uses a larger number of experts per layer with <span class="math">\(k\)</span> typically 2–4.</p>
+<p>More experts with smaller size means:
+1. The router has finer-grained control over which circuits activate for a given input
+2. Expert utilization is more uniform (less "expert collapse" where a few experts dominate)
+3. The effective parameter count scales more smoothly</p>
+<p>The shared expert variant (used in Soofi S, following the Nemotron 3 Nano design) adds an always-active expert per layer that handles common patterns, with routed experts handling specialized content. This prevents the routing mechanism from having to route every token through experts for basic functionality.</p>
+<h3>The Hybrid Design Tradeoff</h3>
+<p>The hybrid Mamba-MoE design involves engineering tradeoffs:</p>
+<p><strong>Mamba-2 for sequence mixing</strong>: Handles long-range token dependencies efficiently but with bounded context (the state has finite capacity). For tasks requiring exact recall of distant tokens, the finite state is a limitation relative to full attention.</p>
+<p><strong>GQA attention for 6 layers</strong>: Provides exact, unbounded attention for the layers where it matters most. The placement of the 6 GQA layers through the network depth (rather than at the top or bottom only) is a design choice from Nemotron 3 Nano that the authors adopt without modification.</p>
+<p><strong>MoE for feed-forward capacity</strong>: Provides large total parameter capacity (31.6B) at low per-token compute cost (3.2B active). The all-to-all communication for expert routing is the bottleneck that motivates the specific interconnect topology used in training.</p>
+<h2>Limitations</h2>
+<ol>
+<li>
+<p><strong>KV cache not fully eliminated</strong>: The 6 GQA layers still require KV cache storage that grows with sequence length. At very long contexts (&gt;1M tokens), this becomes a bottleneck again, though at a much smaller scale than full-attention models.</p>
+</li>
+<li>
+<p><strong>Expert routing communication overhead</strong>: During training and inference, all-to-all communication between expert-parallel ranks introduces latency proportional to batch size and expert count. This is the primary reason granular MoE is harder to deploy than dense models.</p>
+</li>
+<li>
+<p><strong>No instruction tuning</strong>: The paper presents only the base (pretrained) model. Instruction-following capability requires additional supervised fine-tuning (SFT) and alignment training, which may alter the efficiency profile.</p>
+</li>
+<li>
+<p><strong>German/English focus</strong>: Strong bilingual performance in German and English comes at the cost of capacity for other languages. Multilingual use cases beyond these two languages may see degraded performance.</p>
+</li>
+<li>
+<p><strong>Mamba-2 context limitations</strong>: The fixed-state Mamba-2 architecture has finite capacity for long-range recall. For tasks requiring verbatim retrieval from very long contexts, the 6 attention layers may not be sufficient compensation.</p>
+</li>
+</ol>
+<h2>Future Work</h2>
+<p><strong>From the authors:</strong>
+- Supervised fine-tuning and alignment (instruction-tuned variants)
+- Extension to other European languages
+- Evaluation of Soofi S's architecture for multilingual code generation</p>
+<p><strong>Additional promising directions:</strong>
+- <strong>On-device deployment of the 3B-active-parameter inference path</strong>: The per-token compute matches a 3B dense model. With quantization (4-bit weights), the storage cost is ~16GB, potentially deployable on consumer hardware with unified memory (M-series Macs, high-end mobile APUs).
+- <strong>Extending the Mamba-MoE hybrid to dedicated SLM sizes</strong>: The architectural principles (Mamba for sequence mixing, sparse MoE for capacity, minimal attention) could be applied to models with total parameter counts of 3–7B, where the active parameters would be in the 500M–1B range — genuinely embedded-deployable.
+- <strong>KV-cache-free inference modes</strong>: In autoregressive generation where the context is a fixed prompt (batch inference scenarios), the Mamba-2 state could be precomputed and reused, potentially eliminating even the 6-layer KV cache overhead.
+- <strong>Sparse activation measurement across hardware platforms</strong>: The architectural efficiency claims are measured in throughput (TPS/GPU). Translating these to power efficiency (tokens per joule) on edge hardware would be more directly relevant to on-device deployment decisions.</p>
+<h2>Implications for Edge / On-Device Deployment</h2>
+<p><strong>The 3B active parameter footprint is the key metric for on-device feasibility.</strong> Inference latency and power consumption for autoregressive generation are dominated by compute per token, which scales with <strong>active</strong> parameters, not total parameters. Soofi S's 3.2B active parameters give it the inference profile of a 3B model despite 31.6B total parameters.</p>
+<p><strong>At 4-bit quantization, weight storage drops to ~16GB.</strong> This is within range of premium workstations, high-memory mobile workstations, and edge inference servers. While not yet smartphone-class, this represents a substantial improvement over the 70GB+ required for dense frontier models.</p>
+<p><strong>The constant KV cache is decisive for multi-turn on-device inference.</strong> On-device assistants often maintain long conversation histories. With a full-attention model, a conversation of 10,000 tokens requires 10× the memory of a 1,000-token conversation. Soofi S's near-constant KV cache growth means memory usage is essentially independent of conversation history length — a critical property for sustained on-device deployment.</p>
+<p><strong>The architectural insight generalizes.</strong> The engineering principle demonstrated by Soofi S — use SSM layers for the bulk of sequence mixing, reserve full attention for only a small fraction of layers — can be applied to purpose-built SLMs. A model with 7B total parameters following this design might have 700M–1B active parameters per token, which puts it firmly in the range of today's on-device AI chips.</p>
+<h2>Links</h2>
+<p><a href="https://arxiv.org/abs/2607.09424">Original Paper</a></p>
+<script type="text/javascript">if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width < 768) ? "left" : align;
+        indent = (screen.width < 768) ? "0em" : indent;
+        linebreak = (screen.width < 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+
+    var configscript = document.createElement('script');
+    configscript.type = 'text/x-mathjax-config';
+    configscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'none' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        availableFonts: ['STIX', 'TeX']," +
+        "        preferredFont: 'STIX'," +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(configscript);
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+</script>
+    </article>
+
+        <div class="tags">
+            <p>tags: <a href="/tag/slm.html">SLM</a>, <a href="/tag/ai.html">AI</a>, <a href="/tag/paper-review.html">paper-review</a></p>
+        </div>
+
+    <hr>
+
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <ul class="list-inline text-center">
+                            <li>
+                                <a href="http://twitter.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-twitter fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="http://github.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-github fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                    </ul>
+<p class="copyright text-muted">
+    Blog powered by <a href="http://getpelican.com">Pelican</a>,
+    which takes great advantage of <a href="http://python.org">Python</a>. <br />        &copy;  toohsk
+</p>                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- jQuery -->
+    <script src="/theme/js/jquery.min.js"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="/theme/js/bootstrap.min.js"></script>
+
+        <!-- Custom Theme JavaScript -->
+        <script src="/theme/js/clean-blog.min.js"></script>
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-LR14KRYZ4L"></script>
+<script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-LR14KRYZ4L');
+</script>
+</body>
+
+</html>

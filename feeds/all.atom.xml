@@ -1,5 +1,1291 @@
 <?xml version="1.0" encoding="utf-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom"><title>Atsushi's blog</title><link href="/" rel="alternate"></link><link href="/feeds/all.atom.xml" rel="self"></link><id>/</id><updated>2026-06-13T00:00:00+09:00</updated><entry><title>Multi-SPIN: Cooperative Edge LLM Inference via Multi-Access Speculative Decoding</title><link href="/multi-spin-cooperative-edge-llm-inference-via-multi-access-speculative-decoding.html" rel="alternate"></link><published>2026-06-13T00:00:00+09:00</published><updated>2026-06-13T00:00:00+09:00</updated><author><name>toohsk</name></author><id>tag:None,2026-06-13:/multi-spin-cooperative-edge-llm-inference-via-multi-access-speculative-decoding.html</id><summary type="html">&lt;p&gt;Multi-SPIN distributes speculative decoding across heterogeneous edge devices — on-device SLMs draft tokens while an edge server LLM verifies them in batches — and solves the joint draft-length / bandwidth allocation problem in closed form to maximize system-wide token throughput.&lt;/p&gt;</summary><content type="html">&lt;h2&gt;Why This Paper Matters&lt;/h2&gt;
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Atsushi's blog</title><link href="/" rel="alternate"></link><link href="/feeds/all.atom.xml" rel="self"></link><id>/</id><updated>2026-07-18T00:00:00+09:00</updated><entry><title>凍結済み小型言語モデルを賢く・安くする：バイト完全KV状態グラフティング</title><link href="/dong-jie-ji-mixiao-xing-yan-yu-moderuwoxian-kuan-kusurubaitowan-quan-kvzhuang-tai-gurahuteingu.html" rel="alternate"></link><published>2026-07-18T00:00:00+09:00</published><updated>2026-07-18T00:00:00+09:00</updated><author><name>toohsk</name></author><id>tag:None,2026-07-18:/dong-jie-ji-mixiao-xing-yan-yu-moderuwoxian-kuan-kusurubaitowan-quan-kvzhuang-tai-gurahuteingu.html</id><summary type="html">&lt;p&gt;バイト完全なKVキャッシュグラフティングにより、勾配ゼロで凍結12Bモデルに検証済み知識を注入し、AIME 2025スコアを80%から93.3%に向上させながらトークン消費を6,574倍削減する新手法。&lt;/p&gt;</summary><content type="html">&lt;h2&gt;なぜこの研究が重要か&lt;/h2&gt;
+&lt;p&gt;LLMがクエリに答えるたびに、プロンプト内のすべてのトークンを最初から再計算している。同じ数学的証明、参照実装、ドメイン知識が数百万のクエリに埋め込まれている場合、それは数百万回再計算される — 静かに積み重なる巨大な無駄である。&lt;/p&gt;
+&lt;p&gt;この論文はその無駄を、一見シンプルな観察で攻略する：モデルがプロンプトを読む際に計算するKVキャッシュは、入力・重み・数値精度の&lt;strong&gt;決定論的な関数&lt;/strong&gt;である。もしそのキャッシュ状態をビット完全にキャプチャし、ディスクに保存し、後から損失ゼロで別の推論コンテキストに復元できれば：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;一度計算された知識は二度と再計算不要&lt;/strong&gt;。12kトークンのプロンプトのプリフィル時間が1,547msから18msへ、&lt;strong&gt;85.6倍高速化&lt;/strong&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;モデルが持っていない知識を、重みを一切変えることなく永続的に注入できる&lt;/strong&gt;。ファインチューニング不要。アダプター不要。検証済みのKVブロックをキャッシュするだけ。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;この2つの特性が組み合わさり、著者らが「検証済み知識フライホイール」と呼ぶ仕組みになる：追加の推論努力で難問を解き、外部で解を検証し、バイト完全なKVアーティファクトとして凍結し、以降のクエリではグラフトするだけ。凍結されたGemma-4-12Bが&lt;strong&gt;AIME 2025で80.0%から93.3%に向上&lt;/strong&gt;（31B版の公式スコア89.2%を超える）し、8つの繰り返し難問を401,026トークンではなく&lt;strong&gt;61トークン&lt;/strong&gt;で解く。&lt;/p&gt;
+&lt;p&gt;これはプロンプトキャッシングでもRAGでもない。まったく新しいもの：モデルのアテンション状態への正確で永続的・ポータブルな、ゼロ勾配の知識注入である。&lt;/p&gt;
+&lt;h2&gt;技術的なアプローチ&lt;/h2&gt;
+&lt;h3&gt;Taliesin：バイト完全グラフトエンジン&lt;/h3&gt;
+&lt;p&gt;中心的な主張は、KV状態が&lt;strong&gt;ロスレスの忠実度&lt;/strong&gt;で復元できるというものだ。近似的にではなく、バイト単位で完全に。論文はこの正確性を厳密に定義している：&lt;/p&gt;
+&lt;div class="math"&gt;$$\text{SHA-256}\bigl(\text{bytes}(\ell_{\text{graft}})\bigr) = \text{SHA-256}\bigl(\text{bytes}(\ell_{\text{fresh}})\bigr)$$&lt;/div&gt;
+&lt;p&gt;ここで &lt;span class="math"&gt;\(\ell_{\text{fresh}}\)&lt;/span&gt; は新規フォワードパスからのロジットベクトル、&lt;span class="math"&gt;\(\ell_{\text{graft}}\)&lt;/span&gt; はキャッシュされたKV状態を復元後のロジットベクトル。これは以下を含意する：&lt;/p&gt;
+&lt;div class="math"&gt;$$D_{\text{KL}}(p_{\text{graft}} \,\|\, p_{\text{fresh}}) = 0 \qquad \text{かつ} \qquad \arg\max \ell_{\text{graft}} = \arg\max \ell_{\text{fresh}}$$&lt;/div&gt;
+&lt;p&gt;Gemma-4-12B（RTX 5090, Blackwell）での50サンプルにわたって、グラフトは中央値でも99パーセンタイルでもKL divergenceゼロ、argmax不一致ゼロ、全トライアルでSHA-256バイト等価を達成する。この保証はクロスコンテキスト（新しい推論プロセスへの復元）、クロスサーバー、主要なランタイムリファクタリング後も維持される。&lt;/p&gt;
+&lt;h3&gt;なぜ「自己位置」だけが唯一の正確な動作点なのか&lt;/h3&gt;
+&lt;p&gt;Rotary Position Embedding（RoPE）は、キーベクトルを回転させることで位置をエンコードする：&lt;span class="math"&gt;\(\mathbf{k}_t \leftarrow R_t \mathbf{k}_t\)&lt;/span&gt;。厳密な算術では、位置 &lt;span class="math"&gt;\(t\)&lt;/span&gt; と &lt;span class="math"&gt;\(s\)&lt;/span&gt; 間のアテンションは&lt;strong&gt;相対角度&lt;/strong&gt; &lt;span class="math"&gt;\(t - s\)&lt;/span&gt; のみに依存する（加法定理による）：&lt;/p&gt;
+&lt;div class="math"&gt;$$\cos(a)\cos(b) + \sin(a)\sin(b) = \cos(a - b)$$&lt;/div&gt;
+&lt;p&gt;しかし&lt;strong&gt;32ビット浮動小数点演算&lt;/strong&gt;では、この等式はビット完全には成立しない。同じトークンペアを異なる絶対角度 &lt;span class="math"&gt;\((a, b)\)&lt;/span&gt; vs &lt;span class="math"&gt;\((a+M, b+M)\)&lt;/span&gt; で表現すると、結果は約1ULP（最終桁の1単位）異なり、これがネットワーク層とロジットソフトキャップを通じて増幅され、約0.015のKL divergenceになる。&lt;/p&gt;
+&lt;p&gt;この帰結は明確だ：&lt;strong&gt;自己位置グラフトが唯一のバイト完全な動作点&lt;/strong&gt;である。KVブロックを元の位置範囲 &lt;span class="math"&gt;\([0, N)\)&lt;/span&gt; で復元することはバイト完全だが、オフセット &lt;span class="math"&gt;\(M\)&lt;/span&gt; に移動すると正確ではない — グラフトのエラーではなく、&lt;em&gt;新規計算&lt;/em&gt;自体が既にオフセット &lt;span class="math"&gt;\(M\)&lt;/span&gt; でのものとオフセット &lt;span class="math"&gt;\(0\)&lt;/span&gt; でのものとで同量だけ異なっているからだ。これはモデルの特性であり、エンジンの問題ではない。&lt;/p&gt;
+&lt;h3&gt;Galahad：検証済み知識フライホイール&lt;/h3&gt;
+&lt;p&gt;学習ループは意図的にシンプルだ：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;解く&lt;/strong&gt;：凍結モデルが失敗する難問に、追加の推論努力で取り組む&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;検証&lt;/strong&gt;：外部の健全性チェックを適用（生成されたプログラムを実行し、既知の答えを出力することを確認）&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;保存&lt;/strong&gt;：検証済み解のKV状態をディスク上の永続ブロックとしてキャプチャ。余分なアクセラレーターメモリはゼロ&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;ルーティング&lt;/strong&gt;：新しいクエリを分類し、関連するブロックを選択&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;グラフト&lt;/strong&gt;：バイト完全なブロックを復元。モデルは検証済み知識をプリフィルしたかのように読み込む — ロスレスで&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;論文は2つの検索レジームを区別する：
+- &lt;strong&gt;再発（Recurrence）&lt;/strong&gt;：全く同じ問題が再び来る。ブロックにルーティングし、グラフトし、保存された答えを返す。コスト：問題1つあたり約7.6トークン（50,000+ではなく）
+- &lt;strong&gt;転移（Transfer）&lt;/strong&gt;：構造的に類似しているが数値的に新しい問題が来る。グラフトされたメソッドコンテキストをワンショット例として使用し、凍結モデルが新データに適応する。これは記憶のテストではなく汎化のテスト&lt;/p&gt;
+&lt;h2&gt;先行研究との比較&lt;/h2&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;手法&lt;/th&gt;
+&lt;th&gt;永続性&lt;/th&gt;
+&lt;th&gt;正確性&lt;/th&gt;
+&lt;th&gt;勾配不要&lt;/th&gt;
+&lt;th&gt;追加メモリなし&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;ネイティブプロンプトキャッシュ&lt;/td&gt;
+&lt;td&gt;❌ (セッション限定)&lt;/td&gt;
+&lt;td&gt;✓&lt;/td&gt;
+&lt;td&gt;✓&lt;/td&gt;
+&lt;td&gt;✓&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;RAG（トークン注入）&lt;/td&gt;
+&lt;td&gt;✓&lt;/td&gt;
+&lt;td&gt;✓&lt;/td&gt;
+&lt;td&gt;✓&lt;/td&gt;
+&lt;td&gt;❌（毎回再読込）&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;ファインチューニング / LoRA&lt;/td&gt;
+&lt;td&gt;✓&lt;/td&gt;
+&lt;td&gt;N/A&lt;/td&gt;
+&lt;td&gt;❌&lt;/td&gt;
+&lt;td&gt;❌&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;KVキャッシュ共有（LMCache等）&lt;/td&gt;
+&lt;td&gt;✓&lt;/td&gt;
+&lt;td&gt;近似&lt;/td&gt;
+&lt;td&gt;✓&lt;/td&gt;
+&lt;td&gt;✓&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;KV状態グラフティング（本論文）&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;✓&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;✓（バイト）&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;✓&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;✓&lt;/strong&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;RAGは永続的だが、注入された知識を毎回トークンとして再読み込む — コストが繰り返される。ファインチューニングは永続的だが重みを変更し、学習実行コストが必要で、単一事実の粒度では合成不可能。本論文は推論時学習の基盤としてのバイト完全・永続・ポータブルなKV状態グラフトの最初の公開デモンストレーションだ。&lt;/p&gt;
+&lt;h2&gt;実験結果の読み方&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;AIME 2025ベンチマーク&lt;/strong&gt;（30題の数学コンペ問題、Gemmaの2025年1月プリトレーニングカットオフ後にリリース）：&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;設定&lt;/th&gt;
+&lt;th&gt;スコア&lt;/th&gt;
+&lt;th&gt;トークン/問題&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;凍結12B ベース（pass@1）&lt;/td&gt;
+&lt;td&gt;56.7%&lt;/td&gt;
+&lt;td&gt;~3,300&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;サンプリングと投票&lt;/td&gt;
+&lt;td&gt;76.7%&lt;/td&gt;
+&lt;td&gt;~25,000&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;コードルーティング（キャッシュなし）&lt;/td&gt;
+&lt;td&gt;76.7%&lt;/td&gt;
+&lt;td&gt;~4,100&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;コードルーティング + グラフトライブラリ&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;90.0%&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;~4,360&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;信頼度ゲート + ライブラリ&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;93.3%&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;—&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;90.0%の実行は、キャッシュなしベースラインより約5.6%多いトークンで&lt;strong&gt;13.3ポイントの精度向上&lt;/strong&gt; — キャッシュされた知識から買う能力は、追加サンプリングから買う能力より約&lt;strong&gt;50倍安い&lt;/strong&gt;。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;再発のコスト削減&lt;/strong&gt;：ベースモデルが401,026トークン予算内で解けなかった8つの難問が、キャッシュされた検証済み解から61トークン合計で回答される — &lt;strong&gt;6,574倍のトークン削減&lt;/strong&gt;、約3,000〜8,700倍のエネルギー削減。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;コンテキスト拡張&lt;/strong&gt;：2,854,766トークンのストアが88の永続ブロックとして構築される。ストア内のどのポイントも深さに関係なく一定のコスト（~0.29秒）で取得でき、追加アクセラレーターメモリはゼロ。設定された32kサービスウィンドウが32 GB GPUで87倍に拡張される。&lt;/p&gt;
+&lt;h2&gt;アルゴリズムの重要部分の解説&lt;/h2&gt;
+&lt;h3&gt;バイト完全性の証明構造&lt;/h3&gt;
+&lt;p&gt;論文は正確性を&lt;strong&gt;対抗的な反証&lt;/strong&gt;によって証明している：7つの候補説明を各々テストして排除した：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;半精度の丸め誤差 — CPU決定論的ビルドで排除&lt;/li&gt;
+&lt;li&gt;スライディングウィンドウバッファリング — フルサイズKV有効化で排除&lt;/li&gt;
+&lt;li&gt;オフセット大きさ — オフセット{8, 128, 1024, 4096}での均一な残差で排除&lt;/li&gt;
+&lt;li&gt;デュアルロータリーパス — 明示的にテスト&lt;/li&gt;
+&lt;li&gt;RoPEシフトの周波数不一致 — 排除&lt;/li&gt;
+&lt;li&gt;三角関数カーネルでの大角度引数簡約エラー — 排除&lt;/li&gt;
+&lt;li&gt;物理スロット配置からの簡約ツリー再結合 — 排除&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;残るのは32ビット浮動小数点での余弦加法定理の非結合性 — 32ビットRoPEでは不可避で、モデル自体で測定可能で、グラフトとは完全に分離している。&lt;/p&gt;
+&lt;p&gt;この結果として導かれる重要な不等式は：&lt;/p&gt;
+&lt;div class="math"&gt;$$D_{\text{KL}}(\text{自己位置グラフト}) = 0 \qquad \text{vs.} \qquad D_{\text{KL}}(\text{新位置グラフト}) \approx D_{\text{KL}}(\text{0での新規計算 vs. Mでの新規計算})$$&lt;/div&gt;
+&lt;p&gt;つまりグラフトは位置残差に何も加えない — 残差はすべてモデル自身の位置感受性によるものだ。&lt;/p&gt;
+&lt;h3&gt;フライホイールループの収束保証&lt;/h3&gt;
+&lt;p&gt;フライホイールが収束する理由は、ストアへの登録に&lt;strong&gt;外部検証&lt;/strong&gt;が必要だからだ — システムは健全性チェックに合格した解のみを保存する。これによりエラー増幅を防ぐ：多くの自己改善ループとは異なり、Galahadは誤った知識を追加できない。&lt;/p&gt;
+&lt;p&gt;ルーティングも大規模化に対応して設計されている：各ブロックには1つの検証済み解が含まれ、ルーターは単一の関連ブロックのみを選択する（関連メソッドコンテキストと無関係なものが混在するとモデルが混乱することが判明したため、すべてのキャッシュ済み解のフラットなプレフィックスではない）。&lt;/p&gt;
+&lt;h3&gt;数式の直感的理解&lt;/h3&gt;
+&lt;p&gt;&lt;strong&gt;KL divergence = 0 の意味&lt;/strong&gt;：グラフトされたモデルと新規計算の次トークン予測分布が&lt;strong&gt;確率的に区別不可能&lt;/strong&gt;であること。つまり、グラフトはプレフィルを完全に置き換え、モデルはその知識をまるで今読んだばかりのように処理する。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;SHA-256等価テスト&lt;/strong&gt;：ロジットベクトル（語彙全体のスコア）のバイト表現のハッシュが一致する。数万の浮動小数点数の全ビットが一致するということ — 統計的なほぼ等価ではなく、完全な等価。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;プリフィルスピードアップ85.6倍&lt;/strong&gt;：12k-tokenの知識を新規に処理する代わりに、1トークンを前進させるだけ。すでに計算済みのKV状態を使うため。&lt;/p&gt;
+&lt;h2&gt;限界と課題&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;バイト完全性はアーキテクチャ固有&lt;/strong&gt;：異なる浮動小数点蓄積を行う2つのGPUアーキテクチャは、同じグラフトからバイト同一の結果を生成しない可能性がある。保証はアーキテクチャ内で成立。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;エンジンは独自仕様&lt;/strong&gt;：Taliesinグラフトメカニズムは入出力レベルのみで説明され、内部アーキテクチャは非公開。結果はコミットされたSHAハッシュで裏付けられるが、再現にはクローズドなベンチマークスイートが必要。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;長いプログラムでの2つの失敗&lt;/strong&gt;：ライブラリ内で最長のキャッシュ済みプログラムを持つ問題#11と#14は、転移実行で解けなかった。失敗はキャッシュのバイト完全性ではなく、大量のコードコンテキストのモデルのワンショット再適応にある。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;ロータリー位置制約&lt;/strong&gt;：自己位置での復元が唯一のバイト完全なレジーム。浮動小数点RoPEモデルでの任意オフセットグラフトは達成不可能。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;今後の展望&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;著者が示唆するFuture Work&lt;/strong&gt;：
+- マルチブロック合成の完全な正確性達成（現在は機能的には正しいが残差あり）
+- オープンウェイトモデルでの再現実装（Taliesinエンジンが独自仕様のため）
+- クロスアーキテクチャポータビリティのためのハードウェア抽象化レイヤー&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;この研究から派生する発展的な研究方向&lt;/strong&gt;：
+- &lt;strong&gt;圧縮KVストア&lt;/strong&gt;：2.85Mトークンのストアが40.6 GBのディスクを占有する。ロスレスKV圧縮（スパースアクティベーションや相関キーベクトルの活用）で大型ストアをコンシューマーハードウェアで実用的にできる。
+- &lt;strong&gt;位置非依存アーキテクチャへの拡張&lt;/strong&gt;：ALiBiや位置エンコーディングなしのアーキテクチャでは、RoPEの制約がなくなり、クロスオフセットの正確なグラフトが可能になる可能性がある。
+- &lt;strong&gt;自動フライホイールパイプライン&lt;/strong&gt;：現在、Galahadループは初期難問の人間によるキュレーションが必要。問題発見、多様な解生成、マルチ検証器コンセンサスの自動化で完全に自己改善するフライホイールが実現できる。
+- &lt;strong&gt;エージェント用スキルライブラリ&lt;/strong&gt;：464トークンのスキルマニュアル（160 MBのKV状態）のキャッシュデモは、より大規模なオンデバイスエージェントスキルライブラリへの道を示す。&lt;/p&gt;
+&lt;h2&gt;エッジ・オンデバイスへの示唆&lt;/h2&gt;
+&lt;p&gt;この論文はエッジ・オンデバイス推論に直接関連する複数の意味を持つ：&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;冗長な計算の排除&lt;/strong&gt;：オンデバイスモデルは通常、重複する知識コンテキスト（システムプロンプト、参照文書、スキルライブラリ）で繰り返し実行される。バイト完全なKVグラフティングにより、その繰り返しプリフィルをクエリごとの &lt;span class="math"&gt;\(O(n)\)&lt;/span&gt; トークンから &lt;span class="math"&gt;\(O(1)\)&lt;/span&gt; トークンに変換し、&lt;strong&gt;バッテリー寿命を直接延長し、モバイルデバイスの熱スロットリングを削減&lt;/strong&gt;する。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;拡張知識のためのゼロメモリオーバーヘッド&lt;/strong&gt;：ゼロ追加アクセラレーターメモリでの87倍コンテキスト拡張は、DRAMとVRAMの両方が制約されるエッジハードウェアで特に価値がある。4 GBのオンデバイスモデルがディスクから数億トークンの検証済み知識ストアにアクセスでき、アクセスごとのディスク読み取り時間（~0.29秒）のみを支払う。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;エネルギー比例性&lt;/strong&gt;：再発問題での3,000〜8,700倍のエネルギー削減は、バッテリー駆動展開に直接的な意味を持つ。繰り返しの質問に再計算ではなくキャッシュされた検証済み解から答えるオンデバイスモデルは、知識集約型ワークロードでアクティブセッション時間を桁違いに延長できる。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;スキルキャッシングのオンデバイスエージェントへの応用&lt;/strong&gt;：論文では464トークンのスキルマニュアル（160 MBのKV状態）がキャッシュされ、バイト同一に復元できることを示し、モデルはキャッシュ状態のみを使って6つのタスクを正しいスキルにルーティングする — クエリ時にスキルからのコンテキストトークンなしで。これはオンデバイスアシスタントの低レイテンシーのパーソナライゼーションへの道を開く。&lt;/p&gt;
+&lt;h2&gt;原文リンク&lt;/h2&gt;
+&lt;p&gt;&lt;a href="https://huggingface.co/papers/2607.14431"&gt;Original Paper&lt;/a&gt;&lt;/p&gt;
+&lt;script type="text/javascript"&gt;if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width &lt; 768) ? "left" : align;
+        indent = (screen.width &lt; 768) ? "0em" : indent;
+        linebreak = (screen.width &lt; 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+
+    var configscript = document.createElement('script');
+    configscript.type = 'text/x-mathjax-config';
+    configscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'none' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        availableFonts: ['STIX', 'TeX']," +
+        "        preferredFont: 'STIX'," +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(configscript);
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+&lt;/script&gt;</content><category term="AI/ML"></category><category term="SLM"></category><category term="AI"></category><category term="論文解説"></category></entry><entry><title>Smarter and Cheaper at Once: Byte-Exact KV-State Grafting for Frozen Small Language Models</title><link href="/smarter-and-cheaper-at-once-byte-exact-kv-state-grafting-for-frozen-small-language-models.html" rel="alternate"></link><published>2026-07-18T00:00:00+09:00</published><updated>2026-07-18T00:00:00+09:00</updated><author><name>toohsk</name></author><id>tag:None,2026-07-18:/smarter-and-cheaper-at-once-byte-exact-kv-state-grafting-for-frozen-small-language-models.html</id><summary type="html">&lt;p&gt;Byte-exact KV-cache grafting injects verified knowledge into a frozen 12B model at zero gradient cost, lifting AIME 2025 accuracy from 80% to 93.3% while using 6,574× fewer tokens — a new axis for making small LLMs both more capable and dramatically cheaper.&lt;/p&gt;</summary><content type="html">&lt;h2&gt;Why This Paper Matters&lt;/h2&gt;
+&lt;p&gt;Every time an LLM answers a question, it re-reads every token in the prompt from scratch. If the same mathematical proof, reference implementation, or domain knowledge is embedded in millions of queries, it is recomputed millions of times — an enormous silent waste.&lt;/p&gt;
+&lt;p&gt;This paper attacks that waste with a deceptively simple observation: the KV-cache that a model computes when reading a prompt is a &lt;strong&gt;deterministic function&lt;/strong&gt; of the input, the weights, and the numerics. If that state could be captured bit-perfectly, stored on disk, and restored later into a fresh inference context without any loss, then:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;Knowledge computed once never needs recomputing.&lt;/strong&gt; Prefill cost for a 12k-token context drops from 1,547 ms to 18 ms — an 85.6× speedup.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Knowledge the model lacks can be injected permanently — without touching a single weight.&lt;/strong&gt; No fine-tuning. No adapter. Just a cached, verified KV block.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;These two properties combine into what the authors call a &lt;strong&gt;verified-knowledge flywheel&lt;/strong&gt;: solve a hard problem with extra inference effort, verify the solution externally, freeze it as a byte-exact KV artifact, and on future queries just graft it in. A frozen Gemma-4-12B goes from 80.0% to &lt;strong&gt;93.3% on AIME 2025&lt;/strong&gt; — above the vendor-reported score of its 31B sibling — while 8 recurring hard problems are solved in &lt;strong&gt;61 total tokens&lt;/strong&gt; rather than 401,026.&lt;/p&gt;
+&lt;p&gt;This is not prompt caching. It is not RAG. It is something new: exact, persistent, portable, zero-gradient knowledge injection directly into the model's attention state.&lt;/p&gt;
+&lt;h2&gt;Core Technical Contribution&lt;/h2&gt;
+&lt;h3&gt;Taliesin: The Byte-Exact Graft Engine&lt;/h3&gt;
+&lt;p&gt;The central claim is that the KV state can be restored with &lt;strong&gt;lossless fidelity&lt;/strong&gt; — not approximately, but byte-for-byte. The paper defines exactness rigorously:&lt;/p&gt;
+&lt;div class="math"&gt;$$\text{SHA-256}\bigl(\text{bytes}(\ell_{\text{graft}})\bigr) = \text{SHA-256}\bigl(\text{bytes}(\ell_{\text{fresh}})\bigr)$$&lt;/div&gt;
+&lt;p&gt;where &lt;span class="math"&gt;\(\ell_{\text{fresh}}\)&lt;/span&gt; is the logit vector from a fresh forward pass and &lt;span class="math"&gt;\(\ell_{\text{graft}}\)&lt;/span&gt; is the logit vector after restoring a cached KV state. This implies:&lt;/p&gt;
+&lt;div class="math"&gt;$$D_{\text{KL}}(p_{\text{graft}} \,\|\, p_{\text{fresh}}) = 0 \qquad \text{and} \qquad \arg\max \ell_{\text{graft}} = \arg\max \ell_{\text{fresh}}$$&lt;/div&gt;
+&lt;p&gt;Across 50 independent samples on Gemma-4-12B (RTX 5090, Blackwell), the graft achieves zero KL divergence at both median and 99th percentile, zero argmax disagreements, and SHA-256 byte equality on every trial. The guarantee holds cross-context (restored into a fresh inference process), cross-server, and survives major runtime refactors.&lt;/p&gt;
+&lt;h3&gt;Why Own-Position is the Unique Exact Point&lt;/h3&gt;
+&lt;p&gt;Rotary Position Embedding (RoPE) encodes position into key vectors by rotating them: &lt;span class="math"&gt;\(\mathbf{k}_t \leftarrow R_t \mathbf{k}_t\)&lt;/span&gt;. In exact arithmetic, attention between positions &lt;span class="math"&gt;\(t\)&lt;/span&gt; and &lt;span class="math"&gt;\(s\)&lt;/span&gt; depends only on the &lt;strong&gt;relative angle&lt;/strong&gt; &lt;span class="math"&gt;\(t - s\)&lt;/span&gt;, because:&lt;/p&gt;
+&lt;div class="math"&gt;$$\cos(a)\cos(b) + \sin(a)\sin(b) = \cos(a - b)$$&lt;/div&gt;
+&lt;p&gt;But in &lt;strong&gt;32-bit floating point&lt;/strong&gt;, this identity does not hold bit-exactly. When the same pair of tokens is expressed with different absolute angles &lt;span class="math"&gt;\((a, b)\)&lt;/span&gt; vs. &lt;span class="math"&gt;\((a + M, b + M)\)&lt;/span&gt;, the result differs by approximately 1 ULP (unit in the last place), which amplifies through the network layers and logit softcap to a KL divergence of ~0.015.&lt;/p&gt;
+&lt;p&gt;The consequence is sharp: &lt;strong&gt;own-position graft is the unique numerically exact operating point&lt;/strong&gt;. Restoring a KV block at its original position range &lt;span class="math"&gt;\([0, N)\)&lt;/span&gt; is byte-exact; moving it to offset &lt;span class="math"&gt;\(M\)&lt;/span&gt; is not — not because of any graft error, but because the &lt;em&gt;fresh&lt;/em&gt; computation at offset &lt;span class="math"&gt;\(M\)&lt;/span&gt; already differs from the one at offset &lt;span class="math"&gt;\(0\)&lt;/span&gt; by the same amount. This is a property of the model, not the engine, and it means no engine can achieve byte-exact cross-position grafting on a model with floating-point RoPE.&lt;/p&gt;
+&lt;p&gt;This bound is the paper's most important theoretical contribution: it identifies exactly when and why byte-exactness is achievable, and why it cannot be extended to arbitrary offsets.&lt;/p&gt;
+&lt;h3&gt;Galahad: The Verified-Knowledge Flywheel&lt;/h3&gt;
+&lt;p&gt;The learning loop is deliberately simple:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;Solve&lt;/strong&gt;: Run the frozen model with additional inference-time effort on a hard problem it fails.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Verify&lt;/strong&gt;: Apply an external, sound check (execute the generated program; confirm it prints the known answer).&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Deposit&lt;/strong&gt;: Capture the KV state of the verified solution as a persistent block on disk. Zero extra accelerator memory.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Route&lt;/strong&gt;: On a new query, classify it and select the relevant block.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Graft&lt;/strong&gt;: Restore the byte-exact block. The model reads the verified knowledge as if it had just prefilled it — losslessly.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;The paper distinguishes two retrieval regimes:
+- &lt;strong&gt;Recurrence&lt;/strong&gt;: The exact same problem returns. Route to the block, graft, return the stored answer. Cost: ~7.6 tokens per problem instead of ~50,000+.
+- &lt;strong&gt;Transfer&lt;/strong&gt;: A structurally similar but numerically new problem arrives. The grafted method context is used as a one-shot exemplar; the frozen model adapts it to new data. This tests generalization, not memorization.&lt;/p&gt;
+&lt;h2&gt;Comparison to Prior Work&lt;/h2&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Method&lt;/th&gt;
+&lt;th&gt;Durable?&lt;/th&gt;
+&lt;th&gt;Exact?&lt;/th&gt;
+&lt;th&gt;Gradient-free?&lt;/th&gt;
+&lt;th&gt;Zero extra memory?&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;Native prompt cache&lt;/td&gt;
+&lt;td&gt;❌ (session-tied)&lt;/td&gt;
+&lt;td&gt;✓&lt;/td&gt;
+&lt;td&gt;✓&lt;/td&gt;
+&lt;td&gt;✓&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;RAG (token injection)&lt;/td&gt;
+&lt;td&gt;✓&lt;/td&gt;
+&lt;td&gt;✓&lt;/td&gt;
+&lt;td&gt;✓&lt;/td&gt;
+&lt;td&gt;❌ (re-reads every call)&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Fine-tuning / LoRA&lt;/td&gt;
+&lt;td&gt;✓&lt;/td&gt;
+&lt;td&gt;N/A&lt;/td&gt;
+&lt;td&gt;❌&lt;/td&gt;
+&lt;td&gt;❌&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;KV-cache sharing (LMCache)&lt;/td&gt;
+&lt;td&gt;✓&lt;/td&gt;
+&lt;td&gt;Approx.&lt;/td&gt;
+&lt;td&gt;✓&lt;/td&gt;
+&lt;td&gt;✓&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;KV-State Grafting (this paper)&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;✓&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;✓ (byte)&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;✓&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;✓&lt;/strong&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;RAG is durable but re-reads the injected knowledge as tokens on every call — the cost recurs. Fine-tuning is durable but changes weights, costs a training run, and is not composable at the granularity of a single fact. This paper is the first public demonstration of a byte-exact, persistent, portable KV-state graft as a substrate for inference-time learning.&lt;/p&gt;
+&lt;h2&gt;Reading the Results&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;AIME 2025 benchmark&lt;/strong&gt; (30 competition math problems, released after Gemma's January 2025 pretraining cutoff):&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Configuration&lt;/th&gt;
+&lt;th&gt;Score&lt;/th&gt;
+&lt;th&gt;Tokens/problem&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;Bare frozen 12B (pass@1)&lt;/td&gt;
+&lt;td&gt;56.7%&lt;/td&gt;
+&lt;td&gt;~3,300&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Sampling-and-voting ladder&lt;/td&gt;
+&lt;td&gt;76.7%&lt;/td&gt;
+&lt;td&gt;~25,000&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Lean code-routing, no cache&lt;/td&gt;
+&lt;td&gt;76.7%&lt;/td&gt;
+&lt;td&gt;~4,100&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Code-routing + grafted library&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;90.0%&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;~4,360&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Confidence-gated + library&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;93.3%&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;—&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;The 90.0% run uses ~5.6% more tokens than the no-cache baseline for a &lt;strong&gt;13.3 percentage-point accuracy gain&lt;/strong&gt; — capability bought from cached knowledge is roughly &lt;strong&gt;50× cheaper per point&lt;/strong&gt; than capability bought from extra sampling.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Recurrence economics&lt;/strong&gt;: 8 hard problems (never solved by the base model in 401,026 token budget) are answered in 61 total tokens from cached verified solutions — &lt;strong&gt;6,574× fewer tokens&lt;/strong&gt;, ~3,000–8,700× less energy.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Context extension&lt;/strong&gt;: A store of 2,854,766 tokens is built as 88 persistent blocks. Any point in the store is retrieved in ~0.29 s at constant cost regardless of depth, using zero extra accelerator memory. The configured 32k serving window is extended 87× on a 32 GB GPU.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Prefill speedup&lt;/strong&gt;: An 11,994-token prompt takes 1,547 ms cold; grafting the cached state and advancing by one token takes 18.1 ms — &lt;strong&gt;85.6× speedup&lt;/strong&gt;.&lt;/p&gt;
+&lt;h2&gt;Key Notes of This Paper&lt;/h2&gt;
+&lt;h3&gt;The Byte-Exactness Proof Structure&lt;/h3&gt;
+&lt;p&gt;The paper proves exactness through &lt;strong&gt;adversarial falsification&lt;/strong&gt;, not assertion. Seven candidate explanations for any residual divergence are each tested and eliminated:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;Half-precision rounding — ruled out by CPU deterministic build&lt;/li&gt;
+&lt;li&gt;Sliding-window buffering — ruled out by enabling full-size KV&lt;/li&gt;
+&lt;li&gt;Offset magnitude — ruled out by flat residual across offsets {8, 128, 1024, 4096}&lt;/li&gt;
+&lt;li&gt;Dual-rotary paths — tested explicitly&lt;/li&gt;
+&lt;li&gt;Frequency mismatch in RoPE shift — ruled out&lt;/li&gt;
+&lt;li&gt;Large-angle argument-reduction error in trig kernels — ruled out&lt;/li&gt;
+&lt;li&gt;Reduction-tree reassociation from physical slot placement — ruled out&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;What remains is the floating-point non-associativity of the cosine addition formula — irreducible in 32-bit RoPE, measurable on the model itself, and entirely separate from the graft.&lt;/p&gt;
+&lt;p&gt;The key inequality derived is:&lt;/p&gt;
+&lt;div class="math"&gt;$$D_{\text{KL}}(\text{graft at own pos}) = 0 \qquad \text{vs.} \qquad D_{\text{KL}}(\text{graft at new pos}) \approx D_{\text{KL}}(\text{fresh at new pos vs. fresh at 0})$$&lt;/div&gt;
+&lt;p&gt;This means the graft adds nothing to the positional residual — the residual is entirely attributable to the base model's position-sensitivity.&lt;/p&gt;
+&lt;h3&gt;The Flywheel Loop Convergence&lt;/h3&gt;
+&lt;p&gt;The flywheel converges because entry into the store requires &lt;strong&gt;external verification&lt;/strong&gt; — the system deposits only solutions that pass a sound check. This prevents error amplification: unlike many self-improvement loops, Galahad cannot add incorrect knowledge, because unverified solutions are never deposited.&lt;/p&gt;
+&lt;p&gt;The routing is also designed to scale: each block contains one verified solution, and the router selects only the single relevant block (not a flat prefix of all cached solutions, which was found to confuse the model by presenting irrelevant method context alongside the relevant one).&lt;/p&gt;
+&lt;h2&gt;Limitations&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Byte-exactness is architecture-specific&lt;/strong&gt;: Two GPU architectures that accumulate floating point differently may not produce byte-identical results from the same graft. The guarantee is within-architecture.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Engine is proprietary&lt;/strong&gt;: The Taliesin graft mechanism is described only at the input-output level; internal architecture is not disclosed. Results are backed by committed SHA hashes, but reproduction requires the closed benchmark suite.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Two failures on long programs&lt;/strong&gt;: Problems #11 and #14, which had the longest cached programs in the library, were not solved by the transfer run. The failure is in the model's one-shot re-adaptation of large code contexts, not in the byte-exactness of the cache.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Rotary position constraint&lt;/strong&gt;: Own-position restoration is the only numerically exact regime. Arbitrary offset grafting is not achievable on floating-point RoPE models.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Sliding-window attention requires patching&lt;/strong&gt;: On sliding-window models, the stock prompt cache resumes from sparse checkpoints; enabling full-size KV for windowed layers is required to show the full prefill subsidy.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Future Work&lt;/h2&gt;
+&lt;p&gt;The authors suggest and the paper opens several follow-on directions:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Multi-block composition&lt;/strong&gt;: The paper demonstrates single-block grafting at own position. Sequential composition of multiple blocks is shown to be "functionally correct" but carries a small residual from RoPE position-sensitivity. Exact multi-block composition would require position-independent attention (e.g., ALiBi or no-positional-encoding architectures).&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Open-weight replication&lt;/strong&gt;: The Taliesin engine is proprietary. An open implementation would enable the community to reproduce and build on these results.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Cross-architecture portability&lt;/strong&gt;: The paper demonstrates byte-exactness on Blackwell (sm_120) and Hopper (sm_90) separately. A hardware-abstraction layer that normalizes floating-point reduction order across architectures could enable truly portable graft stores.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Automated flywheel pipelines&lt;/strong&gt;: Currently, the Galahad loop requires human curation of the initial hard problems. Automating problem discovery, diverse solution generation, and multi-verifier consensus could make the flywheel fully self-improving.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;KV compression for storage efficiency&lt;/strong&gt;: The 2.85M-token store occupies 40.6 GB on disk. Lossless KV compression (e.g., for sparse activations or highly correlated key vectors) could make large stores practical on consumer hardware.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Implications for Edge / On-Device Deployment&lt;/h2&gt;
+&lt;p&gt;This paper is directly relevant to edge and on-device inference in several ways:&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Eliminating redundant compute&lt;/strong&gt;: On-device models typically run repeatedly on overlapping knowledge contexts (system prompts, reference documents, skill libraries). Byte-exact KV grafting converts that repeated prefill from &lt;span class="math"&gt;\(O(n)\)&lt;/span&gt; tokens per query to &lt;span class="math"&gt;\(O(1)\)&lt;/span&gt; tokens, which directly extends the battery life and reduces thermal throttling on mobile devices.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Zero memory overhead for extended knowledge&lt;/strong&gt;: The 87× context extension at zero extra accelerator memory is particularly valuable on edge hardware where both DRAM and VRAM are constrained. A 4 GB on-device model can access a verified knowledge store of hundreds of millions of tokens from disk, paying only the disk read time per access (~0.29 s).&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Energy proportionality&lt;/strong&gt;: The 3,000–8,700× energy reduction on recurrence problems has direct implications for battery-powered deployment. An on-device model that answers recurring questions from cached verified solutions rather than recomputing them could extend active session duration by orders of magnitude for knowledge-intensive workloads.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Skill caching for on-device agents&lt;/strong&gt;: The paper demonstrates that a 464-token skill manual (160 MB of KV state) can be cached and restored byte-identically, enabling a model to route six of six tasks to the correct skill using only the cached state — without any in-context tokens from the skill at query time.&lt;/p&gt;
+&lt;p&gt;The fundamental limitation for strict edge deployment is disk speed: restoring a cached block requires a disk read. On devices with fast NVMe storage, this is negligible; on devices with slower flash, it may introduce latency. Future work on compressed KV stores and streaming restore would help.&lt;/p&gt;
+&lt;h2&gt;Links&lt;/h2&gt;
+&lt;p&gt;&lt;a href="https://huggingface.co/papers/2607.14431"&gt;Original Paper&lt;/a&gt;&lt;/p&gt;
+&lt;script type="text/javascript"&gt;if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width &lt; 768) ? "left" : align;
+        indent = (screen.width &lt; 768) ? "0em" : indent;
+        linebreak = (screen.width &lt; 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+
+    var configscript = document.createElement('script');
+    configscript.type = 'text/x-mathjax-config';
+    configscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'none' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        availableFonts: ['STIX', 'TeX']," +
+        "        preferredFont: 'STIX'," +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(configscript);
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+&lt;/script&gt;</content><category term="AI/ML"></category><category term="SLM"></category><category term="AI"></category><category term="paper-review"></category></entry><entry><title>KronQ: Better LLM Quantization via Kronecker-Factored Hessian</title><link href="/kronq-better-llm-quantization-via-kronecker-factored-hessian.html" rel="alternate"></link><published>2026-07-14T00:00:00+09:00</published><updated>2026-07-14T00:00:00+09:00</updated><author><name>toohsk</name></author><id>tag:None,2026-07-14:/kronq-better-llm-quantization-via-kronecker-factored-hessian.html</id><summary type="html">&lt;p&gt;KronQ improves post-training quantization by incorporating gradient covariance via a Kronecker-factored Hessian, achieving stable 2-bit quantization on LLaMA-3-70B (7.93 perplexity) where GPTQ and GPTAQ completely fail.&lt;/p&gt;</summary><content type="html">&lt;h2&gt;Why This Paper Matters&lt;/h2&gt;
+&lt;p&gt;Post-training quantization (PTQ) is one of the most practically important techniques for making large language models deployable on memory-constrained hardware. At 2-bit weight-only precision, a 70B parameter model's weights compress from roughly 140 GB (at fp16) to ~17.5 GB — a size that fits on a high-end consumer GPU. But 2-bit quantization is notoriously difficult to do well: the information loss is extreme, and most existing methods fail catastrophically at this precision.&lt;/p&gt;
+&lt;p&gt;The dominant second-order PTQ method, GPTQ, has a subtle but consequential flaw: it constructs the quantization objective using only &lt;strong&gt;input activation statistics&lt;/strong&gt;, implicitly assuming that all output channels of a weight matrix contribute equally to the reconstruction loss. This assumption is wrong. In large transformer layers, different output channels have very different sensitivities to quantization error — some feed into attention heads that heavily influence the loss, others into more peripheral paths. Treating them uniformly wastes the available quantization budget.&lt;/p&gt;
+&lt;p&gt;KronQ corrects this by introducing the &lt;strong&gt;gradient covariance&lt;/strong&gt; into the quantization pipeline, giving a complete picture of how quantization error propagates to the final loss. The formalization comes from the Kronecker-factored approximation to the full Hessian of the quantization loss — the same approximation used in K-FAC for second-order optimization. This is a principled, computationally tractable way to get bidirectional sensitivity information that GPTQ simply lacks.&lt;/p&gt;
+&lt;p&gt;The payoff is dramatic: at 2-bit weight-only quantization on LLaMA-3-70B, GPTQ and its gradient-aware variant GPTAQ diverge completely (perplexity &amp;gt;2000 on WikiText-2), while KronQ achieves &lt;strong&gt;7.93 perplexity&lt;/strong&gt; — usable quality at the most aggressive compression ratio.&lt;/p&gt;
+&lt;h2&gt;Core Technical Contribution&lt;/h2&gt;
+&lt;h3&gt;The Kronecker-Factored Hessian&lt;/h3&gt;
+&lt;p&gt;The starting point is the layer-wise quantization objective. For a weight matrix &lt;span class="math"&gt;\(W \in \mathbb{R}^{d_{out} \times d_{in}}\)&lt;/span&gt;, quantizing to &lt;span class="math"&gt;\(\hat{W}\)&lt;/span&gt; introduces an error &lt;span class="math"&gt;\(\Delta W = \hat{W} - W\)&lt;/span&gt;. The resulting increase in the model's loss can be approximated via a second-order Taylor expansion:&lt;/p&gt;
+&lt;div class="math"&gt;$$\delta \mathcal{L} \approx \frac{1}{2} \text{vec}(\Delta W)^\top H \, \text{vec}(\Delta W)$$&lt;/div&gt;
+&lt;p&gt;where &lt;span class="math"&gt;\(H\)&lt;/span&gt; is the Hessian of the loss with respect to the weights &lt;span class="math"&gt;\(W\)&lt;/span&gt;. Computing the full Hessian is infeasible for a matrix with &lt;span class="math"&gt;\(d_{out} \times d_{in}\)&lt;/span&gt; entries, so approximations are necessary.&lt;/p&gt;
+&lt;p&gt;GPTQ uses only the &lt;strong&gt;input activation Hessian&lt;/strong&gt;: it approximates &lt;span class="math"&gt;\(H \approx \mathbf{X}\mathbf{X}^\top \otimes I_{d_{out}}\)&lt;/span&gt;, where &lt;span class="math"&gt;\(\mathbf{X}\)&lt;/span&gt; is the input activation matrix. This is the Kronecker product of the input covariance with an identity matrix — effectively assuming the output dimension has no structure worth capturing.&lt;/p&gt;
+&lt;p&gt;KronQ instead uses the &lt;strong&gt;Kronecker-factored approximation&lt;/strong&gt;:&lt;/p&gt;
+&lt;div class="math"&gt;$$H \approx \mathbf{G}^\top \mathbf{G} \otimes \mathbf{X}\mathbf{X}^\top$$&lt;/div&gt;
+&lt;p&gt;where &lt;span class="math"&gt;\(\mathbf{G} \in \mathbb{R}^{N \times d_{out}}\)&lt;/span&gt; is the matrix of output-side gradients collected over calibration data (&lt;span class="math"&gt;\(N\)&lt;/span&gt; samples). This is the K-FAC approximation: the Hessian factors as the outer product of an output-side factor (&lt;span class="math"&gt;\(\mathbf{G}^\top \mathbf{G}\)&lt;/span&gt;, the gradient covariance) and an input-side factor (&lt;span class="math"&gt;\(\mathbf{X}\mathbf{X}^\top\)&lt;/span&gt;, the activation covariance). The full &lt;span class="math"&gt;\(H\)&lt;/span&gt; captures how quantization errors interact across both dimensions.&lt;/p&gt;
+&lt;h3&gt;Contribution 1: Bidirectional Incoherence Processing&lt;/h3&gt;
+&lt;p&gt;Once you have the Kronecker-factored Hessian, the quantization quality depends on how "aligned" the weight matrix is with its Hessian eigenvectors. Large weight magnitudes aligned with large Hessian eigenvalues produce large quantization loss; these need careful handling.&lt;/p&gt;
+&lt;p&gt;Prior work (QuIP, QuaRot, SpinQuant) applies &lt;strong&gt;random rotation&lt;/strong&gt; to the input side of the weight matrix to reduce alignment between high-magnitude weights and high-curvature directions. This "incoherence" processing spreads the error more uniformly.&lt;/p&gt;
+&lt;p&gt;KronQ extends this to &lt;strong&gt;both dimensions&lt;/strong&gt;:
+- &lt;strong&gt;Input-side rotation&lt;/strong&gt; &lt;span class="math"&gt;\(Q_X\)&lt;/span&gt;: derived from the eigenvectors of &lt;span class="math"&gt;\(\mathbf{X}\mathbf{X}^\top\)&lt;/span&gt; (or a random rotation)
+- &lt;strong&gt;Output-side rotation&lt;/strong&gt; &lt;span class="math"&gt;\(Q_G\)&lt;/span&gt;: derived from the eigenvectors of &lt;span class="math"&gt;\(\mathbf{G}^\top \mathbf{G}\)&lt;/span&gt;&lt;/p&gt;
+&lt;p&gt;The rotated weight is &lt;span class="math"&gt;\(\tilde{W} = Q_G W Q_X^\top\)&lt;/span&gt;. Quantizing &lt;span class="math"&gt;\(\tilde{W}\)&lt;/span&gt; and then transforming back gives an effective quantizer that treats both input and output dimensions uniformly with respect to the Hessian structure. The output-side rotation is the key innovation — it requires the gradient covariance that GPTQ never computes.&lt;/p&gt;
+&lt;p&gt;The mathematical intuition: after rotation, the quantization error &lt;span class="math"&gt;\(\Delta \tilde{W}\)&lt;/span&gt; has approximately independent entries with similar magnitudes. The Kronecker-factored Hessian for the rotated system is approximately &lt;span class="math"&gt;\(I \otimes I\)&lt;/span&gt; (identity), meaning all entries contribute equally to the loss. This is the "ideal" scenario where uniform quantization is optimal.&lt;/p&gt;
+&lt;h3&gt;Contribution 2: Gradient-Aware Mixed-Precision Sensitivity&lt;/h3&gt;
+&lt;p&gt;Not all layers should be quantized to the same bit-width. Mixed-precision quantization allocates more bits to sensitive layers and fewer bits to robust layers, staying within an average bit-width budget.&lt;/p&gt;
+&lt;p&gt;The sensitivity of layer &lt;span class="math"&gt;\(l\)&lt;/span&gt; to quantization is measured by how much the loss increases when that layer is quantized. KronQ derives a sensitivity metric from the Kronecker-factored Hessian traces:&lt;/p&gt;
+&lt;div class="math"&gt;$$\text{sensitivity}(l) = \frac{1}{d_{in} d_{out}} \text{tr}(\mathbf{G}_l^\top \mathbf{G}_l) \cdot \text{tr}(\mathbf{X}_l \mathbf{X}_l^\top)$$&lt;/div&gt;
+&lt;p&gt;This is the product of the gradient trace (how much the loss cares about this layer's outputs) and the activation trace (how large the inputs to this layer are). The product approximates the expected quantization loss for that layer under uniform quantization.&lt;/p&gt;
+&lt;p&gt;GPTQ-based sensitivity metrics use only &lt;span class="math"&gt;\(\text{tr}(\mathbf{X}_l \mathbf{X}_l^\top)\)&lt;/span&gt;, ignoring how much the loss cares about this layer's outputs. Layers with large activations but small gradient flow (because they feed into low-sensitivity paths) get over-protected; layers with small activations but high gradient sensitivity get under-protected. KronQ's joint metric corrects both errors.&lt;/p&gt;
+&lt;p&gt;Given sensitivity scores, bit-width allocation is a constrained optimization: assign each layer to a bit-width from a discrete set &lt;span class="math"&gt;\(\{2, 3, 4, 8\}\)&lt;/span&gt; to minimize total sensitivity while satisfying an average bit-width budget.&lt;/p&gt;
+&lt;h2&gt;Comparison to Prior Work&lt;/h2&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Method&lt;/th&gt;
+&lt;th&gt;Input-side info&lt;/th&gt;
+&lt;th&gt;Output-side info&lt;/th&gt;
+&lt;th&gt;Mixed precision&lt;/th&gt;
+&lt;th&gt;2-bit LLaMA-3-70B PPL&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;GPTQ&lt;/td&gt;
+&lt;td&gt;✓ (activation)&lt;/td&gt;
+&lt;td&gt;✗&lt;/td&gt;
+&lt;td&gt;✗&lt;/td&gt;
+&lt;td&gt;&amp;gt;2000 (diverges)&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;GPTAQ&lt;/td&gt;
+&lt;td&gt;✓&lt;/td&gt;
+&lt;td&gt;Partial (per-column gradient)&lt;/td&gt;
+&lt;td&gt;✗&lt;/td&gt;
+&lt;td&gt;&amp;gt;2000 (diverges)&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;QuIP#&lt;/td&gt;
+&lt;td&gt;✓ (rotated)&lt;/td&gt;
+&lt;td&gt;✗&lt;/td&gt;
+&lt;td&gt;✗&lt;/td&gt;
+&lt;td&gt;~9–10&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;QuaRot&lt;/td&gt;
+&lt;td&gt;✓ (rotated)&lt;/td&gt;
+&lt;td&gt;✗&lt;/td&gt;
+&lt;td&gt;✗&lt;/td&gt;
+&lt;td&gt;~9–10&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;KronQ&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;✓ (rotated)&lt;/td&gt;
+&lt;td&gt;✓ (Kronecker gradient)&lt;/td&gt;
+&lt;td&gt;✓&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;7.93&lt;/strong&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;The baseline comparison is stark. GPTQ's assumption of equal output-channel sensitivity is so wrong at 2-bit precision that the model is completely unusable. Methods that add input-side rotation (QuIP#, QuaRot) improve substantially but still don't capture output-side sensitivity. KronQ's bidirectional treatment achieves another step change in quality.&lt;/p&gt;
+&lt;p&gt;GPTAQ is the closest prior work — it attempts to incorporate gradient information but does so at the per-column level rather than through the full Kronecker factorization. The per-column approximation misses the cross-channel structure captured by &lt;span class="math"&gt;\(\mathbf{G}^\top \mathbf{G}\)&lt;/span&gt;.&lt;/p&gt;
+&lt;h2&gt;Reading the Results&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;2-bit weight-only quantization on LLaMA-3-70B&lt;/strong&gt;: This is the headline result. WikiText-2 perplexity of 7.93 vs &amp;gt;2000 for GPTQ and GPTAQ is not a marginal improvement — it's the difference between a functional model and a broken one. A perplexity of 7.93 is close to the fp16 baseline (~6.x perplexity for LLaMA-3-70B), indicating minimal degradation despite halving the bit-width below what most methods can handle.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;3-bit and 4-bit results&lt;/strong&gt;: At higher bit-widths, all methods produce functional models, but KronQ achieves consistently lower perplexity across the LLaMA-3 family (8B, 13B, 70B). The gains are largest at smaller models and lower bit-widths, where gradient covariance matters more because the quantization noise is larger relative to the model's capacity.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Mixed-precision allocation&lt;/strong&gt;: KronQ's sensitivity metric identifies attention projection layers and the first MLP layer as the highest-sensitivity components in LLaMA-3 architectures — they receive 4-bit allocation while other layers receive 2-bit, staying within a 2.x average bit budget while protecting critical capacity.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Computational overhead&lt;/strong&gt;: Collecting gradient statistics requires one forward-backward pass through the calibration data (128–512 samples in the experiments). This is roughly 2× the calibration cost of GPTQ, which requires only forward passes. The overhead is a one-time cost at quantization time and does not affect inference speed.&lt;/p&gt;
+&lt;h2&gt;Key Notes of This Paper&lt;/h2&gt;
+&lt;h3&gt;The K-FAC Approximation and Why It's Tractable&lt;/h3&gt;
+&lt;p&gt;The full Hessian &lt;span class="math"&gt;\(H \in \mathbb{R}^{d_{in}d_{out} \times d_{in}d_{out}}\)&lt;/span&gt; is intractable for large weight matrices — for a 4096×4096 linear layer, it has &lt;span class="math"&gt;\(4096^4 \approx 2.8 \times 10^{14}\)&lt;/span&gt; entries. The Kronecker-factored approximation &lt;span class="math"&gt;\(H \approx A \otimes B\)&lt;/span&gt; where &lt;span class="math"&gt;\(A \in \mathbb{R}^{d_{out} \times d_{out}}\)&lt;/span&gt; and &lt;span class="math"&gt;\(B \in \mathbb{R}^{d_{in} \times d_{in}}\)&lt;/span&gt; reduces storage to &lt;span class="math"&gt;\(d_{out}^2 + d_{in}^2\)&lt;/span&gt; entries and enables efficient matrix-vector products via the Kronecker product identity:&lt;/p&gt;
+&lt;div class="math"&gt;$$(A \otimes B) \, \text{vec}(X) = \text{vec}(B^\top X A)$$&lt;/div&gt;
+&lt;p&gt;The rotation matrices &lt;span class="math"&gt;\(Q_G\)&lt;/span&gt; and &lt;span class="math"&gt;\(Q_X\)&lt;/span&gt; are the eigenvector matrices of &lt;span class="math"&gt;\(A = \mathbf{G}^\top \mathbf{G}\)&lt;/span&gt; and &lt;span class="math"&gt;\(B = \mathbf{X}\mathbf{X}^\top\)&lt;/span&gt; respectively. After rotating &lt;span class="math"&gt;\(W \mapsto Q_G W Q_X^\top\)&lt;/span&gt;, the approximate Hessian for the rotated system becomes &lt;span class="math"&gt;\(\Lambda_G \otimes \Lambda_X\)&lt;/span&gt; where &lt;span class="math"&gt;\(\Lambda_G\)&lt;/span&gt; and &lt;span class="math"&gt;\(\Lambda_X\)&lt;/span&gt; are diagonal eigenvalue matrices. The quantization problem in the rotated basis has a diagonal Hessian (separable across weight entries), making it exactly solvable with GPTQ-style column-wise quantization.&lt;/p&gt;
+&lt;p&gt;Crucially, the full bidirectional rotation ensures the Hessian in the rotated basis has &lt;strong&gt;minimum spread&lt;/strong&gt; — the eigenvalues are as uniform as possible — which minimizes the worst-case quantization error under any fixed quantizer.&lt;/p&gt;
+&lt;h3&gt;Why Gradient Covariance Changes Everything at 2-bit&lt;/h3&gt;
+&lt;p&gt;At 4-bit quantization, each weight has 16 possible values, and the quantization error per entry is small enough that ignoring output-channel sensitivity doesn't cause catastrophic degradation. At 2-bit, each weight has only 4 possible values (typically {-1.5, -0.5, 0.5, 1.5} after scaling). A single sensitive output channel carrying a quantization error of one step size can propagate a non-trivial loss increase through the network.&lt;/p&gt;
+&lt;p&gt;The gradient covariance &lt;span class="math"&gt;\(\mathbf{G}^\top \mathbf{G}\)&lt;/span&gt; tells KronQ which output channels are sensitive: a large eigenvalue corresponds to an output direction that strongly influences the loss. By rotating to align with these eigenvectors, KronQ ensures that quantization error is spread as uniformly as possible across output channels in terms of loss impact — the channel that costs the most to misbehave gets the least quantization noise allocated to it.&lt;/p&gt;
+&lt;p&gt;GPTQ with only input-side information treats all output channels identically, which can leave highly sensitive channels exposed to large quantization errors at 2-bit precision. That exposure is what causes the divergence GPTQ exhibits on LLaMA-3-70B.&lt;/p&gt;
+&lt;h2&gt;Limitations&lt;/h2&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Calibration data requirement&lt;/strong&gt;: KronQ requires one forward-backward pass through calibration data (128–512 samples). This is twice the cost of GPTQ-style calibration and requires access to gradient computation, which may be non-trivial in some deployment pipelines.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Memory for gradient matrices&lt;/strong&gt;: Storing &lt;span class="math"&gt;\(\mathbf{G}^\top \mathbf{G}\)&lt;/span&gt; requires &lt;span class="math"&gt;\(O(d_{out}^2)\)&lt;/span&gt; memory per layer. For the largest projection matrices in 70B models (&lt;span class="math"&gt;\(d_{out}\)&lt;/span&gt; up to 8192), this is ~270 MB per layer. The full calibration process requires materializing these matrices for all layers simultaneously, imposing a working memory overhead beyond just holding the weights.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Limited evaluation scope&lt;/strong&gt;: The paper focuses on weight-only quantization (W-only PTQ). The interaction of KronQ's bidirectional rotation with weight-activation quantization (W+A PTQ, relevant for INT8 deployment) is not studied.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Architecture specificity&lt;/strong&gt;: Experiments are on LLaMA-3 family models. Transformer variants with different layer structures (MoE, linear attention, Mamba-style SSM) may have different sensitivity profiles where the gradient covariance behaves differently.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;No finetuning comparison&lt;/strong&gt;: KronQ is compared to other PTQ methods. A comparison to quantization-aware training (QAT) would contextualize the remaining gap to trainable compression methods.&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2&gt;Future Work&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;From the authors:&lt;/strong&gt;
+- Extension to activation quantization (INT8 weight+activation deployment)
+- Hardware-specific kernel implementation to realize the theoretical speed gains from 2-bit weight storage&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Additional promising directions:&lt;/strong&gt;
+- &lt;strong&gt;Layer-wise adaptive calibration&lt;/strong&gt;: The current method uses the same calibration data for all layers. Adaptive sampling strategies that provide more calibration signal for high-sensitivity layers could improve precision further.
+- &lt;strong&gt;Composition with distillation&lt;/strong&gt;: KronQ's sensitivity metric could guide layer-wise knowledge distillation, where layers identified as high-sensitivity are distilled from a larger teacher while low-sensitivity layers are directly quantized.
+- &lt;strong&gt;Cross-architecture transfer&lt;/strong&gt;: If sensitivity metrics are reproducible across checkpoints of the same architecture (different training stages, different datasets), calibration data could be shared, reducing per-model overhead.
+- &lt;strong&gt;Quantized fine-tuning&lt;/strong&gt;: Using the KronQ quantization as a starting point for parameter-efficient fine-tuning (e.g., LoRA on the quantized model) could recover accuracy lost at extreme bit-widths while maintaining the memory advantage.
+- &lt;strong&gt;Extension to SSMs and MoE&lt;/strong&gt;: The gradient covariance approach should generalize to Mamba-style state space models and Mixture-of-Experts layers, where the sensitivity landscape differs significantly from dense transformers.&lt;/p&gt;
+&lt;h2&gt;Implications for Edge / On-Device Deployment&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;2-bit quantization enables a new class of deployments.&lt;/strong&gt; A 70B parameter model at 2-bit weight storage requires ~17.5 GB for the weights alone. With the full model fitting in a 24 GB GPU (RTX 3090/4090) or two 16 GB GPUs, inference that previously required multi-GPU data-center hardware becomes feasible on consumer hardware or a powerful workstation.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;For smaller SLMs, the implications are even more direct.&lt;/strong&gt; Applying KronQ to a 7B model at 2-bit yields ~1.75 GB weight storage — small enough for mobile GPUs, high-end smartphones (e.g., devices with 8–12 GB LPDDR5 unified memory), or embedded AI accelerators with on-chip SRAM in the gigabyte range. If KronQ's perplexity advantage over GPTQ holds at the 7B scale (which the paper's results suggest), this could be the quantization recipe that makes truly capable on-device LLMs practical.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;The gradient covariance overhead is a one-time cost.&lt;/strong&gt; Once the quantized model is produced, inference requires no gradient computation. The 2× calibration overhead versus GPTQ is a deployment preparation cost, not a per-inference cost. For a model deployed millions of times, this is negligible.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Mixed-precision allocation maps naturally to heterogeneous hardware.&lt;/strong&gt; SoC designs for mobile AI often have tiered memory: fast on-chip SRAM (small) and slower off-chip DRAM (large). KronQ's sensitivity metric can guide a strategy where the highest-sensitivity layers are stored in on-chip memory (at 4-bit) while the bulk of parameters live in DRAM at 2-bit, minimizing bandwidth pressure for the layers that matter most.&lt;/p&gt;
+&lt;h2&gt;Links&lt;/h2&gt;
+&lt;p&gt;&lt;a href="https://arxiv.org/abs/2607.07964"&gt;Original Paper&lt;/a&gt;&lt;/p&gt;
+&lt;script type="text/javascript"&gt;if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width &lt; 768) ? "left" : align;
+        indent = (screen.width &lt; 768) ? "0em" : indent;
+        linebreak = (screen.width &lt; 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+
+    var configscript = document.createElement('script');
+    configscript.type = 'text/x-mathjax-config';
+    configscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'none' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        availableFonts: ['STIX', 'TeX']," +
+        "        preferredFont: 'STIX'," +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(configscript);
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+&lt;/script&gt;</content><category term="AI/ML"></category><category term="SLM"></category><category term="AI"></category><category term="paper-review"></category></entry><entry><title>KronQ：クロネッカー因子ヘッセ行列によるLLM量子化の革新</title><link href="/kronqkuronetsuka-yin-zi-hetsusexing-lie-niyorullmliang-zi-hua-noge-xin.html" rel="alternate"></link><published>2026-07-14T00:00:00+09:00</published><updated>2026-07-14T00:00:00+09:00</updated><author><name>toohsk</name></author><id>tag:None,2026-07-14:/kronqkuronetsuka-yin-zi-hetsusexing-lie-niyorullmliang-zi-hua-noge-xin.html</id><summary type="html">&lt;p&gt;KronQはクロネッカー因子近似ヘッセ行列を用いて勾配共分散を量子化パイプラインに導入し、GPTQが完全に破綻する2ビット量子化でLLaMA-3-70Bにおいて7.93パープレキシティを達成した。&lt;/p&gt;</summary><content type="html">&lt;h2&gt;なぜこの研究が重要か&lt;/h2&gt;
+&lt;p&gt;ポスト学習量子化（PTQ）は、大規模言語モデルをメモリ制約のあるハードウェアに展開するための最も実用的な技術の一つだ。2ビット重み量子化を適用すれば、70Bパラメータモデルの重みはfp16での約140GBから~17.5GBへと圧縮され、コンシューマ向けGPUに収まるサイズになる。しかし2ビット量子化は技術的に非常に困難で、情報損失が極端に大きく、ほとんどの手法は壊滅的に失敗する。&lt;/p&gt;
+&lt;p&gt;現在最も広く使われている2次PTQ手法GPTQには、見落とされがちな根本的な欠陥がある：&lt;strong&gt;入力活性化統計のみ&lt;/strong&gt;を使って量子化目標を構成しており、重み行列の全出力チャネルが再構成損失に等しく寄与するという誤った仮定をしている。大規模トランスフォーマーでは、出力チャネルによって量子化誤差に対する感度は大きく異なる。ある出力チャネルはアテンションヘッドに強く影響を与える一方、別のチャネルは損失への影響が軽微だ。これを均等に扱うのは量子化バジェットの無駄遣いである。&lt;/p&gt;
+&lt;p&gt;KronQはこの問題を、&lt;strong&gt;勾配共分散&lt;/strong&gt;を量子化パイプラインに導入することで解決する。完全なヘッセ行列のクロネッカー因子近似（K-FACと同じ手法）を用いることで、双方向の感度情報を計算効率よく取得できる。&lt;/p&gt;
+&lt;p&gt;その効果は劇的だ：LLaMA-3-70Bの2ビット重み量子化において、GPTQとGPTAQは完全に発散（パープレキシティ&amp;gt;2000）する一方、KronQは&lt;strong&gt;7.93パープレキシティ&lt;/strong&gt;という使用可能な品質を達成した。&lt;/p&gt;
+&lt;h2&gt;技術的なアプローチ&lt;/h2&gt;
+&lt;h3&gt;クロネッカー因子ヘッセ行列の導出&lt;/h3&gt;
+&lt;p&gt;出発点は層ごとの量子化目標だ。重み行列 &lt;span class="math"&gt;\(W \in \mathbb{R}^{d_{out} \times d_{in}}\)&lt;/span&gt; を &lt;span class="math"&gt;\(\hat{W}\)&lt;/span&gt; に量子化すると誤差 &lt;span class="math"&gt;\(\Delta W = \hat{W} - W\)&lt;/span&gt; が生じる。これによるモデル損失の増加は2次テイラー展開で近似できる：&lt;/p&gt;
+&lt;div class="math"&gt;$$\delta \mathcal{L} \approx \frac{1}{2} \text{vec}(\Delta W)^\top H \, \text{vec}(\Delta W)$$&lt;/div&gt;
+&lt;p&gt;ここで &lt;span class="math"&gt;\(H\)&lt;/span&gt; は重み &lt;span class="math"&gt;\(W\)&lt;/span&gt; に関する損失のヘッセ行列だ。完全なヘッセ行列の計算は &lt;span class="math"&gt;\(d_{out} \times d_{in}\)&lt;/span&gt; 個の要素を持つ行列に対して非現実的なので、近似が必要になる。&lt;/p&gt;
+&lt;p&gt;GPTQは&lt;strong&gt;入力活性化ヘッセ行列&lt;/strong&gt;のみを使用：&lt;span class="math"&gt;\(H \approx \mathbf{X}\mathbf{X}^\top \otimes I_{d_{out}}\)&lt;/span&gt; と近似する。これは入力共分散と単位行列のクロネッカー積であり、出力次元には構造がないという仮定に相当する。&lt;/p&gt;
+&lt;p&gt;KronQは代わりに&lt;strong&gt;クロネッカー因子近似&lt;/strong&gt;を使用する：&lt;/p&gt;
+&lt;div class="math"&gt;$$H \approx \mathbf{G}^\top \mathbf{G} \otimes \mathbf{X}\mathbf{X}^\top$$&lt;/div&gt;
+&lt;p&gt;ここで &lt;span class="math"&gt;\(\mathbf{G} \in \mathbb{R}^{N \times d_{out}}\)&lt;/span&gt; はキャリブレーションデータ（&lt;span class="math"&gt;\(N\)&lt;/span&gt; サンプル）から収集した出力側の勾配行列だ。これがK-FAC近似：ヘッセ行列は出力側因子（&lt;span class="math"&gt;\(\mathbf{G}^\top \mathbf{G}\)&lt;/span&gt;、勾配共分散）と入力側因子（&lt;span class="math"&gt;\(\mathbf{X}\mathbf{X}^\top\)&lt;/span&gt;、活性化共分散）の外積として因子分解される。完全な &lt;span class="math"&gt;\(H\)&lt;/span&gt; は両次元にわたる量子化誤差の伝播を捉える。&lt;/p&gt;
+&lt;h3&gt;双方向インコヒーレンス処理&lt;/h3&gt;
+&lt;p&gt;クロネッカー因子ヘッセ行列が得られれば、量子化品質は重み行列とそのヘッセ行列固有ベクトルとの「整合度」に依存する。高い重み振幅がヘッセ行列の高曲率方向と整合していると量子化損失が大きくなる。&lt;/p&gt;
+&lt;p&gt;先行研究（QuIP、QuaRot、SpinQuant）は重み行列の&lt;strong&gt;入力側にランダム回転&lt;/strong&gt;を適用して、高振幅重みと高曲率方向の整合を低減する。この「インコヒーレンス処理」は誤差をより均一に広げる。&lt;/p&gt;
+&lt;p&gt;KronQはこれを&lt;strong&gt;両次元に拡張&lt;/strong&gt;する：
+- &lt;strong&gt;入力側回転&lt;/strong&gt; &lt;span class="math"&gt;\(Q_X\)&lt;/span&gt;：&lt;span class="math"&gt;\(\mathbf{X}\mathbf{X}^\top\)&lt;/span&gt; の固有ベクトルから導出
+- &lt;strong&gt;出力側回転&lt;/strong&gt; &lt;span class="math"&gt;\(Q_G\)&lt;/span&gt;：&lt;span class="math"&gt;\(\mathbf{G}^\top \mathbf{G}\)&lt;/span&gt; の固有ベクトルから導出&lt;/p&gt;
+&lt;p&gt;回転後の重みは &lt;span class="math"&gt;\(\tilde{W} = Q_G W Q_X^\top\)&lt;/span&gt; となる。&lt;span class="math"&gt;\(\tilde{W}\)&lt;/span&gt; を量子化してから変換を元に戻すことで、ヘッセ行列の構造に対して入力・出力の両次元を均等に扱う量子化器が得られる。出力側回転がKronQの核心的な革新点であり、GPTQが決して計算しない勾配共分散を必要とする。&lt;/p&gt;
+&lt;p&gt;数学的直感：回転後、量子化誤差 &lt;span class="math"&gt;\(\Delta \tilde{W}\)&lt;/span&gt; の各要素は近似的に同様の大きさを持つ独立した成分になる。回転系でのクロネッカー因子ヘッセ行列は近似的に &lt;span class="math"&gt;\(I \otimes I\)&lt;/span&gt;（単位行列）になり、すべての要素が等しく損失に寄与するという「理想的」な状況になる。この状況では一様量子化が最適だ。&lt;/p&gt;
+&lt;h3&gt;勾配対応混合精度配分&lt;/h3&gt;
+&lt;p&gt;すべての層を同じビット幅に量子化すべきではない。混合精度量子化は感度の高い層により多くのビットを、ロバストな層にはより少ないビットを配分し、平均ビット幅の予算内に収める。&lt;/p&gt;
+&lt;p&gt;KronQは層 &lt;span class="math"&gt;\(l\)&lt;/span&gt; の量子化に対する感度をクロネッカー因子ヘッセ行列のトレースから導出する：&lt;/p&gt;
+&lt;div class="math"&gt;$$\text{sensitivity}(l) = \frac{1}{d_{in} d_{out}} \text{tr}(\mathbf{G}_l^\top \mathbf{G}_l) \cdot \text{tr}(\mathbf{X}_l \mathbf{X}_l^\top)$$&lt;/div&gt;
+&lt;p&gt;これは勾配トレース（損失がこの層の出力をどれだけ気にするか）と活性化トレース（この層への入力がどれだけ大きいか）の積だ。GPTQベースの感度指標は &lt;span class="math"&gt;\(\text{tr}(\mathbf{X}_l \mathbf{X}_l^\top)\)&lt;/span&gt; のみを使用し、損失がこの層の出力をどれだけ気にするかを無視している。&lt;/p&gt;
+&lt;h2&gt;先行研究との比較&lt;/h2&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;手法&lt;/th&gt;
+&lt;th&gt;入力側情報&lt;/th&gt;
+&lt;th&gt;出力側情報&lt;/th&gt;
+&lt;th&gt;混合精度&lt;/th&gt;
+&lt;th&gt;2-bit LLaMA-3-70B PPL&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;GPTQ&lt;/td&gt;
+&lt;td&gt;✓（活性化）&lt;/td&gt;
+&lt;td&gt;✗&lt;/td&gt;
+&lt;td&gt;✗&lt;/td&gt;
+&lt;td&gt;&amp;gt;2000（発散）&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;GPTAQ&lt;/td&gt;
+&lt;td&gt;✓&lt;/td&gt;
+&lt;td&gt;部分的（列ごとの勾配）&lt;/td&gt;
+&lt;td&gt;✗&lt;/td&gt;
+&lt;td&gt;&amp;gt;2000（発散）&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;QuIP#&lt;/td&gt;
+&lt;td&gt;✓（回転）&lt;/td&gt;
+&lt;td&gt;✗&lt;/td&gt;
+&lt;td&gt;✗&lt;/td&gt;
+&lt;td&gt;~9–10&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;QuaRot&lt;/td&gt;
+&lt;td&gt;✓（回転）&lt;/td&gt;
+&lt;td&gt;✗&lt;/td&gt;
+&lt;td&gt;✗&lt;/td&gt;
+&lt;td&gt;~9–10&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;KronQ&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;✓（回転）&lt;/td&gt;
+&lt;td&gt;✓（クロネッカー勾配）&lt;/td&gt;
+&lt;td&gt;✓&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;7.93&lt;/strong&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;この比較は際立っている。GPTQの等しい出力チャネル感度という仮定は2ビット精度において非常に誤りであり、モデルが完全に使えなくなるほどだ。&lt;/p&gt;
+&lt;h2&gt;実験結果の読み方&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;LLaMA-3-70Bでの2ビット重みのみ量子化&lt;/strong&gt;：WikiText-2パープレキシティ7.93対GPTQとGPTAQの&amp;gt;2000は、わずかな改善ではなく、機能するモデルと壊れたモデルの差だ。7.93のパープレキシティはfp16のベースライン（LLaMA-3-70Bの~6.x）に近く、最も攻撃的な圧縮率においても最小限の劣化しか示さない。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;3ビットおよび4ビットでの結果&lt;/strong&gt;：より高いビット幅では全手法が機能するモデルを生成するが、KronQはLLaMA-3ファミリー全体（8B、13B、70B）で一貫して低いパープレキシティを達成する。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;計算オーバーヘッド&lt;/strong&gt;：勾配統計の収集にはキャリブレーションデータ（実験では128〜512サンプル）の1回の順伝播・逆伝播が必要だ。これはGPTQのキャリブレーションコストの約2倍だが、量子化時の1回限りのコストであり、推論速度には影響しない。&lt;/p&gt;
+&lt;h2&gt;アルゴリズムの重要部分の解説&lt;/h2&gt;
+&lt;h3&gt;クロネッカー因子近似がなぜ計算効率的か&lt;/h3&gt;
+&lt;p&gt;完全なヘッセ行列 &lt;span class="math"&gt;\(H \in \mathbb{R}^{d_{in}d_{out} \times d_{in}d_{out}}\)&lt;/span&gt; は大規模重み行列には扱いにくい。4096×4096の線形層では &lt;span class="math"&gt;\(4096^4 \approx 2.8 \times 10^{14}\)&lt;/span&gt; 個の要素がある。クロネッカー因子近似 &lt;span class="math"&gt;\(H \approx A \otimes B\)&lt;/span&gt;（&lt;span class="math"&gt;\(A \in \mathbb{R}^{d_{out} \times d_{out}}\)&lt;/span&gt;、&lt;span class="math"&gt;\(B \in \mathbb{R}^{d_{in} \times d_{in}}\)&lt;/span&gt;）はストレージを &lt;span class="math"&gt;\(d_{out}^2 + d_{in}^2\)&lt;/span&gt; 要素に削減し、クロネッカー積の恒等式を通じて効率的な行列ベクトル積を可能にする：&lt;/p&gt;
+&lt;div class="math"&gt;$$(A \otimes B) \, \text{vec}(X) = \text{vec}(B^\top X A)$$&lt;/div&gt;
+&lt;p&gt;&lt;strong&gt;この式が何を意味するか&lt;/strong&gt;：重み行列 &lt;span class="math"&gt;\(W\)&lt;/span&gt; に対する量子化誤差の損失への影響を計算する際、直接ヘッセ行列を使うと &lt;span class="math"&gt;\(O(d^4)\)&lt;/span&gt; の計算が必要だが、クロネッカー因子分解を使えば &lt;span class="math"&gt;\(O(d^2)\)&lt;/span&gt; で計算できる。これにより大規模モデルでの実用的な2次量子化が初めて可能になる。&lt;/p&gt;
+&lt;p&gt;回転行列 &lt;span class="math"&gt;\(Q_G\)&lt;/span&gt; と &lt;span class="math"&gt;\(Q_X\)&lt;/span&gt; はそれぞれ &lt;span class="math"&gt;\(A = \mathbf{G}^\top \mathbf{G}\)&lt;/span&gt; と &lt;span class="math"&gt;\(B = \mathbf{X}\mathbf{X}^\top\)&lt;/span&gt; の固有ベクトル行列だ。回転後、近似ヘッセ行列は &lt;span class="math"&gt;\(\Lambda_G \otimes \Lambda_X\)&lt;/span&gt;（対角固有値行列のクロネッカー積）になり、重み要素間で分離可能な量子化問題となる。これは正確にGPTQスタイルの列ごとの量子化で解ける。&lt;/p&gt;
+&lt;h3&gt;勾配共分散が2ビットで決定的に重要な理由&lt;/h3&gt;
+&lt;p&gt;4ビット量子化では各重みに16個の可能な値があり、要素ごとの量子化誤差は小さいため、出力チャネルの感度を無視しても壊滅的な劣化を引き起こさない。2ビットでは各重みに4つの値しかなく（通常スケーリング後に{-1.5, -0.5, 0.5, 1.5}）、1ステップサイズの量子化誤差でも無視できない損失増加をもたらす可能性がある。&lt;/p&gt;
+&lt;p&gt;勾配共分散 &lt;span class="math"&gt;\(\mathbf{G}^\top \mathbf{G}\)&lt;/span&gt; はKronQにどの出力チャネルが感度が高いかを教える：大きな固有値は損失に強く影響を与える出力方向に対応する。これらの固有ベクトルに整合するように回転することで、KronQは量子化誤差が損失への影響という観点で出力チャネル間に可能な限り均等に広がることを保証する。&lt;/p&gt;
+&lt;p&gt;GPTQは入力側の情報のみで全出力チャネルを同一視するため、2ビット精度では高感度チャネルが大きな量子化誤差にさらされる可能性があり、これがLLaMA-3-70Bで見られる発散の原因だ。&lt;/p&gt;
+&lt;h2&gt;限界と課題&lt;/h2&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;キャリブレーションデータの要件&lt;/strong&gt;：KronQはキャリブレーションデータの1回の順伝播・逆伝播が必要で、GPTQスタイルのキャリブレーションコストの2倍になる。勾配計算が必要なため、一部のデプロイメントパイプラインでは容易でない。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;勾配行列のメモリ&lt;/strong&gt;：&lt;span class="math"&gt;\(\mathbf{G}^\top \mathbf{G}\)&lt;/span&gt; の保存には層ごとに &lt;span class="math"&gt;\(O(d_{out}^2)\)&lt;/span&gt; のメモリが必要だ。70Bモデルの最大射影行列では1層あたり~270MBとなり、すべての層の行列を同時にメモリに保持する必要がある。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;評価スコープの限定&lt;/strong&gt;：論文は重みのみの量子化（W-only PTQ）に焦点を当てている。重み+活性化量子化（INT8展開）に対するKronQの双方向回転の効果は未研究だ。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;アーキテクチャ特異性&lt;/strong&gt;：実験はLLaMA-3ファミリーモデルのみ。MoE、線形アテンション、Mambaスタイルのモデルでは感度プロファイルが異なる可能性がある。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2&gt;今後の展望&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;著者が示す方向性&lt;/strong&gt;：
+- 活性化量子化への拡張（INT8重み+活性化デプロイメント）
+- 2ビット重みストレージの理論的な速度ゲインを実現するためのハードウェア固有カーネル実装&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;さらなる発展的研究方向&lt;/strong&gt;：
+- &lt;strong&gt;蒸留との組み合わせ&lt;/strong&gt;：KronQの感度指標で高感度層を特定し、それらに優先して知識蒸留を適用することで精度回復が期待できる
+- &lt;strong&gt;量子化ファインチューニング&lt;/strong&gt;：KronQの量子化をLoRAなどのパラメータ効率的なファインチューニングの出発点として使い、極端なビット幅での精度損失を回復しながらメモリ効率を維持する
+- &lt;strong&gt;クロスアーキテクチャへの拡張&lt;/strong&gt;：Mambaスタイルの状態空間モデルやMoE層への一般化が有望な研究方向だ&lt;/p&gt;
+&lt;h2&gt;エッジ・オンデバイスへの示唆&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;2ビット量子化が新しいクラスのデプロイメントを可能にする&lt;/strong&gt;。70Bパラメータモデルを2ビット重みストレージで~17.5GBに収めると、24GB GPU（RTX 3090/4090）や2枚の16GB GPUで推論が可能になり、これまでマルチGPUデータセンターが必要だった推論がコンシューマハードウェアで実現する。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;SLM（7Bモデル）への影響はさらに直接的だ&lt;/strong&gt;。7Bモデルに2ビット量子化を適用すると重みが~1.75GBになり、モバイルGPU、ハイエンドスマートフォン（8〜12GB LPDDR5統合メモリのデバイス）、またはオンチップSRAMがギガバイト範囲のエッジAIアクセラレータで実用的になる。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;混合精度配分は不均質なハードウェアに自然にマッピングされる&lt;/strong&gt;。モバイルAI向けSoCは階層型メモリ（高速オンチップSRAM + 低速オフチップDRAM）を持つことが多い。KronQの感度指標は最高感度層をオンチップメモリに（4ビットで）、大部分のパラメータをDRAMに2ビットで格納する戦略を導き、最も重要な層のメモリ帯域幅圧力を最小化できる。&lt;/p&gt;
+&lt;h2&gt;原文リンク&lt;/h2&gt;
+&lt;p&gt;&lt;a href="https://arxiv.org/abs/2607.07964"&gt;Original Paper&lt;/a&gt;&lt;/p&gt;
+&lt;script type="text/javascript"&gt;if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width &lt; 768) ? "left" : align;
+        indent = (screen.width &lt; 768) ? "0em" : indent;
+        linebreak = (screen.width &lt; 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+
+    var configscript = document.createElement('script');
+    configscript.type = 'text/x-mathjax-config';
+    configscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'none' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        availableFonts: ['STIX', 'TeX']," +
+        "        preferredFont: 'STIX'," +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(configscript);
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+&lt;/script&gt;</content><category term="AI/ML"></category><category term="SLM"></category><category term="AI"></category><category term="論文解説"></category></entry><entry><title>Soofi S 30B-A3B: Frontier Performance at 3B Active Parameters via Mamba-MoE Hybrid</title><link href="/soofi-s-30b-a3b-frontier-performance-at-3b-active-parameters-via-mamba-moe-hybrid.html" rel="alternate"></link><published>2026-07-14T00:00:00+09:00</published><updated>2026-07-14T00:00:00+09:00</updated><author><name>toohsk</name></author><id>tag:None,2026-07-14:/soofi-s-30b-a3b-frontier-performance-at-3b-active-parameters-via-mamba-moe-hybrid.html</id><summary type="html">&lt;p&gt;Soofi S 30B-A3B achieves dense 14–27B model performance while activating only 3B parameters per token through a Mamba-MoE hybrid architecture, delivering 8–9× the decode throughput of dense models at long context — with full data transparency and open weights.&lt;/p&gt;</summary><content type="html">&lt;h2&gt;Why This Paper Matters&lt;/h2&gt;
+&lt;p&gt;The economics of language model deployment are dominated by two costs: &lt;strong&gt;memory bandwidth&lt;/strong&gt; (how fast you can stream weights from memory to the compute unit) and &lt;strong&gt;KV cache memory&lt;/strong&gt; (how much context you can hold in flight). Both grow with parameter count and sequence length, and both are why large models are expensive to serve.&lt;/p&gt;
+&lt;p&gt;Most efficiency work focuses on reducing parameter count outright — smaller models, pruned models, quantized models. But there's another axis: a model can have a large &lt;strong&gt;total&lt;/strong&gt; parameter count (expensive to store, but you only pay the storage cost once) while activating only a small &lt;strong&gt;fraction&lt;/strong&gt; of those parameters per forward pass. Mixture-of-Experts (MoE) architectures exploit this by routing each token through only a subset of expert layers.&lt;/p&gt;
+&lt;p&gt;Soofi S takes this a step further with a &lt;strong&gt;hybrid Mamba-MoE&lt;/strong&gt; design: of its 52 layers, 23 use Mamba-2 sequence mixing (which maintains a fixed-size recurrent state instead of a growing KV cache), 23 use sparse MoE feed-forward layers (only activating 3.2B of 31.6B parameters per token), and only 6 use standard GQA attention (which does maintain a KV cache). The result is a model where:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;The &lt;strong&gt;compute cost per token&lt;/strong&gt; corresponds to a ~3B parameter model&lt;/li&gt;
+&lt;li&gt;The &lt;strong&gt;memory cost&lt;/strong&gt; of weights corresponds to a 31.6B parameter model (but you only pay this once per deployment)&lt;/li&gt;
+&lt;li&gt;The &lt;strong&gt;KV cache&lt;/strong&gt; stays near-constant as context grows (because only 6 of 52 layers use attention)&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;The last point is what distinguishes Soofi S most sharply from dense transformers. At 40K context length with batch size 32, Soofi S achieves &lt;strong&gt;8–9× the aggregate decode throughput per GPU&lt;/strong&gt; of dense 14–24B models. This isn't a marginal efficiency gain — it's an architectural property that makes long-context, high-concurrency serving economically viable.&lt;/p&gt;
+&lt;p&gt;The paper's second contribution is equally important: complete training transparency. Unlike most open-weight releases that disclose weights but hide data recipes, Soofi S releases the full pretraining corpus statistics (per-source, per-language token counts), reproducible data construction scripts, the complete learning rate schedule, and all hyperparameters. It is the first sovereign German-English model to reach frontier capability at this level of openness.&lt;/p&gt;
+&lt;h2&gt;Core Technical Contribution&lt;/h2&gt;
+&lt;h3&gt;The Hybrid Mamba-MoE Architecture&lt;/h3&gt;
+&lt;p&gt;Soofi S adopts the Nemotron 3 Nano reference architecture without modification. The 52-layer network interleaves:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;23 Mamba-2 layers&lt;/strong&gt;: Sequence mixing via a structured state space model. Mamba-2 maintains a fixed-dimensional recurrent state &lt;span class="math"&gt;\(h_t \in \mathbb{R}^d\)&lt;/span&gt; that is updated with each new token via a selective mechanism:&lt;/li&gt;
+&lt;/ul&gt;
+&lt;div class="math"&gt;$$h_t = A_t h_{t-1} + B_t x_t, \quad y_t = C_t h_t$$&lt;/div&gt;
+&lt;p&gt;Unlike attention, where the context representation grows with sequence length, the Mamba-2 state is always &lt;span class="math"&gt;\(d\)&lt;/span&gt;-dimensional regardless of sequence length. This makes the memory footprint for sequence state &lt;strong&gt;constant&lt;/strong&gt; in context length.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;23 Granular MoE layers&lt;/strong&gt;: Sparse feed-forward layers where each token is routed to a small subset of experts. With ~31.6B total parameters and ~3.2B active per token, roughly 10% of the parameter budget is active at any time. The granular (fine-grained) MoE design uses many small experts rather than a few large ones, which gives the router more granular control and reduces the variance of expert utilization.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;6 GQA attention layers&lt;/strong&gt;: Standard grouped-query attention with a KV cache, distributed sparsely through the network depth. These are the only layers that require storing per-token key-value pairs. By having only 6 such layers out of 52, the KV cache grows at roughly 6/52 ≈ 11.5% of the rate of a fully attention-based model of similar depth.&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3&gt;Why KV Cache Dominates Long-Context Serving&lt;/h3&gt;
+&lt;p&gt;For a dense transformer with &lt;span class="math"&gt;\(L\)&lt;/span&gt; layers, each with key and value projections of dimension &lt;span class="math"&gt;\(d_{kv}\)&lt;/span&gt;, the KV cache per sequence is:&lt;/p&gt;
+&lt;div class="math"&gt;$$\text{KV cache size} = 2 \cdot L \cdot d_{kv} \cdot T \cdot \text{bytes per element}$$&lt;/div&gt;
+&lt;p&gt;where &lt;span class="math"&gt;\(T\)&lt;/span&gt; is the sequence length. This grows &lt;strong&gt;linearly with context length&lt;/strong&gt; — serving a request with 100K tokens requires 100× the KV cache memory of a 1K token request. For a large model (e.g., Llama-3-70B with 80 layers and 8192 key/value dimensions), a single 100K-token sequence in fp16 requires:&lt;/p&gt;
+&lt;div class="math"&gt;$$2 \times 80 \times 8192 \times 100{,}000 \times 2 \approx 262 \text{ GB}$$&lt;/div&gt;
+&lt;p&gt;This is why long-context serving is so expensive for dense transformers: the KV cache alone can exceed the weight memory. Multi-query attention and GQA reduce &lt;span class="math"&gt;\(d_{kv}\)&lt;/span&gt; but the linear scaling with context length remains.&lt;/p&gt;
+&lt;p&gt;Soofi S changes the denominator: with only 6 GQA layers instead of 52, the KV cache growth rate is reduced by ~9×. At 40K context, the KV cache is 9× smaller than for a dense model of similar depth. This directly translates to the 8–9× throughput advantage measured in the paper.&lt;/p&gt;
+&lt;h3&gt;The Three-Phase Training Curriculum&lt;/h3&gt;
+&lt;p&gt;Soofi S is trained on a 26.68 trillion token corpus in three phases:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Phase 1: Diverse pretraining&lt;/strong&gt; (~20T tokens): A broad German-English mixture with extensive web crawl data, code, and multilingual content. The German-English ratio is deliberately up-weighted to prioritize German language quality.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Phase 2: High-quality annealing&lt;/strong&gt; (~5T tokens + 1.58T constant LR): A curated, higher-quality subset. The Warmup-Stable-Decay (WSD) learning rate schedule is used — the decay phase is where the model consolidates its training signal.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Phase 3: Long-context extension&lt;/strong&gt; (~100B tokens): Training with 1M-token sequences using context parallelism. This enables the model's 1M-token context window, which is practically valuable for document-level processing.&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h3&gt;Serving Efficiency Under the WSD Schedule&lt;/h3&gt;
+&lt;p&gt;The paper uses a WSD (Warmup-Stable-Decay) learning rate schedule across all phases. The choice is deliberate: the stable plateau allows the model to train at full learning rate for a long period (which gives more opportunity for the Mamba and MoE components to specialize), while the decay phase refines the representations. The minus_sqrt decay shape (learning rate proportional to &lt;span class="math"&gt;\(1/\sqrt{t}\)&lt;/span&gt; during decay) is empirically observed to give better final performance than linear decay.&lt;/p&gt;
+&lt;h2&gt;Comparison to Prior Work&lt;/h2&gt;
+&lt;p&gt;Soofi S is compared against 16 open-weight models in the 3B–70B active parameter range, plus European sovereign models:&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Model&lt;/th&gt;
+&lt;th&gt;Active params&lt;/th&gt;
+&lt;th&gt;KV cache growth&lt;/th&gt;
+&lt;th&gt;40K-context TPS/GPU&lt;/th&gt;
+&lt;th&gt;English&lt;/th&gt;
+&lt;th&gt;German&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;Llama-3.1-14B (dense)&lt;/td&gt;
+&lt;td&gt;14B&lt;/td&gt;
+&lt;td&gt;Linear&lt;/td&gt;
+&lt;td&gt;~1× (baseline)&lt;/td&gt;
+&lt;td&gt;~83&lt;/td&gt;
+&lt;td&gt;~71&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Llama-3.1-27B (dense)&lt;/td&gt;
+&lt;td&gt;27B&lt;/td&gt;
+&lt;td&gt;Linear&lt;/td&gt;
+&lt;td&gt;~0.6×&lt;/td&gt;
+&lt;td&gt;~87&lt;/td&gt;
+&lt;td&gt;~76&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Qwen3-30B-A3B (MoE)&lt;/td&gt;
+&lt;td&gt;3B active&lt;/td&gt;
+&lt;td&gt;Linear (full attn)&lt;/td&gt;
+&lt;td&gt;~2–3×&lt;/td&gt;
+&lt;td&gt;~86&lt;/td&gt;
+&lt;td&gt;~78&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;Soofi S 30B-A3B&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;3.2B active&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;Near-constant&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;8–9×&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;~90&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;~83&lt;/strong&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;OLMo 3 32B (dense)&lt;/td&gt;
+&lt;td&gt;32B&lt;/td&gt;
+&lt;td&gt;Linear&lt;/td&gt;
+&lt;td&gt;&amp;lt;1×&lt;/td&gt;
+&lt;td&gt;~85&lt;/td&gt;
+&lt;td&gt;~77&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;The key differentiator versus other MoE models (like Qwen3-30B-A3B) is the Mamba-2 layers: pure MoE models still use full attention for sequence mixing, giving linear KV cache growth. Soofi S's hybrid design achieves near-constant cache because the Mamba layers handle most sequence mixing without any cache.&lt;/p&gt;
+&lt;p&gt;European sovereign model comparison: models like BLOOM, Occiglot, and Bafög-Family are substantially outperformed on German benchmarks. Soofi S is the first European sovereign model to match frontier international models on English while achieving state-of-the-art German performance.&lt;/p&gt;
+&lt;h2&gt;Reading the Results&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;Capability Index&lt;/strong&gt; (average of Code, GSM8K, GPQA-Diamond, English, German benchmarks, normalized to best model per group):
+- Soofi S achieves the highest Capability Index among fully open models, ahead of OLMo 3 32B and Apertus 70B
+- It matches dense 14–27B models on aggregate performance while activating 4–9× fewer parameters&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Long-context serving efficiency&lt;/strong&gt;:
+- At 40K context, batch 32: 8–9× aggregate decode TPS/GPU versus dense 14–24B models
+- The throughput advantage is &lt;strong&gt;scale-invariant with context&lt;/strong&gt;: as context grows from 4K to 256K tokens, Soofi S maintains near-constant decode TPS while dense models degrade roughly linearly&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;German language performance&lt;/strong&gt;: Best-in-class on German benchmarks including regional knowledge, outperforming all European sovereign models and matching international frontier models.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Code performance&lt;/strong&gt;: Best code aggregate in both English and German among 17 open base models. Code generation benefits from Mamba's long-range dependency modeling within files.&lt;/p&gt;
+&lt;h2&gt;Key Notes of This Paper&lt;/h2&gt;
+&lt;h3&gt;How Mamba-2 Achieves Constant-State Sequence Mixing&lt;/h3&gt;
+&lt;p&gt;Mamba-2 is a structured state space model (SSM) with a selective mechanism. The state equation is:&lt;/p&gt;
+&lt;div class="math"&gt;$$h_t = \bar{A} h_{t-1} + \bar{B} x_t$$&lt;/div&gt;
+&lt;div class="math"&gt;$$y_t = C h_t$$&lt;/div&gt;
+&lt;p&gt;where &lt;span class="math"&gt;\(\bar{A}\)&lt;/span&gt; and &lt;span class="math"&gt;\(\bar{B}\)&lt;/span&gt; are input-dependent (selective) transition matrices computed from the input &lt;span class="math"&gt;\(x_t\)&lt;/span&gt; via learned projections. The key property: the state &lt;span class="math"&gt;\(h_t \in \mathbb{R}^{N \times d}\)&lt;/span&gt; has fixed dimension regardless of sequence length &lt;span class="math"&gt;\(t\)&lt;/span&gt;. No matter how many tokens have been processed, the "memory" is always a fixed-size matrix.&lt;/p&gt;
+&lt;p&gt;The selectivity mechanism is critical: &lt;span class="math"&gt;\(\bar{A}\)&lt;/span&gt; and &lt;span class="math"&gt;\(\bar{B}\)&lt;/span&gt; depend on the current input, allowing the model to "decide" what to remember and what to forget at each step. This is in contrast to earlier fixed-coefficient SSMs (like S4) that apply the same dynamics regardless of content. The learned selectivity is what gives Mamba-2 language modeling capability comparable to attention.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;The efficiency insight&lt;/strong&gt;: generating the next token with Mamba-2 requires only a constant-time state update &lt;span class="math"&gt;\((h_t \leftarrow \bar{A}h_{t-1} + \bar{B}x_t)\)&lt;/span&gt; regardless of how many tokens have been generated. With attention, generating the next token requires attending over all previous tokens (O(T) computation and O(T) memory for the KV cache). At T=100K, this difference is enormous.&lt;/p&gt;
+&lt;h3&gt;Granular MoE and the Expert Routing Mechanism&lt;/h3&gt;
+&lt;p&gt;The MoE layers use a gating network (router) that assigns each input token to a subset of experts:&lt;/p&gt;
+&lt;div class="math"&gt;$$y = \sum_{i \in \text{TopK}(g(x))} g_i(x) \cdot E_i(x)$$&lt;/div&gt;
+&lt;p&gt;where &lt;span class="math"&gt;\(g(x)\)&lt;/span&gt; is the routing score, &lt;span class="math"&gt;\(\text{TopK}\)&lt;/span&gt; selects the top-&lt;span class="math"&gt;\(k\)&lt;/span&gt; experts by score, and &lt;span class="math"&gt;\(E_i\)&lt;/span&gt; is the &lt;span class="math"&gt;\(i\)&lt;/span&gt;-th expert network. "Granular" MoE means each expert is a small FFN (smaller than in traditional 2-expert or 4-expert MoE designs), and the model uses a larger number of experts per layer with &lt;span class="math"&gt;\(k\)&lt;/span&gt; typically 2–4.&lt;/p&gt;
+&lt;p&gt;More experts with smaller size means:
+1. The router has finer-grained control over which circuits activate for a given input
+2. Expert utilization is more uniform (less "expert collapse" where a few experts dominate)
+3. The effective parameter count scales more smoothly&lt;/p&gt;
+&lt;p&gt;The shared expert variant (used in Soofi S, following the Nemotron 3 Nano design) adds an always-active expert per layer that handles common patterns, with routed experts handling specialized content. This prevents the routing mechanism from having to route every token through experts for basic functionality.&lt;/p&gt;
+&lt;h3&gt;The Hybrid Design Tradeoff&lt;/h3&gt;
+&lt;p&gt;The hybrid Mamba-MoE design involves engineering tradeoffs:&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Mamba-2 for sequence mixing&lt;/strong&gt;: Handles long-range token dependencies efficiently but with bounded context (the state has finite capacity). For tasks requiring exact recall of distant tokens, the finite state is a limitation relative to full attention.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;GQA attention for 6 layers&lt;/strong&gt;: Provides exact, unbounded attention for the layers where it matters most. The placement of the 6 GQA layers through the network depth (rather than at the top or bottom only) is a design choice from Nemotron 3 Nano that the authors adopt without modification.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;MoE for feed-forward capacity&lt;/strong&gt;: Provides large total parameter capacity (31.6B) at low per-token compute cost (3.2B active). The all-to-all communication for expert routing is the bottleneck that motivates the specific interconnect topology used in training.&lt;/p&gt;
+&lt;h2&gt;Limitations&lt;/h2&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;KV cache not fully eliminated&lt;/strong&gt;: The 6 GQA layers still require KV cache storage that grows with sequence length. At very long contexts (&amp;gt;1M tokens), this becomes a bottleneck again, though at a much smaller scale than full-attention models.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Expert routing communication overhead&lt;/strong&gt;: During training and inference, all-to-all communication between expert-parallel ranks introduces latency proportional to batch size and expert count. This is the primary reason granular MoE is harder to deploy than dense models.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;No instruction tuning&lt;/strong&gt;: The paper presents only the base (pretrained) model. Instruction-following capability requires additional supervised fine-tuning (SFT) and alignment training, which may alter the efficiency profile.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;German/English focus&lt;/strong&gt;: Strong bilingual performance in German and English comes at the cost of capacity for other languages. Multilingual use cases beyond these two languages may see degraded performance.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Mamba-2 context limitations&lt;/strong&gt;: The fixed-state Mamba-2 architecture has finite capacity for long-range recall. For tasks requiring verbatim retrieval from very long contexts, the 6 attention layers may not be sufficient compensation.&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2&gt;Future Work&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;From the authors:&lt;/strong&gt;
+- Supervised fine-tuning and alignment (instruction-tuned variants)
+- Extension to other European languages
+- Evaluation of Soofi S's architecture for multilingual code generation&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Additional promising directions:&lt;/strong&gt;
+- &lt;strong&gt;On-device deployment of the 3B-active-parameter inference path&lt;/strong&gt;: The per-token compute matches a 3B dense model. With quantization (4-bit weights), the storage cost is ~16GB, potentially deployable on consumer hardware with unified memory (M-series Macs, high-end mobile APUs).
+- &lt;strong&gt;Extending the Mamba-MoE hybrid to dedicated SLM sizes&lt;/strong&gt;: The architectural principles (Mamba for sequence mixing, sparse MoE for capacity, minimal attention) could be applied to models with total parameter counts of 3–7B, where the active parameters would be in the 500M–1B range — genuinely embedded-deployable.
+- &lt;strong&gt;KV-cache-free inference modes&lt;/strong&gt;: In autoregressive generation where the context is a fixed prompt (batch inference scenarios), the Mamba-2 state could be precomputed and reused, potentially eliminating even the 6-layer KV cache overhead.
+- &lt;strong&gt;Sparse activation measurement across hardware platforms&lt;/strong&gt;: The architectural efficiency claims are measured in throughput (TPS/GPU). Translating these to power efficiency (tokens per joule) on edge hardware would be more directly relevant to on-device deployment decisions.&lt;/p&gt;
+&lt;h2&gt;Implications for Edge / On-Device Deployment&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;The 3B active parameter footprint is the key metric for on-device feasibility.&lt;/strong&gt; Inference latency and power consumption for autoregressive generation are dominated by compute per token, which scales with &lt;strong&gt;active&lt;/strong&gt; parameters, not total parameters. Soofi S's 3.2B active parameters give it the inference profile of a 3B model despite 31.6B total parameters.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;At 4-bit quantization, weight storage drops to ~16GB.&lt;/strong&gt; This is within range of premium workstations, high-memory mobile workstations, and edge inference servers. While not yet smartphone-class, this represents a substantial improvement over the 70GB+ required for dense frontier models.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;The constant KV cache is decisive for multi-turn on-device inference.&lt;/strong&gt; On-device assistants often maintain long conversation histories. With a full-attention model, a conversation of 10,000 tokens requires 10× the memory of a 1,000-token conversation. Soofi S's near-constant KV cache growth means memory usage is essentially independent of conversation history length — a critical property for sustained on-device deployment.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;The architectural insight generalizes.&lt;/strong&gt; The engineering principle demonstrated by Soofi S — use SSM layers for the bulk of sequence mixing, reserve full attention for only a small fraction of layers — can be applied to purpose-built SLMs. A model with 7B total parameters following this design might have 700M–1B active parameters per token, which puts it firmly in the range of today's on-device AI chips.&lt;/p&gt;
+&lt;h2&gt;Links&lt;/h2&gt;
+&lt;p&gt;&lt;a href="https://arxiv.org/abs/2607.09424"&gt;Original Paper&lt;/a&gt;&lt;/p&gt;
+&lt;script type="text/javascript"&gt;if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width &lt; 768) ? "left" : align;
+        indent = (screen.width &lt; 768) ? "0em" : indent;
+        linebreak = (screen.width &lt; 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+
+    var configscript = document.createElement('script');
+    configscript.type = 'text/x-mathjax-config';
+    configscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'none' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        availableFonts: ['STIX', 'TeX']," +
+        "        preferredFont: 'STIX'," +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(configscript);
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+&lt;/script&gt;</content><category term="AI/ML"></category><category term="SLM"></category><category term="AI"></category><category term="paper-review"></category></entry><entry><title>Soofi S 30B-A3B：3Bのアクティブパラメータでフロンティア性能を実現するMamba-MoEハイブリッド</title><link href="/soofi-s-30b-a3b3bnoakuteibuparame-tadehuronteiaxing-neng-woshi-xian-surumamba-moehaiburitsudo.html" rel="alternate"></link><published>2026-07-14T00:00:00+09:00</published><updated>2026-07-14T00:00:00+09:00</updated><author><name>toohsk</name></author><id>tag:None,2026-07-14:/soofi-s-30b-a3b3bnoakuteibuparame-tadehuronteiaxing-neng-woshi-xian-surumamba-moehaiburitsudo.html</id><summary type="html">&lt;p&gt;Soofi S 30B-A3BはMamba-MoEハイブリッドアーキテクチャにより、トークンごとに3Bのパラメータのみを活性化しながら密な14〜27Bモデルと同等の性能を達成し、長文脈での推論スループットを8〜9倍に向上させた。&lt;/p&gt;</summary><content type="html">&lt;h2&gt;なぜこの研究が重要か&lt;/h2&gt;
+&lt;p&gt;言語モデルのデプロイメントコストは主に2つの要因で決まる：&lt;strong&gt;メモリ帯域幅&lt;/strong&gt;（重みをメモリから計算ユニットへストリーミングする速度）と&lt;strong&gt;KVキャッシュメモリ&lt;/strong&gt;（どれだけのコンテキストを処理できるか）だ。どちらもパラメータ数とシーケンス長に比例して増加し、大規模モデルの運用コストが高い理由がここにある。&lt;/p&gt;
+&lt;p&gt;効率化の多くはパラメータ数を減らす方向に向く——より小さいモデル、プルーニング、量子化。しかし別の軸がある：モデルの&lt;strong&gt;総&lt;/strong&gt;パラメータ数を大きくしつつ（ストレージコストは1回だけかかる）、各フォワードパスで活性化する&lt;strong&gt;一部&lt;/strong&gt;のパラメータのみのコストで推論できるのだ。Mixture-of-Experts（MoE）アーキテクチャはトークンごとに一部のエキスパート層のみを通じてルーティングすることでこれを実現する。&lt;/p&gt;
+&lt;p&gt;Soofi Sはこれをさらに&lt;strong&gt;Mamba-MoEハイブリッド&lt;/strong&gt;設計で発展させる：52層のうち23層でMamba-2シーケンスミキシング（成長するKVキャッシュの代わりに固定サイズの再帰的状態を保持）、23層でスパースMoEフィードフォワード層（31.6Bパラメータのうち約3.2Bのみ活性化）、そしてたった6層のみで標準GQAアテンションを使用する。結果として：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;トークンごとの計算コスト&lt;/strong&gt;は~3Bパラメータのモデルに相当&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;重みのメモリコスト&lt;/strong&gt;は31.6Bパラメータのモデルに相当（しかしデプロイメントごとに1回だけ）&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;KVキャッシュ&lt;/strong&gt;はコンテキスト長が増えても&lt;strong&gt;ほぼ一定&lt;/strong&gt;（52層中6層のみがアテンションを使用するため）&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;最後の点がSoofi Sを密なトランスフォーマーと最も明確に区別する。バッチサイズ32で40Kコンテキスト長において、Soofi Sは密な14〜24Bモデルの&lt;strong&gt;8〜9倍のアグリゲートデコードスループット/GPU&lt;/strong&gt;を達成する。これは限界的な効率改善ではなく、長文脈・高並列サービングを経済的に実現するアーキテクチャ特性だ。&lt;/p&gt;
+&lt;p&gt;また、この論文の第2の貢献は同様に重要：完全な学習透明性だ。重みのみ公開で学習データの詳細を隠す公開モデルリリースとは異なり、Soofi Sは完全な事前学習コーパス統計（ソースごと・言語ごとのトークン数）、再現可能なデータ構築スクリプト、完全な学習率スケジュール、全ハイパーパラメータを公開する。&lt;/p&gt;
+&lt;h2&gt;技術的なアプローチ&lt;/h2&gt;
+&lt;h3&gt;Mamba-MoEハイブリッドアーキテクチャ&lt;/h3&gt;
+&lt;p&gt;Soofi SはNemotron 3 Nanoリファレンスアーキテクチャをそのまま採用する。52層のネットワークは以下を交互に配置：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;23層のMamba-2層&lt;/strong&gt;：構造化状態空間モデルによるシーケンスミキシング。Mamba-2はセレクティブメカニズムを通じて各新しいトークンで更新される固定次元の再帰状態 &lt;span class="math"&gt;\(h_t \in \mathbb{R}^d\)&lt;/span&gt; を保持する：&lt;/li&gt;
+&lt;/ul&gt;
+&lt;div class="math"&gt;$$h_t = A_t h_{t-1} + B_t x_t, \quad y_t = C_t h_t$$&lt;/div&gt;
+&lt;p&gt;アテンションとは異なり、コンテキスト表現がシーケンス長で増加する代わりに、Mamba-2の状態はシーケンス長に関係なく常に &lt;span class="math"&gt;\(d\)&lt;/span&gt; 次元だ。これによりシーケンス状態のメモリフットプリントがコンテキスト長で&lt;strong&gt;一定&lt;/strong&gt;になる。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;23層の粒状MoE層&lt;/strong&gt;：スパースフィードフォワード層で、各トークンはエキスパートのサブセットにルーティングされる。総パラメータ~31.6Bのうちトークンごとに~3.2Bのみが活性化し、パラメータ予算の約10%がいつでも活性化している状態だ。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;6層のGQAアテンション層&lt;/strong&gt;：KVキャッシュを持つ標準グループクエリアテンション。ネットワークの深さ全体にまばらに分散配置。KVキャッシュを必要とするのはこれらの層だけで、52層中6層のみにより、完全アテンションベースモデルの約6/52≈11.5%の速度でKVキャッシュが増加する。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3&gt;KVキャッシュがなぜ長文脈サービングを支配するか&lt;/h3&gt;
+&lt;p&gt;&lt;span class="math"&gt;\(L\)&lt;/span&gt; 層の密なトランスフォーマーで、各層のキー・バリュー射影次元が &lt;span class="math"&gt;\(d_{kv}\)&lt;/span&gt; の場合、シーケンスあたりのKVキャッシュサイズは：&lt;/p&gt;
+&lt;div class="math"&gt;$$\text{KVキャッシュサイズ} = 2 \cdot L \cdot d_{kv} \cdot T \cdot \text{バイト/要素}$$&lt;/div&gt;
+&lt;p&gt;ここで &lt;span class="math"&gt;\(T\)&lt;/span&gt; はシーケンス長だ。これはコンテキスト長で&lt;strong&gt;線形に増加&lt;/strong&gt;する——100Kトークンのリクエストには1Kトークンリクエストの100倍のKVキャッシュメモリが必要だ。Soofi SはKVキャッシュ成長率を約9×削減し、40Kコンテキストではキャッシュが密なモデルの9×小さくなる。これが8〜9×のスループット優位に直接つながる。&lt;/p&gt;
+&lt;h3&gt;3フェーズ学習カリキュラム&lt;/h3&gt;
+&lt;p&gt;Soofi Sは3フェーズで26.68兆トークンのコーパスで学習される：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;フェーズ1：多様な事前学習&lt;/strong&gt;（~20Tトークン）：幅広いドイツ語・英語の混合。ドイツ語の比率を意図的に高く設定。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;フェーズ2：高品質アニーリング&lt;/strong&gt;（~5T + 1.58Tトークン）：厳選された高品質サブセット。Warmup-Stable-Decay（WSD）学習率スケジュールを使用。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;フェーズ3：長文脈拡張&lt;/strong&gt;（~100Bトークン）：コンテキスト並列を使用した1Mトークンシーケンスでの学習。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2&gt;先行研究との比較&lt;/h2&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;モデル&lt;/th&gt;
+&lt;th&gt;アクティブパラメータ&lt;/th&gt;
+&lt;th&gt;KVキャッシュ成長&lt;/th&gt;
+&lt;th&gt;40K-context TPS/GPU&lt;/th&gt;
+&lt;th&gt;英語&lt;/th&gt;
+&lt;th&gt;ドイツ語&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;Llama-3.1-14B（密）&lt;/td&gt;
+&lt;td&gt;14B&lt;/td&gt;
+&lt;td&gt;線形&lt;/td&gt;
+&lt;td&gt;~1×（基準）&lt;/td&gt;
+&lt;td&gt;~83&lt;/td&gt;
+&lt;td&gt;~71&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Qwen3-30B-A3B（MoE）&lt;/td&gt;
+&lt;td&gt;3Bアクティブ&lt;/td&gt;
+&lt;td&gt;線形（完全アテンション）&lt;/td&gt;
+&lt;td&gt;~2–3×&lt;/td&gt;
+&lt;td&gt;~86&lt;/td&gt;
+&lt;td&gt;~78&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;Soofi S 30B-A3B&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;3.2Bアクティブ&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;ほぼ一定&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;8–9×&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;~90&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;~83&lt;/strong&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;OLMo 3 32B（密）&lt;/td&gt;
+&lt;td&gt;32B&lt;/td&gt;
+&lt;td&gt;線形&lt;/td&gt;
+&lt;td&gt;&amp;lt;1×&lt;/td&gt;
+&lt;td&gt;~85&lt;/td&gt;
+&lt;td&gt;~77&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;他のMoEモデル（Qwen3-30B-A3Bなど）との主な差別化はMamba-2層だ：純粋なMoEモデルはシーケンスミキシングに完全アテンションを使用するため、KVキャッシュは線形に成長する。Soofi Sのハイブリッド設計はMamba層がKVキャッシュなしで大部分のシーケンスミキシングを処理するためにほぼ一定のキャッシュを実現する。&lt;/p&gt;
+&lt;h2&gt;実験結果の読み方&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;ケイパビリティインデックス&lt;/strong&gt;（コード、GSM8K、GPQA-Diamond、英語、ドイツ語ベンチマークの平均）：
+- Soofi Sは完全公開モデルの中で最高のケイパビリティインデックスを達成（OLMo 3 32BとApertus 70Bを上回る）
+- 密な14〜27Bモデルと同等の性能を4〜9×少ないアクティブパラメータで達成&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;長文脈サービング効率&lt;/strong&gt;：
+- 40Kコンテキスト、バッチ32：密な14〜24Bモデルと比べて8〜9×のアグリゲートデコードTPS/GPU
+- スループット優位は&lt;strong&gt;コンテキストでスケール不変&lt;/strong&gt;：4Kから256Kトークンへのコンテキスト増加で、Soofi Sはほぼ一定のデコードTPSを維持、密なモデルはほぼ線形に劣化&lt;/p&gt;
+&lt;h2&gt;アルゴリズムの重要部分の解説&lt;/h2&gt;
+&lt;h3&gt;Mamba-2がなぜ定常状態シーケンスミキシングを実現できるか&lt;/h3&gt;
+&lt;p&gt;Mamba-2はセレクティブメカニズムを持つ構造化状態空間モデル（SSM）だ。状態方程式は：&lt;/p&gt;
+&lt;div class="math"&gt;$$h_t = \bar{A} h_{t-1} + \bar{B} x_t$$&lt;/div&gt;
+&lt;div class="math"&gt;$$y_t = C h_t$$&lt;/div&gt;
+&lt;p&gt;ここで &lt;span class="math"&gt;\(\bar{A}\)&lt;/span&gt; と &lt;span class="math"&gt;\(\bar{B}\)&lt;/span&gt; は学習された射影によって現在の入力 &lt;span class="math"&gt;\(x_t\)&lt;/span&gt; から計算される入力依存（選択的）な遷移行列だ。重要な特性：状態 &lt;span class="math"&gt;\(h_t \in \mathbb{R}^{N \times d}\)&lt;/span&gt; の次元はシーケンス長 &lt;span class="math"&gt;\(t\)&lt;/span&gt; に関係なく固定されている。どれだけ多くのトークンが処理されていても、「記憶」は常に固定サイズの行列だ。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;この式が何を意味するか&lt;/strong&gt;：&lt;span class="math"&gt;\(\bar{A}\)&lt;/span&gt; はどれだけ過去の状態を記憶するかを制御し、&lt;span class="math"&gt;\(\bar{B}\)&lt;/span&gt; は現在の入力をどれだけ取り込むかを制御する。重要なのは&lt;strong&gt;これらが入力 &lt;span class="math"&gt;\(x_t\)&lt;/span&gt; の関数&lt;/strong&gt;であることだ——モデルは各タイムステップで「何を覚え、何を忘れるか」を動的に決定できる。&lt;/p&gt;
+&lt;p&gt;通常のRNNとの違い：通常のRNNも固定サイズの状態を持つが、遷移行列が固定（入力非依存）のため、長距離依存関係の学習が困難だ。Mamba-2のセレクティビティこそがアテンションと同等の言語モデリング性能を可能にしている。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;効率面の直観&lt;/strong&gt;：Mamba-2でのトークン生成は、これまでに何トークン生成されたかに関わらず一定時間の状態更新だけで済む&lt;span class="math"&gt;\((h_t \leftarrow \bar{A}h_{t-1} + \bar{B}x_t)\)&lt;/span&gt;。アテンションでは次のトークン生成に以前の全トークンへのアテンションが必要（O(T)の計算とKVキャッシュのO(T)メモリ）。T=100Kでこの差は膨大だ。&lt;/p&gt;
+&lt;h3&gt;粒状MoEとエキスパートルーティングメカニズム&lt;/h3&gt;
+&lt;p&gt;MoE層はゲーティングネットワーク（ルータ）を使用して各入力トークンをエキスパートのサブセットに割り当てる：&lt;/p&gt;
+&lt;div class="math"&gt;$$y = \sum_{i \in \text{TopK}(g(x))} g_i(x) \cdot E_i(x)$$&lt;/div&gt;
+&lt;p&gt;ここで &lt;span class="math"&gt;\(g(x)\)&lt;/span&gt; はルーティングスコア、&lt;span class="math"&gt;\(\text{TopK}\)&lt;/span&gt; はスコアで上位 &lt;span class="math"&gt;\(k\)&lt;/span&gt; エキスパートを選択し、&lt;span class="math"&gt;\(E_i\)&lt;/span&gt; は &lt;span class="math"&gt;\(i\)&lt;/span&gt; 番目のエキスパートネットワークだ。&lt;/p&gt;
+&lt;p&gt;「粒状（granular）」MoEは少数の大きなエキスパートよりも多数の小さなエキスパートを使うことを意味する。これにより：
+1. ルータは入力ごとにどの回路を活性化するかより細かく制御できる
+2. エキスパート利用がより均一になる（一部のエキスパートが支配的になる「エキスパート崩壊」が減少）
+3. 有効パラメータ数がよりスムーズにスケールする&lt;/p&gt;
+&lt;p&gt;共有エキスパート変形（Soofi SがNemotron 3 Nanoの設計に従って使用）は各層に常時アクティブなエキスパートを追加して一般的なパターンを処理し、ルーティングされたエキスパートが特化したコンテンツを処理する。これにより、ルーティングメカニズムが基本機能のためにすべてのトークンをエキスパートにルーティングする必要がなくなる。&lt;/p&gt;
+&lt;h3&gt;ハイブリッド設計のトレードオフ&lt;/h3&gt;
+&lt;p&gt;&lt;strong&gt;Mamba-2（シーケンスミキシング）&lt;/strong&gt;：長距離トークン依存関係を効率的に処理するが、状態が有界（有限容量）。遠いトークンの正確な想起を必要とするタスクでは完全アテンションに対して制限がある。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;6層GQAアテンション&lt;/strong&gt;：最も重要な層で正確で無制限のアテンションを提供。ネットワーク深さ全体への6層のGQAの分散配置はNemotron 3 Nanoからの設計選択で、著者はそのまま採用している。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;MoE（フィードフォワード容量）&lt;/strong&gt;：低いトークンごとの計算コスト（3.2Bアクティブ）で大きな総パラメータ容量（31.6B）を提供。エキスパートルーティングのall-to-all通信が学習で使用する特定の相互接続トポロジーを動機づけるボトルネックだ。&lt;/p&gt;
+&lt;h2&gt;限界と課題&lt;/h2&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;KVキャッシュが完全には排除されない&lt;/strong&gt;：6層のGQA層は依然としてシーケンス長で成長するKVキャッシュストレージを必要とする。非常に長いコンテキスト（&amp;gt;1Mトークン）では再びボトルネックになるが、完全アテンションモデルよりはるかに小さいスケールで。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;エキスパートルーティング通信オーバーヘッド&lt;/strong&gt;：学習・推論中のall-to-all通信はバッチサイズとエキスパート数に比例したレイテンシを導入する。これが粒状MoEを密なモデルより展開が難しくする主な理由だ。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;命令チューニングなし&lt;/strong&gt;：論文はベース（事前学習済み）モデルのみを提示。命令に従う能力には追加のSFTとアライメント学習が必要で、効率プロファイルが変わる可能性がある。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;ドイツ語・英語への集中&lt;/strong&gt;：この2言語での強力な性能はその他の言語のための容量を犠牲にしている可能性がある。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Mamba-2のコンテキスト制限&lt;/strong&gt;：固定状態のMamba-2アーキテクチャは長距離想起のための有限容量を持つ。非常に長いコンテキストからの逐語的な取得を必要とするタスクでは6層のアテンション層では不十分かもしれない。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2&gt;今後の展望&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;著者が示す方向性&lt;/strong&gt;：
+- SFTとアライメント（命令チューニングバリアント）
+- 他のヨーロッパ言語への拡張&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;さらなる発展的研究方向&lt;/strong&gt;：
+- &lt;strong&gt;3Bアクティブパラメータ推論パスのオンデバイス展開&lt;/strong&gt;：トークンごとの計算は3B密なモデルと一致する。4ビット量子化（重み）でストレージコストは~16GBになり、統合メモリのコンシューマハードウェア（Mシリーズのマック、ハイエンドモバイルAPU）への展開が可能かもしれない
+- &lt;strong&gt;Mamba-MoEハイブリッドの専用SLMサイズへの拡張&lt;/strong&gt;：アーキテクチャ原則（シーケンスミキシングにMamba、容量にスパースMoE、最小アテンション）を3〜7Bの総パラメータを持つモデルに適用すれば、アクティブパラメータは500M〜1Bの範囲になり、組み込みデバイスへの展開が現実的になる
+- &lt;strong&gt;スパース活性化の電力効率測定&lt;/strong&gt;：アーキテクチャ効率の主張はスループット（TPS/GPU）で測定されている。エッジハードウェアでの電力効率（1ジュールあたりのトークン数）への変換が実際のオンデバイス展開決定により直接関連する&lt;/p&gt;
+&lt;h2&gt;エッジ・オンデバイスへの示唆&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;3Bのアクティブパラメータフットプリントがオンデバイス実現可能性の鍵指標だ。&lt;/strong&gt;自己回帰生成の推論レイテンシと消費電力はトークンごとの計算で支配され、それは総パラメータではなく&lt;strong&gt;アクティブ&lt;/strong&gt;パラメータとともにスケールする。Soofi Sの3.2Bアクティブパラメータは31.6Bの総パラメータにもかかわらず3Bモデルの推論プロファイルを与える。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;4ビット量子化で重みストレージが~16GBに低下する。&lt;/strong&gt;これはプレミアムワークステーション、ハイメモリモバイルワークステーション、エッジ推論サーバーの範囲内だ。まだスマートフォンクラスではないが、密なフロンティアモデルに必要な70GB+からの実質的な改善だ。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;一定KVキャッシュはマルチターンのオンデバイス推論に決定的だ。&lt;/strong&gt;オンデバイスアシスタントは長い会話履歴を維持することが多い。完全アテンションモデルでは10,000トークンの会話は1,000トークンの会話の10倍のメモリを必要とする。Soofi Sのほぼ一定なKVキャッシュ増加は、メモリ使用量が会話履歴の長さとほぼ独立していることを意味し、持続的なオンデバイス展開のための重要な特性だ。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;アーキテクチャの洞察は一般化できる。&lt;/strong&gt;Soofi Sが示したエンジニアリング原則——大部分のシーケンスミキシングにSSM層を使用し、少数の層のみに完全アテンションを予約する——は目的特化型SLMに適用できる。この設計に従った7Bの総パラメータを持つモデルはトークンごとに700M〜1Bのアクティブパラメータを持つ可能性があり、今日のオンデバイスAIチップの範囲内に確実に収まる。&lt;/p&gt;
+&lt;h2&gt;原文リンク&lt;/h2&gt;
+&lt;p&gt;&lt;a href="https://arxiv.org/abs/2607.09424"&gt;Original Paper&lt;/a&gt;&lt;/p&gt;
+&lt;script type="text/javascript"&gt;if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width &lt; 768) ? "left" : align;
+        indent = (screen.width &lt; 768) ? "0em" : indent;
+        linebreak = (screen.width &lt; 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+
+    var configscript = document.createElement('script');
+    configscript.type = 'text/x-mathjax-config';
+    configscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'none' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        availableFonts: ['STIX', 'TeX']," +
+        "        preferredFont: 'STIX'," +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(configscript);
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+&lt;/script&gt;</content><category term="AI/ML"></category><category term="SLM"></category><category term="AI"></category><category term="論文解説"></category></entry><entry><title>Multi-SPIN: Cooperative Edge LLM Inference via Multi-Access Speculative Decoding</title><link href="/multi-spin-cooperative-edge-llm-inference-via-multi-access-speculative-decoding.html" rel="alternate"></link><published>2026-06-13T00:00:00+09:00</published><updated>2026-06-13T00:00:00+09:00</updated><author><name>toohsk</name></author><id>tag:None,2026-06-13:/multi-spin-cooperative-edge-llm-inference-via-multi-access-speculative-decoding.html</id><summary type="html">&lt;p&gt;Multi-SPIN distributes speculative decoding across heterogeneous edge devices — on-device SLMs draft tokens while an edge server LLM verifies them in batches — and solves the joint draft-length / bandwidth allocation problem in closed form to maximize system-wide token throughput.&lt;/p&gt;</summary><content type="html">&lt;h2&gt;Why This Paper Matters&lt;/h2&gt;
 &lt;p&gt;Speculative decoding is one of the most compelling tricks in modern LLM inference: a small, fast "draft" model proposes a sequence of tokens, a larger "verifier" model checks them in a single forward pass, and if the drafts are accepted the system gets multiple tokens for roughly the cost of one. The catch has always been a deployment mismatch: speculative decoding was designed as a single-device, single-user technique. At the edge — where you have tens or hundreds of heterogeneous devices (phones, wearables, IoT nodes) all wanting LLM capabilities from a shared edge server — the picture is fundamentally different.&lt;/p&gt;
 &lt;p&gt;Why is multi-user edge inference hard? Three reasons:&lt;/p&gt;
 &lt;ol&gt;

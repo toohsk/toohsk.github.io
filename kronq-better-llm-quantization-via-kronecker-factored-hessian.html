@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+            <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+        <title>KronQ: Better LLM Quantization via Kronecker-Factored Hessian</title>
+
+            <link href="/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Full Atom Feed" />
+            <link href="/feeds/{slug}.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Categories Atom Feed" />
+        <!-- Bootstrap Core CSS -->
+        <link href="/theme/css/bootstrap.min.css" rel="stylesheet">
+
+        <!-- Custom CSS -->
+        <link href="/theme/css/clean-blog.min.css" rel="stylesheet">
+
+        <!-- Code highlight color scheme -->
+            <link href="/theme/css/code_blocks/github.css" rel="stylesheet">
+
+
+        <!-- Custom Fonts -->
+        <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+        <link href='https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+        <link href='https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/css'>
+
+        <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+        <!--[if lt IE 9]>
+            <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+            <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+
+
+        <meta name="description" content="KronQ improves post-training quantization by incorporating gradient covariance via a Kronecker-factored Hessian, achieving stable 2-bit...">
+
+        <meta name="author" content="toohsk">
+
+        <meta name="tags" content="SLM">
+        <meta name="tags" content="AI">
+        <meta name="tags" content="paper-review">
+
+	                <meta property="og:locale" content="">
+		<meta property="og:site_name" content="Atsushi's blog">
+
+	<meta property="og:type" content="article">
+            <meta property="article:author" content="/author/toohsk.html">
+	<meta property="og:url" content="/kronq-better-llm-quantization-via-kronecker-factored-hessian.html">
+	<meta property="og:title" content="KronQ: Better LLM Quantization via Kronecker-Factored Hessian">
+	<meta property="article:published_time" content="2026-07-14 00:00:00+09:00">
+            <meta property="og:description" content="KronQ improves post-training quantization by incorporating gradient covariance via a Kronecker-factored Hessian, achieving stable 2-bit...">
+
+            <meta property="og:image" content="/images/blog_cover.jpg">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:site" content="@toohsk">
+        <meta name="twitter:title" content="KronQ: Better LLM Quantization via Kronecker-Factored Hessian">
+
+            <meta name="twitter:image" content="/images/blog_cover.jpg">
+
+            <meta name="twitter:description" content="KronQ improves post-training quantization by incorporating gradient covariance via a Kronecker-factored Hessian, achieving stable 2-bit...">
+</head>
+
+<body class="article-kronq-better-llm-quantization-via-kronecker-factored-hessian">
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+        <div class="container-fluid">
+            <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header page-scroll">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="/">Atsushi's blog</a>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav navbar-right">
+
+                </ul>
+            </div>
+            <!-- /.navbar-collapse -->
+        </div>
+        <!-- /.container -->
+    </nav>
+
+    <!-- Page Header -->
+        <header class="intro-header" style="background-image: url('/images/blog_cover.jpg')">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <div class="post-heading">
+                        <h1>KronQ: Better LLM Quantization via Kronecker-Factored Hessian</h1>
+                        <span class="meta">Posted by
+                                <a href="/author/toohsk.html">toohsk</a>
+                             on 火 14 7月 2026
+                        </span>
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+    <!-- Post Content -->
+    <article>
+        <h2>Why This Paper Matters</h2>
+<p>Post-training quantization (PTQ) is one of the most practically important techniques for making large language models deployable on memory-constrained hardware. At 2-bit weight-only precision, a 70B parameter model's weights compress from roughly 140 GB (at fp16) to ~17.5 GB — a size that fits on a high-end consumer GPU. But 2-bit quantization is notoriously difficult to do well: the information loss is extreme, and most existing methods fail catastrophically at this precision.</p>
+<p>The dominant second-order PTQ method, GPTQ, has a subtle but consequential flaw: it constructs the quantization objective using only <strong>input activation statistics</strong>, implicitly assuming that all output channels of a weight matrix contribute equally to the reconstruction loss. This assumption is wrong. In large transformer layers, different output channels have very different sensitivities to quantization error — some feed into attention heads that heavily influence the loss, others into more peripheral paths. Treating them uniformly wastes the available quantization budget.</p>
+<p>KronQ corrects this by introducing the <strong>gradient covariance</strong> into the quantization pipeline, giving a complete picture of how quantization error propagates to the final loss. The formalization comes from the Kronecker-factored approximation to the full Hessian of the quantization loss — the same approximation used in K-FAC for second-order optimization. This is a principled, computationally tractable way to get bidirectional sensitivity information that GPTQ simply lacks.</p>
+<p>The payoff is dramatic: at 2-bit weight-only quantization on LLaMA-3-70B, GPTQ and its gradient-aware variant GPTAQ diverge completely (perplexity &gt;2000 on WikiText-2), while KronQ achieves <strong>7.93 perplexity</strong> — usable quality at the most aggressive compression ratio.</p>
+<h2>Core Technical Contribution</h2>
+<h3>The Kronecker-Factored Hessian</h3>
+<p>The starting point is the layer-wise quantization objective. For a weight matrix <span class="math">\(W \in \mathbb{R}^{d_{out} \times d_{in}}\)</span>, quantizing to <span class="math">\(\hat{W}\)</span> introduces an error <span class="math">\(\Delta W = \hat{W} - W\)</span>. The resulting increase in the model's loss can be approximated via a second-order Taylor expansion:</p>
+<div class="math">$$\delta \mathcal{L} \approx \frac{1}{2} \text{vec}(\Delta W)^\top H \, \text{vec}(\Delta W)$$</div>
+<p>where <span class="math">\(H\)</span> is the Hessian of the loss with respect to the weights <span class="math">\(W\)</span>. Computing the full Hessian is infeasible for a matrix with <span class="math">\(d_{out} \times d_{in}\)</span> entries, so approximations are necessary.</p>
+<p>GPTQ uses only the <strong>input activation Hessian</strong>: it approximates <span class="math">\(H \approx \mathbf{X}\mathbf{X}^\top \otimes I_{d_{out}}\)</span>, where <span class="math">\(\mathbf{X}\)</span> is the input activation matrix. This is the Kronecker product of the input covariance with an identity matrix — effectively assuming the output dimension has no structure worth capturing.</p>
+<p>KronQ instead uses the <strong>Kronecker-factored approximation</strong>:</p>
+<div class="math">$$H \approx \mathbf{G}^\top \mathbf{G} \otimes \mathbf{X}\mathbf{X}^\top$$</div>
+<p>where <span class="math">\(\mathbf{G} \in \mathbb{R}^{N \times d_{out}}\)</span> is the matrix of output-side gradients collected over calibration data (<span class="math">\(N\)</span> samples). This is the K-FAC approximation: the Hessian factors as the outer product of an output-side factor (<span class="math">\(\mathbf{G}^\top \mathbf{G}\)</span>, the gradient covariance) and an input-side factor (<span class="math">\(\mathbf{X}\mathbf{X}^\top\)</span>, the activation covariance). The full <span class="math">\(H\)</span> captures how quantization errors interact across both dimensions.</p>
+<h3>Contribution 1: Bidirectional Incoherence Processing</h3>
+<p>Once you have the Kronecker-factored Hessian, the quantization quality depends on how "aligned" the weight matrix is with its Hessian eigenvectors. Large weight magnitudes aligned with large Hessian eigenvalues produce large quantization loss; these need careful handling.</p>
+<p>Prior work (QuIP, QuaRot, SpinQuant) applies <strong>random rotation</strong> to the input side of the weight matrix to reduce alignment between high-magnitude weights and high-curvature directions. This "incoherence" processing spreads the error more uniformly.</p>
+<p>KronQ extends this to <strong>both dimensions</strong>:
+- <strong>Input-side rotation</strong> <span class="math">\(Q_X\)</span>: derived from the eigenvectors of <span class="math">\(\mathbf{X}\mathbf{X}^\top\)</span> (or a random rotation)
+- <strong>Output-side rotation</strong> <span class="math">\(Q_G\)</span>: derived from the eigenvectors of <span class="math">\(\mathbf{G}^\top \mathbf{G}\)</span></p>
+<p>The rotated weight is <span class="math">\(\tilde{W} = Q_G W Q_X^\top\)</span>. Quantizing <span class="math">\(\tilde{W}\)</span> and then transforming back gives an effective quantizer that treats both input and output dimensions uniformly with respect to the Hessian structure. The output-side rotation is the key innovation — it requires the gradient covariance that GPTQ never computes.</p>
+<p>The mathematical intuition: after rotation, the quantization error <span class="math">\(\Delta \tilde{W}\)</span> has approximately independent entries with similar magnitudes. The Kronecker-factored Hessian for the rotated system is approximately <span class="math">\(I \otimes I\)</span> (identity), meaning all entries contribute equally to the loss. This is the "ideal" scenario where uniform quantization is optimal.</p>
+<h3>Contribution 2: Gradient-Aware Mixed-Precision Sensitivity</h3>
+<p>Not all layers should be quantized to the same bit-width. Mixed-precision quantization allocates more bits to sensitive layers and fewer bits to robust layers, staying within an average bit-width budget.</p>
+<p>The sensitivity of layer <span class="math">\(l\)</span> to quantization is measured by how much the loss increases when that layer is quantized. KronQ derives a sensitivity metric from the Kronecker-factored Hessian traces:</p>
+<div class="math">$$\text{sensitivity}(l) = \frac{1}{d_{in} d_{out}} \text{tr}(\mathbf{G}_l^\top \mathbf{G}_l) \cdot \text{tr}(\mathbf{X}_l \mathbf{X}_l^\top)$$</div>
+<p>This is the product of the gradient trace (how much the loss cares about this layer's outputs) and the activation trace (how large the inputs to this layer are). The product approximates the expected quantization loss for that layer under uniform quantization.</p>
+<p>GPTQ-based sensitivity metrics use only <span class="math">\(\text{tr}(\mathbf{X}_l \mathbf{X}_l^\top)\)</span>, ignoring how much the loss cares about this layer's outputs. Layers with large activations but small gradient flow (because they feed into low-sensitivity paths) get over-protected; layers with small activations but high gradient sensitivity get under-protected. KronQ's joint metric corrects both errors.</p>
+<p>Given sensitivity scores, bit-width allocation is a constrained optimization: assign each layer to a bit-width from a discrete set <span class="math">\(\{2, 3, 4, 8\}\)</span> to minimize total sensitivity while satisfying an average bit-width budget.</p>
+<h2>Comparison to Prior Work</h2>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Input-side info</th>
+<th>Output-side info</th>
+<th>Mixed precision</th>
+<th>2-bit LLaMA-3-70B PPL</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GPTQ</td>
+<td>✓ (activation)</td>
+<td>✗</td>
+<td>✗</td>
+<td>&gt;2000 (diverges)</td>
+</tr>
+<tr>
+<td>GPTAQ</td>
+<td>✓</td>
+<td>Partial (per-column gradient)</td>
+<td>✗</td>
+<td>&gt;2000 (diverges)</td>
+</tr>
+<tr>
+<td>QuIP#</td>
+<td>✓ (rotated)</td>
+<td>✗</td>
+<td>✗</td>
+<td>~9–10</td>
+</tr>
+<tr>
+<td>QuaRot</td>
+<td>✓ (rotated)</td>
+<td>✗</td>
+<td>✗</td>
+<td>~9–10</td>
+</tr>
+<tr>
+<td><strong>KronQ</strong></td>
+<td>✓ (rotated)</td>
+<td>✓ (Kronecker gradient)</td>
+<td>✓</td>
+<td><strong>7.93</strong></td>
+</tr>
+</tbody>
+</table>
+<p>The baseline comparison is stark. GPTQ's assumption of equal output-channel sensitivity is so wrong at 2-bit precision that the model is completely unusable. Methods that add input-side rotation (QuIP#, QuaRot) improve substantially but still don't capture output-side sensitivity. KronQ's bidirectional treatment achieves another step change in quality.</p>
+<p>GPTAQ is the closest prior work — it attempts to incorporate gradient information but does so at the per-column level rather than through the full Kronecker factorization. The per-column approximation misses the cross-channel structure captured by <span class="math">\(\mathbf{G}^\top \mathbf{G}\)</span>.</p>
+<h2>Reading the Results</h2>
+<p><strong>2-bit weight-only quantization on LLaMA-3-70B</strong>: This is the headline result. WikiText-2 perplexity of 7.93 vs &gt;2000 for GPTQ and GPTAQ is not a marginal improvement — it's the difference between a functional model and a broken one. A perplexity of 7.93 is close to the fp16 baseline (~6.x perplexity for LLaMA-3-70B), indicating minimal degradation despite halving the bit-width below what most methods can handle.</p>
+<p><strong>3-bit and 4-bit results</strong>: At higher bit-widths, all methods produce functional models, but KronQ achieves consistently lower perplexity across the LLaMA-3 family (8B, 13B, 70B). The gains are largest at smaller models and lower bit-widths, where gradient covariance matters more because the quantization noise is larger relative to the model's capacity.</p>
+<p><strong>Mixed-precision allocation</strong>: KronQ's sensitivity metric identifies attention projection layers and the first MLP layer as the highest-sensitivity components in LLaMA-3 architectures — they receive 4-bit allocation while other layers receive 2-bit, staying within a 2.x average bit budget while protecting critical capacity.</p>
+<p><strong>Computational overhead</strong>: Collecting gradient statistics requires one forward-backward pass through the calibration data (128–512 samples in the experiments). This is roughly 2× the calibration cost of GPTQ, which requires only forward passes. The overhead is a one-time cost at quantization time and does not affect inference speed.</p>
+<h2>Key Notes of This Paper</h2>
+<h3>The K-FAC Approximation and Why It's Tractable</h3>
+<p>The full Hessian <span class="math">\(H \in \mathbb{R}^{d_{in}d_{out} \times d_{in}d_{out}}\)</span> is intractable for large weight matrices — for a 4096×4096 linear layer, it has <span class="math">\(4096^4 \approx 2.8 \times 10^{14}\)</span> entries. The Kronecker-factored approximation <span class="math">\(H \approx A \otimes B\)</span> where <span class="math">\(A \in \mathbb{R}^{d_{out} \times d_{out}}\)</span> and <span class="math">\(B \in \mathbb{R}^{d_{in} \times d_{in}}\)</span> reduces storage to <span class="math">\(d_{out}^2 + d_{in}^2\)</span> entries and enables efficient matrix-vector products via the Kronecker product identity:</p>
+<div class="math">$$(A \otimes B) \, \text{vec}(X) = \text{vec}(B^\top X A)$$</div>
+<p>The rotation matrices <span class="math">\(Q_G\)</span> and <span class="math">\(Q_X\)</span> are the eigenvector matrices of <span class="math">\(A = \mathbf{G}^\top \mathbf{G}\)</span> and <span class="math">\(B = \mathbf{X}\mathbf{X}^\top\)</span> respectively. After rotating <span class="math">\(W \mapsto Q_G W Q_X^\top\)</span>, the approximate Hessian for the rotated system becomes <span class="math">\(\Lambda_G \otimes \Lambda_X\)</span> where <span class="math">\(\Lambda_G\)</span> and <span class="math">\(\Lambda_X\)</span> are diagonal eigenvalue matrices. The quantization problem in the rotated basis has a diagonal Hessian (separable across weight entries), making it exactly solvable with GPTQ-style column-wise quantization.</p>
+<p>Crucially, the full bidirectional rotation ensures the Hessian in the rotated basis has <strong>minimum spread</strong> — the eigenvalues are as uniform as possible — which minimizes the worst-case quantization error under any fixed quantizer.</p>
+<h3>Why Gradient Covariance Changes Everything at 2-bit</h3>
+<p>At 4-bit quantization, each weight has 16 possible values, and the quantization error per entry is small enough that ignoring output-channel sensitivity doesn't cause catastrophic degradation. At 2-bit, each weight has only 4 possible values (typically {-1.5, -0.5, 0.5, 1.5} after scaling). A single sensitive output channel carrying a quantization error of one step size can propagate a non-trivial loss increase through the network.</p>
+<p>The gradient covariance <span class="math">\(\mathbf{G}^\top \mathbf{G}\)</span> tells KronQ which output channels are sensitive: a large eigenvalue corresponds to an output direction that strongly influences the loss. By rotating to align with these eigenvectors, KronQ ensures that quantization error is spread as uniformly as possible across output channels in terms of loss impact — the channel that costs the most to misbehave gets the least quantization noise allocated to it.</p>
+<p>GPTQ with only input-side information treats all output channels identically, which can leave highly sensitive channels exposed to large quantization errors at 2-bit precision. That exposure is what causes the divergence GPTQ exhibits on LLaMA-3-70B.</p>
+<h2>Limitations</h2>
+<ol>
+<li>
+<p><strong>Calibration data requirement</strong>: KronQ requires one forward-backward pass through calibration data (128–512 samples). This is twice the cost of GPTQ-style calibration and requires access to gradient computation, which may be non-trivial in some deployment pipelines.</p>
+</li>
+<li>
+<p><strong>Memory for gradient matrices</strong>: Storing <span class="math">\(\mathbf{G}^\top \mathbf{G}\)</span> requires <span class="math">\(O(d_{out}^2)\)</span> memory per layer. For the largest projection matrices in 70B models (<span class="math">\(d_{out}\)</span> up to 8192), this is ~270 MB per layer. The full calibration process requires materializing these matrices for all layers simultaneously, imposing a working memory overhead beyond just holding the weights.</p>
+</li>
+<li>
+<p><strong>Limited evaluation scope</strong>: The paper focuses on weight-only quantization (W-only PTQ). The interaction of KronQ's bidirectional rotation with weight-activation quantization (W+A PTQ, relevant for INT8 deployment) is not studied.</p>
+</li>
+<li>
+<p><strong>Architecture specificity</strong>: Experiments are on LLaMA-3 family models. Transformer variants with different layer structures (MoE, linear attention, Mamba-style SSM) may have different sensitivity profiles where the gradient covariance behaves differently.</p>
+</li>
+<li>
+<p><strong>No finetuning comparison</strong>: KronQ is compared to other PTQ methods. A comparison to quantization-aware training (QAT) would contextualize the remaining gap to trainable compression methods.</p>
+</li>
+</ol>
+<h2>Future Work</h2>
+<p><strong>From the authors:</strong>
+- Extension to activation quantization (INT8 weight+activation deployment)
+- Hardware-specific kernel implementation to realize the theoretical speed gains from 2-bit weight storage</p>
+<p><strong>Additional promising directions:</strong>
+- <strong>Layer-wise adaptive calibration</strong>: The current method uses the same calibration data for all layers. Adaptive sampling strategies that provide more calibration signal for high-sensitivity layers could improve precision further.
+- <strong>Composition with distillation</strong>: KronQ's sensitivity metric could guide layer-wise knowledge distillation, where layers identified as high-sensitivity are distilled from a larger teacher while low-sensitivity layers are directly quantized.
+- <strong>Cross-architecture transfer</strong>: If sensitivity metrics are reproducible across checkpoints of the same architecture (different training stages, different datasets), calibration data could be shared, reducing per-model overhead.
+- <strong>Quantized fine-tuning</strong>: Using the KronQ quantization as a starting point for parameter-efficient fine-tuning (e.g., LoRA on the quantized model) could recover accuracy lost at extreme bit-widths while maintaining the memory advantage.
+- <strong>Extension to SSMs and MoE</strong>: The gradient covariance approach should generalize to Mamba-style state space models and Mixture-of-Experts layers, where the sensitivity landscape differs significantly from dense transformers.</p>
+<h2>Implications for Edge / On-Device Deployment</h2>
+<p><strong>2-bit quantization enables a new class of deployments.</strong> A 70B parameter model at 2-bit weight storage requires ~17.5 GB for the weights alone. With the full model fitting in a 24 GB GPU (RTX 3090/4090) or two 16 GB GPUs, inference that previously required multi-GPU data-center hardware becomes feasible on consumer hardware or a powerful workstation.</p>
+<p><strong>For smaller SLMs, the implications are even more direct.</strong> Applying KronQ to a 7B model at 2-bit yields ~1.75 GB weight storage — small enough for mobile GPUs, high-end smartphones (e.g., devices with 8–12 GB LPDDR5 unified memory), or embedded AI accelerators with on-chip SRAM in the gigabyte range. If KronQ's perplexity advantage over GPTQ holds at the 7B scale (which the paper's results suggest), this could be the quantization recipe that makes truly capable on-device LLMs practical.</p>
+<p><strong>The gradient covariance overhead is a one-time cost.</strong> Once the quantized model is produced, inference requires no gradient computation. The 2× calibration overhead versus GPTQ is a deployment preparation cost, not a per-inference cost. For a model deployed millions of times, this is negligible.</p>
+<p><strong>Mixed-precision allocation maps naturally to heterogeneous hardware.</strong> SoC designs for mobile AI often have tiered memory: fast on-chip SRAM (small) and slower off-chip DRAM (large). KronQ's sensitivity metric can guide a strategy where the highest-sensitivity layers are stored in on-chip memory (at 4-bit) while the bulk of parameters live in DRAM at 2-bit, minimizing bandwidth pressure for the layers that matter most.</p>
+<h2>Links</h2>
+<p><a href="https://arxiv.org/abs/2607.07964">Original Paper</a></p>
+<script type="text/javascript">if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width < 768) ? "left" : align;
+        indent = (screen.width < 768) ? "0em" : indent;
+        linebreak = (screen.width < 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+
+    var configscript = document.createElement('script');
+    configscript.type = 'text/x-mathjax-config';
+    configscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'none' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        availableFonts: ['STIX', 'TeX']," +
+        "        preferredFont: 'STIX'," +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(configscript);
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+</script>
+    </article>
+
+        <div class="tags">
+            <p>tags: <a href="/tag/slm.html">SLM</a>, <a href="/tag/ai.html">AI</a>, <a href="/tag/paper-review.html">paper-review</a></p>
+        </div>
+
+    <hr>
+
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <ul class="list-inline text-center">
+                            <li>
+                                <a href="http://twitter.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-twitter fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="http://github.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-github fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                    </ul>
+<p class="copyright text-muted">
+    Blog powered by <a href="http://getpelican.com">Pelican</a>,
+    which takes great advantage of <a href="http://python.org">Python</a>. <br />        &copy;  toohsk
+</p>                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- jQuery -->
+    <script src="/theme/js/jquery.min.js"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="/theme/js/bootstrap.min.js"></script>
+
+        <!-- Custom Theme JavaScript -->
+        <script src="/theme/js/clean-blog.min.js"></script>
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-LR14KRYZ4L"></script>
+<script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-LR14KRYZ4L');
+</script>
+</body>
+
+</html>

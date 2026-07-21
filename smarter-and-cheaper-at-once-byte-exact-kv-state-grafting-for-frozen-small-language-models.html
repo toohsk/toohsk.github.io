@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+            <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+        <title>Smarter and Cheaper at Once: Byte-Exact KV-State Grafting for Frozen Small Language Models</title>
+
+            <link href="/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Full Atom Feed" />
+            <link href="/feeds/{slug}.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Categories Atom Feed" />
+        <!-- Bootstrap Core CSS -->
+        <link href="/theme/css/bootstrap.min.css" rel="stylesheet">
+
+        <!-- Custom CSS -->
+        <link href="/theme/css/clean-blog.min.css" rel="stylesheet">
+
+        <!-- Code highlight color scheme -->
+            <link href="/theme/css/code_blocks/github.css" rel="stylesheet">
+
+
+        <!-- Custom Fonts -->
+        <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+        <link href='https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+        <link href='https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/css'>
+
+        <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+        <!--[if lt IE 9]>
+            <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+            <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+
+
+        <meta name="description" content="Byte-exact KV-cache grafting injects verified knowledge into a frozen 12B model at zero gradient cost, lifting AIME 2025 accuracy from...">
+
+        <meta name="author" content="toohsk">
+
+        <meta name="tags" content="SLM">
+        <meta name="tags" content="AI">
+        <meta name="tags" content="paper-review">
+
+	                <meta property="og:locale" content="">
+		<meta property="og:site_name" content="Atsushi's blog">
+
+	<meta property="og:type" content="article">
+            <meta property="article:author" content="/author/toohsk.html">
+	<meta property="og:url" content="/smarter-and-cheaper-at-once-byte-exact-kv-state-grafting-for-frozen-small-language-models.html">
+	<meta property="og:title" content="Smarter and Cheaper at Once: Byte-Exact KV-State Grafting for Frozen Small Language Models">
+	<meta property="article:published_time" content="2026-07-18 00:00:00+09:00">
+            <meta property="og:description" content="Byte-exact KV-cache grafting injects verified knowledge into a frozen 12B model at zero gradient cost, lifting AIME 2025 accuracy from...">
+
+            <meta property="og:image" content="/images/blog_cover.jpg">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:site" content="@toohsk">
+        <meta name="twitter:title" content="Smarter and Cheaper at Once: Byte-Exact KV-State Grafting for Frozen Small Language Models">
+
+            <meta name="twitter:image" content="/images/blog_cover.jpg">
+
+            <meta name="twitter:description" content="Byte-exact KV-cache grafting injects verified knowledge into a frozen 12B model at zero gradient cost, lifting AIME 2025 accuracy from...">
+</head>
+
+<body class="article-smarter-and-cheaper-at-once-byte-exact-kv-state-grafting-for-frozen-small-language-models">
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+        <div class="container-fluid">
+            <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header page-scroll">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="/">Atsushi's blog</a>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav navbar-right">
+
+                </ul>
+            </div>
+            <!-- /.navbar-collapse -->
+        </div>
+        <!-- /.container -->
+    </nav>
+
+    <!-- Page Header -->
+        <header class="intro-header" style="background-image: url('/images/blog_cover.jpg')">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <div class="post-heading">
+                        <h1>Smarter and Cheaper at Once: Byte-Exact KV-State Grafting for Frozen Small Language Models</h1>
+                        <span class="meta">Posted by
+                                <a href="/author/toohsk.html">toohsk</a>
+                             on 土 18 7月 2026
+                        </span>
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+    <!-- Post Content -->
+    <article>
+        <h2>Why This Paper Matters</h2>
+<p>Every time an LLM answers a question, it re-reads every token in the prompt from scratch. If the same mathematical proof, reference implementation, or domain knowledge is embedded in millions of queries, it is recomputed millions of times — an enormous silent waste.</p>
+<p>This paper attacks that waste with a deceptively simple observation: the KV-cache that a model computes when reading a prompt is a <strong>deterministic function</strong> of the input, the weights, and the numerics. If that state could be captured bit-perfectly, stored on disk, and restored later into a fresh inference context without any loss, then:</p>
+<ol>
+<li><strong>Knowledge computed once never needs recomputing.</strong> Prefill cost for a 12k-token context drops from 1,547 ms to 18 ms — an 85.6× speedup.</li>
+<li><strong>Knowledge the model lacks can be injected permanently — without touching a single weight.</strong> No fine-tuning. No adapter. Just a cached, verified KV block.</li>
+</ol>
+<p>These two properties combine into what the authors call a <strong>verified-knowledge flywheel</strong>: solve a hard problem with extra inference effort, verify the solution externally, freeze it as a byte-exact KV artifact, and on future queries just graft it in. A frozen Gemma-4-12B goes from 80.0% to <strong>93.3% on AIME 2025</strong> — above the vendor-reported score of its 31B sibling — while 8 recurring hard problems are solved in <strong>61 total tokens</strong> rather than 401,026.</p>
+<p>This is not prompt caching. It is not RAG. It is something new: exact, persistent, portable, zero-gradient knowledge injection directly into the model's attention state.</p>
+<h2>Core Technical Contribution</h2>
+<h3>Taliesin: The Byte-Exact Graft Engine</h3>
+<p>The central claim is that the KV state can be restored with <strong>lossless fidelity</strong> — not approximately, but byte-for-byte. The paper defines exactness rigorously:</p>
+<div class="math">$$\text{SHA-256}\bigl(\text{bytes}(\ell_{\text{graft}})\bigr) = \text{SHA-256}\bigl(\text{bytes}(\ell_{\text{fresh}})\bigr)$$</div>
+<p>where <span class="math">\(\ell_{\text{fresh}}\)</span> is the logit vector from a fresh forward pass and <span class="math">\(\ell_{\text{graft}}\)</span> is the logit vector after restoring a cached KV state. This implies:</p>
+<div class="math">$$D_{\text{KL}}(p_{\text{graft}} \,\|\, p_{\text{fresh}}) = 0 \qquad \text{and} \qquad \arg\max \ell_{\text{graft}} = \arg\max \ell_{\text{fresh}}$$</div>
+<p>Across 50 independent samples on Gemma-4-12B (RTX 5090, Blackwell), the graft achieves zero KL divergence at both median and 99th percentile, zero argmax disagreements, and SHA-256 byte equality on every trial. The guarantee holds cross-context (restored into a fresh inference process), cross-server, and survives major runtime refactors.</p>
+<h3>Why Own-Position is the Unique Exact Point</h3>
+<p>Rotary Position Embedding (RoPE) encodes position into key vectors by rotating them: <span class="math">\(\mathbf{k}_t \leftarrow R_t \mathbf{k}_t\)</span>. In exact arithmetic, attention between positions <span class="math">\(t\)</span> and <span class="math">\(s\)</span> depends only on the <strong>relative angle</strong> <span class="math">\(t - s\)</span>, because:</p>
+<div class="math">$$\cos(a)\cos(b) + \sin(a)\sin(b) = \cos(a - b)$$</div>
+<p>But in <strong>32-bit floating point</strong>, this identity does not hold bit-exactly. When the same pair of tokens is expressed with different absolute angles <span class="math">\((a, b)\)</span> vs. <span class="math">\((a + M, b + M)\)</span>, the result differs by approximately 1 ULP (unit in the last place), which amplifies through the network layers and logit softcap to a KL divergence of ~0.015.</p>
+<p>The consequence is sharp: <strong>own-position graft is the unique numerically exact operating point</strong>. Restoring a KV block at its original position range <span class="math">\([0, N)\)</span> is byte-exact; moving it to offset <span class="math">\(M\)</span> is not — not because of any graft error, but because the <em>fresh</em> computation at offset <span class="math">\(M\)</span> already differs from the one at offset <span class="math">\(0\)</span> by the same amount. This is a property of the model, not the engine, and it means no engine can achieve byte-exact cross-position grafting on a model with floating-point RoPE.</p>
+<p>This bound is the paper's most important theoretical contribution: it identifies exactly when and why byte-exactness is achievable, and why it cannot be extended to arbitrary offsets.</p>
+<h3>Galahad: The Verified-Knowledge Flywheel</h3>
+<p>The learning loop is deliberately simple:</p>
+<ol>
+<li><strong>Solve</strong>: Run the frozen model with additional inference-time effort on a hard problem it fails.</li>
+<li><strong>Verify</strong>: Apply an external, sound check (execute the generated program; confirm it prints the known answer).</li>
+<li><strong>Deposit</strong>: Capture the KV state of the verified solution as a persistent block on disk. Zero extra accelerator memory.</li>
+<li><strong>Route</strong>: On a new query, classify it and select the relevant block.</li>
+<li><strong>Graft</strong>: Restore the byte-exact block. The model reads the verified knowledge as if it had just prefilled it — losslessly.</li>
+</ol>
+<p>The paper distinguishes two retrieval regimes:
+- <strong>Recurrence</strong>: The exact same problem returns. Route to the block, graft, return the stored answer. Cost: ~7.6 tokens per problem instead of ~50,000+.
+- <strong>Transfer</strong>: A structurally similar but numerically new problem arrives. The grafted method context is used as a one-shot exemplar; the frozen model adapts it to new data. This tests generalization, not memorization.</p>
+<h2>Comparison to Prior Work</h2>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Durable?</th>
+<th>Exact?</th>
+<th>Gradient-free?</th>
+<th>Zero extra memory?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Native prompt cache</td>
+<td>❌ (session-tied)</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+</tr>
+<tr>
+<td>RAG (token injection)</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+<td>❌ (re-reads every call)</td>
+</tr>
+<tr>
+<td>Fine-tuning / LoRA</td>
+<td>✓</td>
+<td>N/A</td>
+<td>❌</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>KV-cache sharing (LMCache)</td>
+<td>✓</td>
+<td>Approx.</td>
+<td>✓</td>
+<td>✓</td>
+</tr>
+<tr>
+<td><strong>KV-State Grafting (this paper)</strong></td>
+<td><strong>✓</strong></td>
+<td><strong>✓ (byte)</strong></td>
+<td><strong>✓</strong></td>
+<td><strong>✓</strong></td>
+</tr>
+</tbody>
+</table>
+<p>RAG is durable but re-reads the injected knowledge as tokens on every call — the cost recurs. Fine-tuning is durable but changes weights, costs a training run, and is not composable at the granularity of a single fact. This paper is the first public demonstration of a byte-exact, persistent, portable KV-state graft as a substrate for inference-time learning.</p>
+<h2>Reading the Results</h2>
+<p><strong>AIME 2025 benchmark</strong> (30 competition math problems, released after Gemma's January 2025 pretraining cutoff):</p>
+<table>
+<thead>
+<tr>
+<th>Configuration</th>
+<th>Score</th>
+<th>Tokens/problem</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bare frozen 12B (pass@1)</td>
+<td>56.7%</td>
+<td>~3,300</td>
+</tr>
+<tr>
+<td>Sampling-and-voting ladder</td>
+<td>76.7%</td>
+<td>~25,000</td>
+</tr>
+<tr>
+<td>Lean code-routing, no cache</td>
+<td>76.7%</td>
+<td>~4,100</td>
+</tr>
+<tr>
+<td>Code-routing + grafted library</td>
+<td><strong>90.0%</strong></td>
+<td>~4,360</td>
+</tr>
+<tr>
+<td>Confidence-gated + library</td>
+<td><strong>93.3%</strong></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>The 90.0% run uses ~5.6% more tokens than the no-cache baseline for a <strong>13.3 percentage-point accuracy gain</strong> — capability bought from cached knowledge is roughly <strong>50× cheaper per point</strong> than capability bought from extra sampling.</p>
+<p><strong>Recurrence economics</strong>: 8 hard problems (never solved by the base model in 401,026 token budget) are answered in 61 total tokens from cached verified solutions — <strong>6,574× fewer tokens</strong>, ~3,000–8,700× less energy.</p>
+<p><strong>Context extension</strong>: A store of 2,854,766 tokens is built as 88 persistent blocks. Any point in the store is retrieved in ~0.29 s at constant cost regardless of depth, using zero extra accelerator memory. The configured 32k serving window is extended 87× on a 32 GB GPU.</p>
+<p><strong>Prefill speedup</strong>: An 11,994-token prompt takes 1,547 ms cold; grafting the cached state and advancing by one token takes 18.1 ms — <strong>85.6× speedup</strong>.</p>
+<h2>Key Notes of This Paper</h2>
+<h3>The Byte-Exactness Proof Structure</h3>
+<p>The paper proves exactness through <strong>adversarial falsification</strong>, not assertion. Seven candidate explanations for any residual divergence are each tested and eliminated:</p>
+<ol>
+<li>Half-precision rounding — ruled out by CPU deterministic build</li>
+<li>Sliding-window buffering — ruled out by enabling full-size KV</li>
+<li>Offset magnitude — ruled out by flat residual across offsets {8, 128, 1024, 4096}</li>
+<li>Dual-rotary paths — tested explicitly</li>
+<li>Frequency mismatch in RoPE shift — ruled out</li>
+<li>Large-angle argument-reduction error in trig kernels — ruled out</li>
+<li>Reduction-tree reassociation from physical slot placement — ruled out</li>
+</ol>
+<p>What remains is the floating-point non-associativity of the cosine addition formula — irreducible in 32-bit RoPE, measurable on the model itself, and entirely separate from the graft.</p>
+<p>The key inequality derived is:</p>
+<div class="math">$$D_{\text{KL}}(\text{graft at own pos}) = 0 \qquad \text{vs.} \qquad D_{\text{KL}}(\text{graft at new pos}) \approx D_{\text{KL}}(\text{fresh at new pos vs. fresh at 0})$$</div>
+<p>This means the graft adds nothing to the positional residual — the residual is entirely attributable to the base model's position-sensitivity.</p>
+<h3>The Flywheel Loop Convergence</h3>
+<p>The flywheel converges because entry into the store requires <strong>external verification</strong> — the system deposits only solutions that pass a sound check. This prevents error amplification: unlike many self-improvement loops, Galahad cannot add incorrect knowledge, because unverified solutions are never deposited.</p>
+<p>The routing is also designed to scale: each block contains one verified solution, and the router selects only the single relevant block (not a flat prefix of all cached solutions, which was found to confuse the model by presenting irrelevant method context alongside the relevant one).</p>
+<h2>Limitations</h2>
+<ul>
+<li><strong>Byte-exactness is architecture-specific</strong>: Two GPU architectures that accumulate floating point differently may not produce byte-identical results from the same graft. The guarantee is within-architecture.</li>
+<li><strong>Engine is proprietary</strong>: The Taliesin graft mechanism is described only at the input-output level; internal architecture is not disclosed. Results are backed by committed SHA hashes, but reproduction requires the closed benchmark suite.</li>
+<li><strong>Two failures on long programs</strong>: Problems #11 and #14, which had the longest cached programs in the library, were not solved by the transfer run. The failure is in the model's one-shot re-adaptation of large code contexts, not in the byte-exactness of the cache.</li>
+<li><strong>Rotary position constraint</strong>: Own-position restoration is the only numerically exact regime. Arbitrary offset grafting is not achievable on floating-point RoPE models.</li>
+<li><strong>Sliding-window attention requires patching</strong>: On sliding-window models, the stock prompt cache resumes from sparse checkpoints; enabling full-size KV for windowed layers is required to show the full prefill subsidy.</li>
+</ul>
+<h2>Future Work</h2>
+<p>The authors suggest and the paper opens several follow-on directions:</p>
+<ul>
+<li><strong>Multi-block composition</strong>: The paper demonstrates single-block grafting at own position. Sequential composition of multiple blocks is shown to be "functionally correct" but carries a small residual from RoPE position-sensitivity. Exact multi-block composition would require position-independent attention (e.g., ALiBi or no-positional-encoding architectures).</li>
+<li><strong>Open-weight replication</strong>: The Taliesin engine is proprietary. An open implementation would enable the community to reproduce and build on these results.</li>
+<li><strong>Cross-architecture portability</strong>: The paper demonstrates byte-exactness on Blackwell (sm_120) and Hopper (sm_90) separately. A hardware-abstraction layer that normalizes floating-point reduction order across architectures could enable truly portable graft stores.</li>
+<li><strong>Automated flywheel pipelines</strong>: Currently, the Galahad loop requires human curation of the initial hard problems. Automating problem discovery, diverse solution generation, and multi-verifier consensus could make the flywheel fully self-improving.</li>
+<li><strong>KV compression for storage efficiency</strong>: The 2.85M-token store occupies 40.6 GB on disk. Lossless KV compression (e.g., for sparse activations or highly correlated key vectors) could make large stores practical on consumer hardware.</li>
+</ul>
+<h2>Implications for Edge / On-Device Deployment</h2>
+<p>This paper is directly relevant to edge and on-device inference in several ways:</p>
+<p><strong>Eliminating redundant compute</strong>: On-device models typically run repeatedly on overlapping knowledge contexts (system prompts, reference documents, skill libraries). Byte-exact KV grafting converts that repeated prefill from <span class="math">\(O(n)\)</span> tokens per query to <span class="math">\(O(1)\)</span> tokens, which directly extends the battery life and reduces thermal throttling on mobile devices.</p>
+<p><strong>Zero memory overhead for extended knowledge</strong>: The 87× context extension at zero extra accelerator memory is particularly valuable on edge hardware where both DRAM and VRAM are constrained. A 4 GB on-device model can access a verified knowledge store of hundreds of millions of tokens from disk, paying only the disk read time per access (~0.29 s).</p>
+<p><strong>Energy proportionality</strong>: The 3,000–8,700× energy reduction on recurrence problems has direct implications for battery-powered deployment. An on-device model that answers recurring questions from cached verified solutions rather than recomputing them could extend active session duration by orders of magnitude for knowledge-intensive workloads.</p>
+<p><strong>Skill caching for on-device agents</strong>: The paper demonstrates that a 464-token skill manual (160 MB of KV state) can be cached and restored byte-identically, enabling a model to route six of six tasks to the correct skill using only the cached state — without any in-context tokens from the skill at query time.</p>
+<p>The fundamental limitation for strict edge deployment is disk speed: restoring a cached block requires a disk read. On devices with fast NVMe storage, this is negligible; on devices with slower flash, it may introduce latency. Future work on compressed KV stores and streaming restore would help.</p>
+<h2>Links</h2>
+<p><a href="https://huggingface.co/papers/2607.14431">Original Paper</a></p>
+<script type="text/javascript">if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width < 768) ? "left" : align;
+        indent = (screen.width < 768) ? "0em" : indent;
+        linebreak = (screen.width < 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+
+    var configscript = document.createElement('script');
+    configscript.type = 'text/x-mathjax-config';
+    configscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'none' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        availableFonts: ['STIX', 'TeX']," +
+        "        preferredFont: 'STIX'," +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(configscript);
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+</script>
+    </article>
+
+        <div class="tags">
+            <p>tags: <a href="/tag/slm.html">SLM</a>, <a href="/tag/ai.html">AI</a>, <a href="/tag/paper-review.html">paper-review</a></p>
+        </div>
+
+    <hr>
+
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <ul class="list-inline text-center">
+                            <li>
+                                <a href="http://twitter.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-twitter fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="http://github.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-github fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                    </ul>
+<p class="copyright text-muted">
+    Blog powered by <a href="http://getpelican.com">Pelican</a>,
+    which takes great advantage of <a href="http://python.org">Python</a>. <br />        &copy;  toohsk
+</p>                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- jQuery -->
+    <script src="/theme/js/jquery.min.js"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="/theme/js/bootstrap.min.js"></script>
+
+        <!-- Custom Theme JavaScript -->
+        <script src="/theme/js/clean-blog.min.js"></script>
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-LR14KRYZ4L"></script>
+<script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-LR14KRYZ4L');
+</script>
+</body>
+
+</html>

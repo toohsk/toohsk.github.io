@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+            <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+        <title>Soofi S 30B-A3B：3Bのアクティブパラメータでフロンティア性能を実現するMamba-MoEハイブリッド</title>
+
+            <link href="/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Full Atom Feed" />
+            <link href="/feeds/{slug}.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Categories Atom Feed" />
+        <!-- Bootstrap Core CSS -->
+        <link href="/theme/css/bootstrap.min.css" rel="stylesheet">
+
+        <!-- Custom CSS -->
+        <link href="/theme/css/clean-blog.min.css" rel="stylesheet">
+
+        <!-- Code highlight color scheme -->
+            <link href="/theme/css/code_blocks/github.css" rel="stylesheet">
+
+
+        <!-- Custom Fonts -->
+        <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+        <link href='https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+        <link href='https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/css'>
+
+        <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+        <!--[if lt IE 9]>
+            <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+            <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+
+
+        <meta name="description" content="Soofi S 30B-A3BはMamba-MoEハイブリッドアーキテクチャにより、トークンごとに3Bのパラメータのみを活性化しながら密な14〜27Bモデルと同等の性能を達成し、長文脈での推論スループットを8〜9倍に向上させた。">
+
+        <meta name="author" content="toohsk">
+
+        <meta name="tags" content="SLM">
+        <meta name="tags" content="AI">
+        <meta name="tags" content="論文解説">
+
+	                <meta property="og:locale" content="">
+		<meta property="og:site_name" content="Atsushi's blog">
+
+	<meta property="og:type" content="article">
+            <meta property="article:author" content="/author/toohsk.html">
+	<meta property="og:url" content="/soofi-s-30b-a3b3bnoakuteibuparame-tadehuronteiaxing-neng-woshi-xian-surumamba-moehaiburitsudo.html">
+	<meta property="og:title" content="Soofi S 30B-A3B：3Bのアクティブパラメータでフロンティア性能を実現するMamba-MoEハイブリッド">
+	<meta property="article:published_time" content="2026-07-14 00:00:00+09:00">
+            <meta property="og:description" content="Soofi S 30B-A3BはMamba-MoEハイブリッドアーキテクチャにより、トークンごとに3Bのパラメータのみを活性化しながら密な14〜27Bモデルと同等の性能を達成し、長文脈での推論スループットを8〜9倍に向上させた。">
+
+            <meta property="og:image" content="/images/blog_cover.jpg">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:site" content="@toohsk">
+        <meta name="twitter:title" content="Soofi S 30B-A3B：3Bのアクティブパラメータでフロンティア性能を実現するMamba-MoEハイブリッド">
+
+            <meta name="twitter:image" content="/images/blog_cover.jpg">
+
+            <meta name="twitter:description" content="Soofi S 30B-A3BはMamba-MoEハイブリッドアーキテクチャにより、トークンごとに3Bのパラメータのみを活性化しながら密な14〜27Bモデルと同等の性能を達成し、長文脈での推論スループットを8〜9倍に向上させた。">
+</head>
+
+<body class="article-soofi-s-30b-a3b3bnoakuteibuparame-tadehuronteiaxing-neng-woshi-xian-surumamba-moehaiburitsudo">
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+        <div class="container-fluid">
+            <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header page-scroll">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="/">Atsushi's blog</a>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav navbar-right">
+
+                </ul>
+            </div>
+            <!-- /.navbar-collapse -->
+        </div>
+        <!-- /.container -->
+    </nav>
+
+    <!-- Page Header -->
+        <header class="intro-header" style="background-image: url('/images/blog_cover.jpg')">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <div class="post-heading">
+                        <h1>Soofi S 30B-A3B：3Bのアクティブパラメータでフロンティア性能を実現するMamba-MoEハイブリッド</h1>
+                        <span class="meta">Posted by
+                                <a href="/author/toohsk.html">toohsk</a>
+                             on 火 14 7月 2026
+                        </span>
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+    <!-- Post Content -->
+    <article>
+        <h2>なぜこの研究が重要か</h2>
+<p>言語モデルのデプロイメントコストは主に2つの要因で決まる：<strong>メモリ帯域幅</strong>（重みをメモリから計算ユニットへストリーミングする速度）と<strong>KVキャッシュメモリ</strong>（どれだけのコンテキストを処理できるか）だ。どちらもパラメータ数とシーケンス長に比例して増加し、大規模モデルの運用コストが高い理由がここにある。</p>
+<p>効率化の多くはパラメータ数を減らす方向に向く——より小さいモデル、プルーニング、量子化。しかし別の軸がある：モデルの<strong>総</strong>パラメータ数を大きくしつつ（ストレージコストは1回だけかかる）、各フォワードパスで活性化する<strong>一部</strong>のパラメータのみのコストで推論できるのだ。Mixture-of-Experts（MoE）アーキテクチャはトークンごとに一部のエキスパート層のみを通じてルーティングすることでこれを実現する。</p>
+<p>Soofi Sはこれをさらに<strong>Mamba-MoEハイブリッド</strong>設計で発展させる：52層のうち23層でMamba-2シーケンスミキシング（成長するKVキャッシュの代わりに固定サイズの再帰的状態を保持）、23層でスパースMoEフィードフォワード層（31.6Bパラメータのうち約3.2Bのみ活性化）、そしてたった6層のみで標準GQAアテンションを使用する。結果として：</p>
+<ul>
+<li><strong>トークンごとの計算コスト</strong>は~3Bパラメータのモデルに相当</li>
+<li><strong>重みのメモリコスト</strong>は31.6Bパラメータのモデルに相当（しかしデプロイメントごとに1回だけ）</li>
+<li><strong>KVキャッシュ</strong>はコンテキスト長が増えても<strong>ほぼ一定</strong>（52層中6層のみがアテンションを使用するため）</li>
+</ul>
+<p>最後の点がSoofi Sを密なトランスフォーマーと最も明確に区別する。バッチサイズ32で40Kコンテキスト長において、Soofi Sは密な14〜24Bモデルの<strong>8〜9倍のアグリゲートデコードスループット/GPU</strong>を達成する。これは限界的な効率改善ではなく、長文脈・高並列サービングを経済的に実現するアーキテクチャ特性だ。</p>
+<p>また、この論文の第2の貢献は同様に重要：完全な学習透明性だ。重みのみ公開で学習データの詳細を隠す公開モデルリリースとは異なり、Soofi Sは完全な事前学習コーパス統計（ソースごと・言語ごとのトークン数）、再現可能なデータ構築スクリプト、完全な学習率スケジュール、全ハイパーパラメータを公開する。</p>
+<h2>技術的なアプローチ</h2>
+<h3>Mamba-MoEハイブリッドアーキテクチャ</h3>
+<p>Soofi SはNemotron 3 Nanoリファレンスアーキテクチャをそのまま採用する。52層のネットワークは以下を交互に配置：</p>
+<ul>
+<li><strong>23層のMamba-2層</strong>：構造化状態空間モデルによるシーケンスミキシング。Mamba-2はセレクティブメカニズムを通じて各新しいトークンで更新される固定次元の再帰状態 <span class="math">\(h_t \in \mathbb{R}^d\)</span> を保持する：</li>
+</ul>
+<div class="math">$$h_t = A_t h_{t-1} + B_t x_t, \quad y_t = C_t h_t$$</div>
+<p>アテンションとは異なり、コンテキスト表現がシーケンス長で増加する代わりに、Mamba-2の状態はシーケンス長に関係なく常に <span class="math">\(d\)</span> 次元だ。これによりシーケンス状態のメモリフットプリントがコンテキスト長で<strong>一定</strong>になる。</p>
+<ul>
+<li>
+<p><strong>23層の粒状MoE層</strong>：スパースフィードフォワード層で、各トークンはエキスパートのサブセットにルーティングされる。総パラメータ~31.6Bのうちトークンごとに~3.2Bのみが活性化し、パラメータ予算の約10%がいつでも活性化している状態だ。</p>
+</li>
+<li>
+<p><strong>6層のGQAアテンション層</strong>：KVキャッシュを持つ標準グループクエリアテンション。ネットワークの深さ全体にまばらに分散配置。KVキャッシュを必要とするのはこれらの層だけで、52層中6層のみにより、完全アテンションベースモデルの約6/52≈11.5%の速度でKVキャッシュが増加する。</p>
+</li>
+</ul>
+<h3>KVキャッシュがなぜ長文脈サービングを支配するか</h3>
+<p><span class="math">\(L\)</span> 層の密なトランスフォーマーで、各層のキー・バリュー射影次元が <span class="math">\(d_{kv}\)</span> の場合、シーケンスあたりのKVキャッシュサイズは：</p>
+<div class="math">$$\text{KVキャッシュサイズ} = 2 \cdot L \cdot d_{kv} \cdot T \cdot \text{バイト/要素}$$</div>
+<p>ここで <span class="math">\(T\)</span> はシーケンス長だ。これはコンテキスト長で<strong>線形に増加</strong>する——100Kトークンのリクエストには1Kトークンリクエストの100倍のKVキャッシュメモリが必要だ。Soofi SはKVキャッシュ成長率を約9×削減し、40Kコンテキストではキャッシュが密なモデルの9×小さくなる。これが8〜9×のスループット優位に直接つながる。</p>
+<h3>3フェーズ学習カリキュラム</h3>
+<p>Soofi Sは3フェーズで26.68兆トークンのコーパスで学習される：</p>
+<ol>
+<li>
+<p><strong>フェーズ1：多様な事前学習</strong>（~20Tトークン）：幅広いドイツ語・英語の混合。ドイツ語の比率を意図的に高く設定。</p>
+</li>
+<li>
+<p><strong>フェーズ2：高品質アニーリング</strong>（~5T + 1.58Tトークン）：厳選された高品質サブセット。Warmup-Stable-Decay（WSD）学習率スケジュールを使用。</p>
+</li>
+<li>
+<p><strong>フェーズ3：長文脈拡張</strong>（~100Bトークン）：コンテキスト並列を使用した1Mトークンシーケンスでの学習。</p>
+</li>
+</ol>
+<h2>先行研究との比較</h2>
+<table>
+<thead>
+<tr>
+<th>モデル</th>
+<th>アクティブパラメータ</th>
+<th>KVキャッシュ成長</th>
+<th>40K-context TPS/GPU</th>
+<th>英語</th>
+<th>ドイツ語</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Llama-3.1-14B（密）</td>
+<td>14B</td>
+<td>線形</td>
+<td>~1×（基準）</td>
+<td>~83</td>
+<td>~71</td>
+</tr>
+<tr>
+<td>Qwen3-30B-A3B（MoE）</td>
+<td>3Bアクティブ</td>
+<td>線形（完全アテンション）</td>
+<td>~2–3×</td>
+<td>~86</td>
+<td>~78</td>
+</tr>
+<tr>
+<td><strong>Soofi S 30B-A3B</strong></td>
+<td>3.2Bアクティブ</td>
+<td><strong>ほぼ一定</strong></td>
+<td><strong>8–9×</strong></td>
+<td><strong>~90</strong></td>
+<td><strong>~83</strong></td>
+</tr>
+<tr>
+<td>OLMo 3 32B（密）</td>
+<td>32B</td>
+<td>線形</td>
+<td>&lt;1×</td>
+<td>~85</td>
+<td>~77</td>
+</tr>
+</tbody>
+</table>
+<p>他のMoEモデル（Qwen3-30B-A3Bなど）との主な差別化はMamba-2層だ：純粋なMoEモデルはシーケンスミキシングに完全アテンションを使用するため、KVキャッシュは線形に成長する。Soofi Sのハイブリッド設計はMamba層がKVキャッシュなしで大部分のシーケンスミキシングを処理するためにほぼ一定のキャッシュを実現する。</p>
+<h2>実験結果の読み方</h2>
+<p><strong>ケイパビリティインデックス</strong>（コード、GSM8K、GPQA-Diamond、英語、ドイツ語ベンチマークの平均）：
+- Soofi Sは完全公開モデルの中で最高のケイパビリティインデックスを達成（OLMo 3 32BとApertus 70Bを上回る）
+- 密な14〜27Bモデルと同等の性能を4〜9×少ないアクティブパラメータで達成</p>
+<p><strong>長文脈サービング効率</strong>：
+- 40Kコンテキスト、バッチ32：密な14〜24Bモデルと比べて8〜9×のアグリゲートデコードTPS/GPU
+- スループット優位は<strong>コンテキストでスケール不変</strong>：4Kから256Kトークンへのコンテキスト増加で、Soofi Sはほぼ一定のデコードTPSを維持、密なモデルはほぼ線形に劣化</p>
+<h2>アルゴリズムの重要部分の解説</h2>
+<h3>Mamba-2がなぜ定常状態シーケンスミキシングを実現できるか</h3>
+<p>Mamba-2はセレクティブメカニズムを持つ構造化状態空間モデル（SSM）だ。状態方程式は：</p>
+<div class="math">$$h_t = \bar{A} h_{t-1} + \bar{B} x_t$$</div>
+<div class="math">$$y_t = C h_t$$</div>
+<p>ここで <span class="math">\(\bar{A}\)</span> と <span class="math">\(\bar{B}\)</span> は学習された射影によって現在の入力 <span class="math">\(x_t\)</span> から計算される入力依存（選択的）な遷移行列だ。重要な特性：状態 <span class="math">\(h_t \in \mathbb{R}^{N \times d}\)</span> の次元はシーケンス長 <span class="math">\(t\)</span> に関係なく固定されている。どれだけ多くのトークンが処理されていても、「記憶」は常に固定サイズの行列だ。</p>
+<p><strong>この式が何を意味するか</strong>：<span class="math">\(\bar{A}\)</span> はどれだけ過去の状態を記憶するかを制御し、<span class="math">\(\bar{B}\)</span> は現在の入力をどれだけ取り込むかを制御する。重要なのは<strong>これらが入力 <span class="math">\(x_t\)</span> の関数</strong>であることだ——モデルは各タイムステップで「何を覚え、何を忘れるか」を動的に決定できる。</p>
+<p>通常のRNNとの違い：通常のRNNも固定サイズの状態を持つが、遷移行列が固定（入力非依存）のため、長距離依存関係の学習が困難だ。Mamba-2のセレクティビティこそがアテンションと同等の言語モデリング性能を可能にしている。</p>
+<p><strong>効率面の直観</strong>：Mamba-2でのトークン生成は、これまでに何トークン生成されたかに関わらず一定時間の状態更新だけで済む<span class="math">\((h_t \leftarrow \bar{A}h_{t-1} + \bar{B}x_t)\)</span>。アテンションでは次のトークン生成に以前の全トークンへのアテンションが必要（O(T)の計算とKVキャッシュのO(T)メモリ）。T=100Kでこの差は膨大だ。</p>
+<h3>粒状MoEとエキスパートルーティングメカニズム</h3>
+<p>MoE層はゲーティングネットワーク（ルータ）を使用して各入力トークンをエキスパートのサブセットに割り当てる：</p>
+<div class="math">$$y = \sum_{i \in \text{TopK}(g(x))} g_i(x) \cdot E_i(x)$$</div>
+<p>ここで <span class="math">\(g(x)\)</span> はルーティングスコア、<span class="math">\(\text{TopK}\)</span> はスコアで上位 <span class="math">\(k\)</span> エキスパートを選択し、<span class="math">\(E_i\)</span> は <span class="math">\(i\)</span> 番目のエキスパートネットワークだ。</p>
+<p>「粒状（granular）」MoEは少数の大きなエキスパートよりも多数の小さなエキスパートを使うことを意味する。これにより：
+1. ルータは入力ごとにどの回路を活性化するかより細かく制御できる
+2. エキスパート利用がより均一になる（一部のエキスパートが支配的になる「エキスパート崩壊」が減少）
+3. 有効パラメータ数がよりスムーズにスケールする</p>
+<p>共有エキスパート変形（Soofi SがNemotron 3 Nanoの設計に従って使用）は各層に常時アクティブなエキスパートを追加して一般的なパターンを処理し、ルーティングされたエキスパートが特化したコンテンツを処理する。これにより、ルーティングメカニズムが基本機能のためにすべてのトークンをエキスパートにルーティングする必要がなくなる。</p>
+<h3>ハイブリッド設計のトレードオフ</h3>
+<p><strong>Mamba-2（シーケンスミキシング）</strong>：長距離トークン依存関係を効率的に処理するが、状態が有界（有限容量）。遠いトークンの正確な想起を必要とするタスクでは完全アテンションに対して制限がある。</p>
+<p><strong>6層GQAアテンション</strong>：最も重要な層で正確で無制限のアテンションを提供。ネットワーク深さ全体への6層のGQAの分散配置はNemotron 3 Nanoからの設計選択で、著者はそのまま採用している。</p>
+<p><strong>MoE（フィードフォワード容量）</strong>：低いトークンごとの計算コスト（3.2Bアクティブ）で大きな総パラメータ容量（31.6B）を提供。エキスパートルーティングのall-to-all通信が学習で使用する特定の相互接続トポロジーを動機づけるボトルネックだ。</p>
+<h2>限界と課題</h2>
+<ol>
+<li>
+<p><strong>KVキャッシュが完全には排除されない</strong>：6層のGQA層は依然としてシーケンス長で成長するKVキャッシュストレージを必要とする。非常に長いコンテキスト（&gt;1Mトークン）では再びボトルネックになるが、完全アテンションモデルよりはるかに小さいスケールで。</p>
+</li>
+<li>
+<p><strong>エキスパートルーティング通信オーバーヘッド</strong>：学習・推論中のall-to-all通信はバッチサイズとエキスパート数に比例したレイテンシを導入する。これが粒状MoEを密なモデルより展開が難しくする主な理由だ。</p>
+</li>
+<li>
+<p><strong>命令チューニングなし</strong>：論文はベース（事前学習済み）モデルのみを提示。命令に従う能力には追加のSFTとアライメント学習が必要で、効率プロファイルが変わる可能性がある。</p>
+</li>
+<li>
+<p><strong>ドイツ語・英語への集中</strong>：この2言語での強力な性能はその他の言語のための容量を犠牲にしている可能性がある。</p>
+</li>
+<li>
+<p><strong>Mamba-2のコンテキスト制限</strong>：固定状態のMamba-2アーキテクチャは長距離想起のための有限容量を持つ。非常に長いコンテキストからの逐語的な取得を必要とするタスクでは6層のアテンション層では不十分かもしれない。</p>
+</li>
+</ol>
+<h2>今後の展望</h2>
+<p><strong>著者が示す方向性</strong>：
+- SFTとアライメント（命令チューニングバリアント）
+- 他のヨーロッパ言語への拡張</p>
+<p><strong>さらなる発展的研究方向</strong>：
+- <strong>3Bアクティブパラメータ推論パスのオンデバイス展開</strong>：トークンごとの計算は3B密なモデルと一致する。4ビット量子化（重み）でストレージコストは~16GBになり、統合メモリのコンシューマハードウェア（Mシリーズのマック、ハイエンドモバイルAPU）への展開が可能かもしれない
+- <strong>Mamba-MoEハイブリッドの専用SLMサイズへの拡張</strong>：アーキテクチャ原則（シーケンスミキシングにMamba、容量にスパースMoE、最小アテンション）を3〜7Bの総パラメータを持つモデルに適用すれば、アクティブパラメータは500M〜1Bの範囲になり、組み込みデバイスへの展開が現実的になる
+- <strong>スパース活性化の電力効率測定</strong>：アーキテクチャ効率の主張はスループット（TPS/GPU）で測定されている。エッジハードウェアでの電力効率（1ジュールあたりのトークン数）への変換が実際のオンデバイス展開決定により直接関連する</p>
+<h2>エッジ・オンデバイスへの示唆</h2>
+<p><strong>3Bのアクティブパラメータフットプリントがオンデバイス実現可能性の鍵指標だ。</strong>自己回帰生成の推論レイテンシと消費電力はトークンごとの計算で支配され、それは総パラメータではなく<strong>アクティブ</strong>パラメータとともにスケールする。Soofi Sの3.2Bアクティブパラメータは31.6Bの総パラメータにもかかわらず3Bモデルの推論プロファイルを与える。</p>
+<p><strong>4ビット量子化で重みストレージが~16GBに低下する。</strong>これはプレミアムワークステーション、ハイメモリモバイルワークステーション、エッジ推論サーバーの範囲内だ。まだスマートフォンクラスではないが、密なフロンティアモデルに必要な70GB+からの実質的な改善だ。</p>
+<p><strong>一定KVキャッシュはマルチターンのオンデバイス推論に決定的だ。</strong>オンデバイスアシスタントは長い会話履歴を維持することが多い。完全アテンションモデルでは10,000トークンの会話は1,000トークンの会話の10倍のメモリを必要とする。Soofi Sのほぼ一定なKVキャッシュ増加は、メモリ使用量が会話履歴の長さとほぼ独立していることを意味し、持続的なオンデバイス展開のための重要な特性だ。</p>
+<p><strong>アーキテクチャの洞察は一般化できる。</strong>Soofi Sが示したエンジニアリング原則——大部分のシーケンスミキシングにSSM層を使用し、少数の層のみに完全アテンションを予約する——は目的特化型SLMに適用できる。この設計に従った7Bの総パラメータを持つモデルはトークンごとに700M〜1Bのアクティブパラメータを持つ可能性があり、今日のオンデバイスAIチップの範囲内に確実に収まる。</p>
+<h2>原文リンク</h2>
+<p><a href="https://arxiv.org/abs/2607.09424">Original Paper</a></p>
+<script type="text/javascript">if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width < 768) ? "left" : align;
+        indent = (screen.width < 768) ? "0em" : indent;
+        linebreak = (screen.width < 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+
+    var configscript = document.createElement('script');
+    configscript.type = 'text/x-mathjax-config';
+    configscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'none' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        availableFonts: ['STIX', 'TeX']," +
+        "        preferredFont: 'STIX'," +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(configscript);
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+</script>
+    </article>
+
+        <div class="tags">
+            <p>tags: <a href="/tag/slm.html">SLM</a>, <a href="/tag/ai.html">AI</a>, <a href="/tag/lun-wen-jie-shuo.html">論文解説</a></p>
+        </div>
+
+    <hr>
+
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <ul class="list-inline text-center">
+                            <li>
+                                <a href="http://twitter.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-twitter fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="http://github.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-github fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                    </ul>
+<p class="copyright text-muted">
+    Blog powered by <a href="http://getpelican.com">Pelican</a>,
+    which takes great advantage of <a href="http://python.org">Python</a>. <br />        &copy;  toohsk
+</p>                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- jQuery -->
+    <script src="/theme/js/jquery.min.js"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="/theme/js/bootstrap.min.js"></script>
+
+        <!-- Custom Theme JavaScript -->
+        <script src="/theme/js/clean-blog.min.js"></script>
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-LR14KRYZ4L"></script>
+<script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-LR14KRYZ4L');
+</script>
+</body>
+
+</html>
