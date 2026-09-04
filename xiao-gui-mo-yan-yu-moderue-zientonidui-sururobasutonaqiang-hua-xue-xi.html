@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+            <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+        <title>小規模言語モデルエージェントに対するロバストな強化学習</title>
+
+            <link href="/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Full Atom Feed" />
+            <link href="/feeds/{slug}.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Categories Atom Feed" />
+        <!-- Bootstrap Core CSS -->
+        <link href="/theme/css/bootstrap.min.css" rel="stylesheet">
+
+        <!-- Custom CSS -->
+        <link href="/theme/css/clean-blog.min.css" rel="stylesheet">
+
+        <!-- Code highlight color scheme -->
+            <link href="/theme/css/code_blocks/github.css" rel="stylesheet">
+
+
+        <!-- Custom Fonts -->
+        <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+        <link href='https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+        <link href='https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/css'>
+
+        <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+        <!--[if lt IE 9]>
+            <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+            <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+
+
+        <meta name="description" content="70〜500Mパラメータ規模のSLMにおけるPPOの失敗原因を体系的に特定し、3層の安全機構で解決することで、オンデバイスLLMへの古典的RLHF適用を可能にした研究。">
+
+        <meta name="author" content="toohsk">
+
+        <meta name="tags" content="SLM">
+        <meta name="tags" content="AI">
+        <meta name="tags" content="論文解説">
+
+	                <meta property="og:locale" content="">
+		<meta property="og:site_name" content="Atsushi's blog">
+
+	<meta property="og:type" content="article">
+            <meta property="article:author" content="/author/toohsk.html">
+	<meta property="og:url" content="/xiao-gui-mo-yan-yu-moderue-zientonidui-sururobasutonaqiang-hua-xue-xi.html">
+	<meta property="og:title" content="小規模言語モデルエージェントに対するロバストな強化学習">
+	<meta property="article:published_time" content="2026-07-30 00:00:00+09:00">
+            <meta property="og:description" content="70〜500Mパラメータ規模のSLMにおけるPPOの失敗原因を体系的に特定し、3層の安全機構で解決することで、オンデバイスLLMへの古典的RLHF適用を可能にした研究。">
+
+            <meta property="og:image" content="/images/blog_cover.jpg">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:site" content="@toohsk">
+        <meta name="twitter:title" content="小規模言語モデルエージェントに対するロバストな強化学習">
+
+            <meta name="twitter:image" content="/images/blog_cover.jpg">
+
+            <meta name="twitter:description" content="70〜500Mパラメータ規模のSLMにおけるPPOの失敗原因を体系的に特定し、3層の安全機構で解決することで、オンデバイスLLMへの古典的RLHF適用を可能にした研究。">
+</head>
+
+<body class="article-xiao-gui-mo-yan-yu-moderue-zientonidui-sururobasutonaqiang-hua-xue-xi">
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+        <div class="container-fluid">
+            <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header page-scroll">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="/">Atsushi's blog</a>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav navbar-right">
+
+                </ul>
+            </div>
+            <!-- /.navbar-collapse -->
+        </div>
+        <!-- /.container -->
+    </nav>
+
+    <!-- Page Header -->
+        <header class="intro-header" style="background-image: url('/images/blog_cover.jpg')">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <div class="post-heading">
+                        <h1>小規模言語モデルエージェントに対するロバストな強化学習</h1>
+                        <span class="meta">Posted by
+                                <a href="/author/toohsk.html">toohsk</a>
+                             on 木 30 7月 2026
+                        </span>
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+    <!-- Post Content -->
+    <article>
+        <h2>なぜこの研究が重要か</h2>
+<p>RLHF（人間のフィードバックによる強化学習）における PPO（Proximal Policy Optimization）は、大規模言語モデルのアライメントの定番手法だ。しかし 70〜500M パラメータ規模——スマートフォンや組み込みデバイスで動作する SLM（Small Language Model）——においては、「PPO は不安定すぎて使えない」という通説があり、現場では SFT（教師ありファインチューニング）や DPO などの手法に逃げるのが通例だった。</p>
+<p>問題は診断の透明性だ。報酬モデルをパイプラインから外すと、「なぜモデルが改善しているのか、していないのか」を示すスカラー信号が失われる。制約のあるハードウェアに展開するエージェントシステムでは、このフィードバックループは学習ツールであると同時にモニタリング手段でもある。</p>
+<p>この論文は新しいオプティマイザを提案しない。代わりに「PPO が SLM スケールで実際に失敗する理由は何か、そしてその失敗は修正できるか？」という問いに答える。答えは「はい」——3つの具体的かつ再現可能なエンジニアリング修正によって、135M パラメータ程度のモデルでも古典的な PPO が機能するようになる。</p>
+<h2>技術的なアプローチ</h2>
+<h3>3つの失敗モードと3つの修正</h3>
+<p>著者らは 15 の（モデル、コーパス）組み合わせを SFT → 報酬モデル → PPO の完全なパイプラインで学習し、すべてのハイパーパラメータを固定して実験を行う。この制御されたスイープによって、SLM スケール特有の 3 つの失敗モードが明らかになった。</p>
+<p><strong>失敗モード I: LoRA 勾配フローのサイレントな遮断</strong></p>
+<p>TRL（Transformer Reinforcement Learning）ライブラリで LoRA と PEFT を組み合わせると、アダプタパラメータが PPO 学習ループ中にサイレントに非学習可能とマークされる場合がある。モデルはロールアウトを生成して損失を計算するが、LoRA 重みへの勾配が流れないため、方策分布は変化しない。</p>
+<p>修正は<strong>マージ・再初期化法</strong>：
+1. SFT LoRA アダプタをベースモデルの重みにマージ
+2. ゼロ初期化の新しい LoRA アダプタをアタッチ
+3. マージ済み重みを学習可能な方策と冷凍参照方策 π_SFT の両方として使用</p>
+<p><strong>失敗モード II: 重要度比計算における bfloat16 の数値オーバーフロー</strong></p>
+<p>PPO の核心信号は重要度比だ：</p>
+<div class="math">$$\rho_t = \exp\!\bigl(\log\pi_\theta(a_t|s_t) - \log\pi_{\text{ref}}(a_t|s_t)\bigr)$$</div>
+<p>方策と参照方策が近い確率を割り当てる場合（PPO 初期には頻繁に起きる）、2 つの対数確率は絶対値が大きく互いに近い値になる。bfloat16（仮数部 7 ビット）ではその差の精度が失われ——<strong>桁落ち（catastrophic cancellation）</strong>——重要度比が 10^6 を超えてハードウェア例外が発生する。</p>
+<p>この問題は特に 200M パラメータ未満のモデルで顕著に現れる。浅いネットワークはより集中した確率分布を生成するため、桁落ち問題が悪化する。</p>
+<p>修正はシンプル：<strong>PPO ループのすべてのテンソルを float32 で演算する</strong>。SFT と報酬モデルの学習は bfloat16 のままでよい。</p>
+<p><strong>失敗モード III: 分布的崩壊</strong></p>
+<p>長い裾を持つ報酬分布にクリッピングされていない KL ペナルティが組み合わさると、方策が参照モデルの確率がほぼゼロの領域に押しやられ、非整合な出力を生成するようになる。</p>
+<p>修正は<strong>3 層の安全機構</strong>：
+- 報酬のホワイトニング（バッチ内正規化 + 3σクリッピング）
+- 重要度比しきい値ガード（ミニバッチの平均 ρ &gt; 5 なら更新をスキップ）
+- 重みロールバック（オプティマイザステップ前にスナップショットを保存、NaN/Inf 検出時に復元）</p>
+<h3>キャパシティ・ヘッドルーム仮説</h3>
+<p>論文の理論的貢献として、<strong>「SFT 事前分布が流暢（PPL &lt; 20）かつ報酬信号が識別的である場合にのみ PPO は改善をもたらす」</strong> というキャパシティ・ヘッドルーム仮説が提案される。</p>
+<p>モデルのパラメータ数だけでは PPO の成功を予測できない。TinyStories で PPL = 7.0 の 135M SmolLM2 は成功し、CNN/DailyMail で PPL = 70.3 の 160M Pythia は失敗する。鍵となるのは SFT チェックポイントがすでに流暢なテキストを生成しているかどうか——RL が言語流暢性と同時に戦わずに済む「ヘッドルーム」が必要だということだ。</p>
+<h2>先行研究との比較</h2>
+<p>SLM スケールのアライメント研究は SFT または DPO/KTO/GRPO などの報酬モデルを排除した手法に偏っている。PPO の安定性に関する大規模での研究（InstructGPT、Llama 2 RLHF）は存在するが、500M 未満のスケールでの失敗メカニズムの体系的調査はこれが初めてだ。</p>
+<p>公開されているインストラクション調整済みベースラインとの比較では、提案パイプラインは SmolLM2-Instruct や Qwen2.5-Instruct と同等の性能をわずか 10K サンプルで達成する——報酬信号が嗜好のギャップを正確に検出して改善を集中させるからだ。</p>
+<h2>実験結果の読み方</h2>
+<p>主要な結果：</p>
+<ul>
+<li><strong>Pythia-410M（TinyStories）</strong>: Δ = +1.355、勝率 59.9%、95% CI [+0.61, +2.10]、p &lt; 0.001</li>
+<li><strong>SmolLM2-360M（TinyStories）</strong>: Δ = +0.724、勝率 59.7%、95% CI [+0.32, +1.13]、p &lt; 0.001</li>
+<li><strong>SmolLM2-360M（Wikitext-103）</strong>: Δ = +0.274、p &lt; 0.05</li>
+</ul>
+<p>3 つの設定で統計的に有意な改善が確認された。唯一の有意な回帰は Pythia-410M（Wikitext-103）の Δ = -1.043（p &lt; 0.001）。この設定の SFT PPL = 25.4 は流暢性閾値 PPL &lt; 20 を超えており、キャパシティ・ヘッドルーム仮説と一致する。</p>
+<p>勝率は Φ(Δ / √(σ²_PPO + σ²_SFT)) として解析的に計算される。勝率 59.9% は、ヘッドトゥヘッドの比較で PPO モデルが SFT モデルより高いスコアの回答を生成する確率が約 60% であることを意味する。</p>
+<h2>アルゴリズムの重要部分の解説</h2>
+<h3>PPO 目標関数の構造</h3>
+<div class="math">$$J(\theta) = \mathbb{E}_{p \sim \mathcal{D},\, y \sim \pi_\theta(\cdot|p)}\!\bigl[r_\phi(p, y) - \beta\,\mathrm{KL}\!\bigl(\pi_\theta(\cdot|p)\,\|\,\pi_\text{SFT}(\cdot|p)\bigr)\bigr]$$</div>
+<p>第一項は学習した報酬モデル r_φ の下で高スコアを獲得する報酬。第二項は SFT 事前分布からの逸脱にペナルティを与え、報酬ハッキング（報酬モデルを予期しない方法で最適化すること）を防ぐ。</p>
+<p>KL 項には<strong>逆方向（モード探索）KL</strong>が使われる。これは新しい方策が SFT 事前確率の低い領域にマスを割り当てることにペナルティを与える。SLM スケールでは、β が小さすぎると崩壊が起き、大きすぎると学習が止まる——このバランスが SLM 特有の困難さだ。</p>
+<h3>Bradley–Terry 報酬モデル</h3>
+<div class="math">$$\mathcal{L}_\text{RM}(\phi) = -\mathbb{E}_{(p, y^w, y^l) \sim \mathcal{D}_\text{RM}}\!\bigl[\log \sigma\bigl(r_\phi(p, y^w) - r_\phi(p, y^l)\bigr)\bigr]$$</div>
+<p>この損失はシンプルだが深い意味を持つ。σ はシグモイド関数で、スコア差をスコア yʷ が好まれる確率に変換する。重要なのは<strong>加法的不変性</strong>：すべてのスコアを定数 c だけシフトしても損失は変わらない。なぜなら差だけが重要だから。これが異なる設定間で絶対スコアを比較できない理由だ。</p>
+<h3>マージ・再初期化アルゴリズムの意味</h3>
+<p>アルゴリズム 1 の核心的な洞察：SFT アダプタをベースモデルにマージした後、ゼロ初期化の新しい LoRA（BA = 0）を取り付ける。PPO の第 0 ステップでは新アダプタは何も加算しないので、方策は正確に π_SFT となる。冷凍参照方策も同じく π_SFT であるため、PPO 開始時の KL ペナルティはゼロから始まる。これは RLHF の数学的に正しい初期化であり、他のアプローチは学習開始時に「幻のKL」を導入してしまう。</p>
+<h2>限界と課題</h2>
+<ul>
+<li><strong>シングルターン評価のみ</strong>: 15 設定の研究は T=1（1 ターン MDP）を使用。マルチターンのエージェント的フレームワークはコードとして公開されているが、本論文では評価されていない</li>
+<li><strong>合成嗜好データ</strong>: 嗜好ペアは人間の評価者ではなく劣化戦略（切り詰め、シャッフル、不一致）で生成</li>
+<li><strong>固定ハイパーパラメータ</strong>: 失敗モード分析のためにすべての設定で意図的に固定。モデルごとのチューニングはより良い結果をもたらすが分析が難しくなる</li>
+<li><strong>2 つのアーキテクチャのみ</strong>: Pythia（GPT-NeoX）と SmolLM2（Llama）のみ。他のアーキテクチャへの一般化は未検証</li>
+</ul>
+<h2>今後の展望</h2>
+<p>著者が示唆する方向：
+- マルチターンエージェント的インタラクション（ツール呼び出し、多段対話）への拡張
+- 合成劣化ではなく実際の品質判断に基づく報酬モデル</p>
+<p>この研究から派生する発展的方向性：
+- <strong>選択的混合精度 PPO</strong>: オーバーフローリスクが高い箇所だけ float32 を使用し、メモリを節約しつつ安定性を維持
+- <strong>PPO 中の適応的 LoRA ランク拡張</strong>: マージ・再初期化トリックを応用してランクを動的に増加させる機構
+- <strong>蒸留ウォームスタートから PPO へ</strong>: 教師モデルで SFT データを生成して流暢性閾値を確実に満たしてから RLHF を開始する</p>
+<h2>エッジ・オンデバイスへの示唆</h2>
+<ul>
+<li><strong>PPO は 500M 未満のモデルでも実用的</strong>——3 つの修正を実装すれば。明示的な報酬信号を諦める必要はない</li>
+<li><strong>RLHF 開始前に SFT PPL を確認する</strong>。PPL &lt; 20 の閾値が実用的な go/no-go 基準。SFT モデルがまだ流暢性に苦しんでいるなら、RL は助けにならない</li>
+<li><strong>PPO テンソルには float32 を使う</strong>。70〜500M モデルでは float32 vs bfloat16 のメモリコストは 140MB〜1GB の差——現代のエッジデバイスで十分管理可能</li>
+<li><strong>報酬モデルは監視手段でもある</strong>。新しいユーザーやドメインに適応する必要があるオンデバイスエージェントには、方策とは独立してログ取得・デバッグ・更新できる明示的な報酬信号が有効</li>
+<li>計算コストは <strong>2× RTX A6000 で約 16 GPU 時間</strong>——大学の研究室や小規模な AI チームでも実行可能</li>
+</ul>
+<h2>原文リンク</h2>
+<p><a href="https://arxiv.org/abs/2607.25091">Original Paper</a></p>
+<script type="text/javascript">if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width < 768) ? "left" : align;
+        indent = (screen.width < 768) ? "0em" : indent;
+        linebreak = (screen.width < 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+
+    var configscript = document.createElement('script');
+    configscript.type = 'text/x-mathjax-config';
+    configscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'none' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        availableFonts: ['STIX', 'TeX']," +
+        "        preferredFont: 'STIX'," +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(configscript);
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+</script>
+    </article>
+
+        <div class="tags">
+            <p>tags: <a href="/tag/slm.html">SLM</a>, <a href="/tag/ai.html">AI</a>, <a href="/tag/lun-wen-jie-shuo.html">論文解説</a></p>
+        </div>
+
+    <hr>
+
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <ul class="list-inline text-center">
+                            <li>
+                                <a href="http://twitter.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-twitter fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="http://github.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-github fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                    </ul>
+<p class="copyright text-muted">
+    Blog powered by <a href="http://getpelican.com">Pelican</a>,
+    which takes great advantage of <a href="http://python.org">Python</a>. <br />        &copy;  toohsk
+</p>                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- jQuery -->
+    <script src="/theme/js/jquery.min.js"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="/theme/js/bootstrap.min.js"></script>
+
+        <!-- Custom Theme JavaScript -->
+        <script src="/theme/js/clean-blog.min.js"></script>
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-LR14KRYZ4L"></script>
+<script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-LR14KRYZ4L');
+</script>
+</body>
+
+</html>

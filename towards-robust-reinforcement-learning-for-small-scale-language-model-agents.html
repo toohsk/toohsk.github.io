@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+            <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+        <title>Towards Robust Reinforcement Learning for Small-Scale Language Model Agents</title>
+
+            <link href="/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Full Atom Feed" />
+            <link href="/feeds/{slug}.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Categories Atom Feed" />
+        <!-- Bootstrap Core CSS -->
+        <link href="/theme/css/bootstrap.min.css" rel="stylesheet">
+
+        <!-- Custom CSS -->
+        <link href="/theme/css/clean-blog.min.css" rel="stylesheet">
+
+        <!-- Code highlight color scheme -->
+            <link href="/theme/css/code_blocks/github.css" rel="stylesheet">
+
+
+        <!-- Custom Fonts -->
+        <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+        <link href='https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+        <link href='https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/css'>
+
+        <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+        <!--[if lt IE 9]>
+            <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+            <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+
+
+        <meta name="description" content="A systematic study of PPO training failures in 70–500M parameter SLMs reveals three reproducible failure modes and fixes them with a...">
+
+        <meta name="author" content="toohsk">
+
+        <meta name="tags" content="SLM">
+        <meta name="tags" content="AI">
+        <meta name="tags" content="paper-review">
+
+	                <meta property="og:locale" content="">
+		<meta property="og:site_name" content="Atsushi's blog">
+
+	<meta property="og:type" content="article">
+            <meta property="article:author" content="/author/toohsk.html">
+	<meta property="og:url" content="/towards-robust-reinforcement-learning-for-small-scale-language-model-agents.html">
+	<meta property="og:title" content="Towards Robust Reinforcement Learning for Small-Scale Language Model Agents">
+	<meta property="article:published_time" content="2026-07-30 00:00:00+09:00">
+            <meta property="og:description" content="A systematic study of PPO training failures in 70–500M parameter SLMs reveals three reproducible failure modes and fixes them with a...">
+
+            <meta property="og:image" content="/images/blog_cover.jpg">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:site" content="@toohsk">
+        <meta name="twitter:title" content="Towards Robust Reinforcement Learning for Small-Scale Language Model Agents">
+
+            <meta name="twitter:image" content="/images/blog_cover.jpg">
+
+            <meta name="twitter:description" content="A systematic study of PPO training failures in 70–500M parameter SLMs reveals three reproducible failure modes and fixes them with a...">
+</head>
+
+<body class="article-towards-robust-reinforcement-learning-for-small-scale-language-model-agents">
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+        <div class="container-fluid">
+            <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header page-scroll">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="/">Atsushi's blog</a>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav navbar-right">
+
+                </ul>
+            </div>
+            <!-- /.navbar-collapse -->
+        </div>
+        <!-- /.container -->
+    </nav>
+
+    <!-- Page Header -->
+        <header class="intro-header" style="background-image: url('/images/blog_cover.jpg')">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <div class="post-heading">
+                        <h1>Towards Robust Reinforcement Learning for Small-Scale Language Model Agents</h1>
+                        <span class="meta">Posted by
+                                <a href="/author/toohsk.html">toohsk</a>
+                             on 木 30 7月 2026
+                        </span>
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+    <!-- Post Content -->
+    <article>
+        <h2>Why This Paper Matters</h2>
+<p>Reinforcement Learning from Human Feedback (RLHF) with Proximal Policy Optimization (PPO) is the dominant alignment recipe for large language models. But at the small-model end — models with 70 to 500 million parameters that fit on a smartphone or embedded device — PPO has long been treated as "too unstable to use," and practitioners fall back to supervised fine-tuning (SFT) or preference-learning methods like DPO that sidestep the explicit RL loop.</p>
+<p>The problem with that workaround is diagnostic transparency. When you remove the reward model from the pipeline, you lose the explicit scalar signal that tells you <em>why</em> the model is or isn't improving. For agentic systems deployed on constrained hardware, that feedback loop matters: a reward model is both a training tool and a monitoring instrument.</p>
+<p>This paper does not propose a new optimizer. Instead, it asks: <strong>why does PPO actually fail at the SLM scale, and can those failures be fixed?</strong> The answer is yes — and the paper delivers three concrete, reproducible engineering fixes that make classical PPO work on models as small as 135M parameters.</p>
+<h2>Core Technical Contribution</h2>
+<h3>Three Failure Modes, Three Fixes</h3>
+<p>The authors train 15 (model, corpus) configurations through a full SFT → reward model → PPO pipeline, holding all hyperparameters constant. This controlled sweep reveals three failure modes that are specific to the small-scale regime.</p>
+<p><strong>Failure Mode I: Silent LoRA Gradient Freezing</strong></p>
+<p>When using PEFT (Parameter-Efficient Fine-Tuning) with LoRA in the TRL (Transformer Reinforcement Learning) library, adapter parameters can be silently marked as non-trainable during the PPO training loop. The model generates rollouts, computes the loss, and appears to run — but the underlying distribution never changes because no gradients flow to the LoRA weights.</p>
+<p>The fix is a <strong>merge-and-reinitialize</strong> procedure:
+1. Merge the SFT LoRA adapter into the base model weights
+2. Attach a fresh, zero-initialized LoRA adapter
+3. Use the merged weights as both the trainable policy and the frozen reference policy π_SFT</p>
+<p>This ensures all LoRA parameters are properly trainable from the start of PPO.</p>
+<p><strong>Failure Mode II: bfloat16 Numerical Overflow in Importance Ratios</strong></p>
+<p>PPO's core signal is the importance ratio:</p>
+<div class="math">$$\rho_t = \exp\!\bigl(\log\pi_\theta(a_t|s_t) - \log\pi_{\text{ref}}(a_t|s_t)\bigr)$$</div>
+<p>When the policy and reference policy assign similar probabilities (which is common early in PPO), the two log-probabilities are close in magnitude. In bfloat16 (7-bit mantissa), their difference suffers catastrophic cancellation — the precision is simply insufficient to represent small differences between similar large values. The result: importance ratios that overflow to 10^6 or beyond, causing hardware-level exceptions.</p>
+<p>This only manifests in models with fewer than ~200M parameters, where the shallower networks produce sharper, more concentrated probability distributions, making the cancellation problem worse.</p>
+<p>The fix is simple: <strong>use float32 precision for all PPO loop tensors</strong> — policy, reference model, value head, and reward model. SFT and reward model training can remain in bfloat16.</p>
+<p><strong>Failure Mode III: Catastrophic Policy Collapse</strong></p>
+<p>Long-tailed reward distributions combined with unclipped KL penalties can drive the policy toward regions where the reference model assigns near-zero probability, producing incoherent output. Advantage estimates that far exceed the PPO clip range ε = 0.2 give the optimizer room to make extreme policy updates.</p>
+<p>The fix is a <strong>three-layer safety mechanism</strong>:
+- Reward whitening with 3σ clipping: normalize rewards within each batch and clip outliers
+- Importance-ratio threshold guard: skip any mini-batch where the mean importance ratio exceeds 5.0
+- Weight rollback: save trainable parameters before each optimizer step and restore from the last-good snapshot on any NaN/Inf detection</p>
+<h3>The Capacity-Headroom Hypothesis</h3>
+<p>Beyond fixing the failure modes, the paper proposes and validates a principled criterion for predicting when PPO will succeed at the SLM scale: <strong>PPO improves performance if and only if the SFT prior is fluent (PPL &lt; 20) and the reward signal is discriminative.</strong></p>
+<p>Model parameter count alone does not predict PPO success. A 135M SmolLM2 model (Llama architecture, RoPE, SwiGLU) with PPL = 7.0 on TinyStories succeeds. A 160M Pythia model with PPL = 70.3 on CNN/DailyMail fails. The key variable is whether the SFT checkpoint already generates fluent text — the "headroom" for RL to refine preferences without fighting language fluency at the same time.</p>
+<h2>Comparison to Prior Work</h2>
+<p>Prior alignment research at the SLM scale has almost exclusively used SFT or preference-learning methods (DPO, KTO, GRPO) that replace the explicit reward model. Papers on PPO stability at large scale exist (InstructGPT, Llama 2 RLHF), but systematic investigation of failure mechanisms at the sub-500M scale had not been conducted.</p>
+<p>Against the publicly available instruction-tuned baselines:</p>
+<table>
+<thead>
+<tr>
+<th>Model class</th>
+<th>Baseline</th>
+<th>PPO (this work)</th>
+<th>Training data</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>~135M</td>
+<td>SmolLM2-135M-Instruct</td>
+<td>Competitive</td>
+<td>10K examples</td>
+</tr>
+<tr>
+<td>~360M</td>
+<td>SmolLM2-360M-Instruct</td>
+<td>Competitive</td>
+<td>10K examples</td>
+</tr>
+<tr>
+<td>~360M</td>
+<td>Qwen2.5-Instruct</td>
+<td>Competitive</td>
+<td>10K examples</td>
+</tr>
+</tbody>
+</table>
+<p>The proposed PPO pipeline reaches comparable performance to these instruction-tuned checkpoints while using significantly less training data, because the RL signal concentrates improvement exactly where the reward model detects preference gaps.</p>
+<h2>Reading the Results</h2>
+<p>The main table reports 15 configurations. The headline numbers for successful runs:</p>
+<ul>
+<li><strong>Pythia-410M on TinyStories</strong>: Δ = +1.355 reward units, win rate 59.9%, 95% CI [+0.61, +2.10], p &lt; 0.001</li>
+<li><strong>SmolLM2-360M on TinyStories</strong>: Δ = +0.724, win rate 59.7%, 95% CI [+0.32, +1.13], p &lt; 0.001</li>
+<li><strong>SmolLM2-360M on Wikitext-103</strong>: Δ = +0.274, p &lt; 0.05</li>
+</ul>
+<p>Three results are statistically significant improvements. The only significant regression is Pythia-410M on Wikitext-103 (Δ = -1.043, p &lt; 0.001), where the SFT PPL of 25.4 exceeds the PPL &lt; 20 fluency threshold — consistent with the capacity-headroom hypothesis.</p>
+<p>Pythia-70M (6 transformer layers) shows near-zero or negative changes across all domains: it lacks enough capacity to produce fluent SFT output (PPL = 51.4 on TinyStories), so PPO has nothing to refine.</p>
+<p>The win rate is computed analytically as Φ(Δ / √(σ²_PPO + σ²_SFT)), where Φ is the standard normal CDF. A win rate of 59.9% means that in a head-to-head comparison, the PPO model produces a higher-scoring response than the SFT model roughly 60% of the time — a meaningful but modest margin, appropriate for the scale of data used.</p>
+<h2>Key Notes of This Paper</h2>
+<h3>The PPO Objective at the SLM Scale</h3>
+<p>The optimization target is:</p>
+<div class="math">$$J(\theta) = \mathbb{E}_{p \sim \mathcal{D},\, y \sim \pi_\theta(\cdot|p)}\!\bigl[r_\phi(p, y) - \beta\,\mathrm{KL}\!\bigl(\pi_\theta(\cdot|p)\,\|\,\pi_\text{SFT}(\cdot|p)\bigr)\bigr]$$</div>
+<p>The first term rewards responses that score well under the learned reward model r_φ. The second term penalizes deviation from the SFT prior, preventing the policy from optimizing the reward model in unexpected ways (reward hacking).</p>
+<p>The KL term uses the <strong>reverse (mode-seeking) KL</strong> direction: it penalizes the new policy for assigning mass to regions where the SFT prior has low probability. This is the standard choice in language model RLHF. At the SLM scale, the key insight is that β must be carefully tuned because SLM policies are less smooth — a too-small β allows catastrophic collapse, and a too-large β prevents meaningful learning.</p>
+<h3>The Bradley–Terry Reward Model</h3>
+<p>The reward model is trained with the <strong>Bradley–Terry</strong> loss:</p>
+<div class="math">$$\mathcal{L}_\text{RM}(\phi) = -\mathbb{E}_{(p, y^w, y^l) \sim \mathcal{D}_\text{RM}}\!\bigl[\log \sigma\bigl(r_\phi(p, y^w) - r_\phi(p, y^l)\bigr)\bigr]$$</div>
+<p>Here y^w is the "chosen" (winning) response and y^l the "rejected" (losing) one. The sigmoid function σ converts a scalar score difference into a probability that y^w is preferred. The loss maximizes the probability of the preference ordering.</p>
+<p>One important property of this loss: it has <strong>additive invariance</strong> — shifting all reward scores by a constant c does not change the loss, because only <em>differences</em> between scores matter. This is why the paper reports absolute reward values only within configurations, not across them: the absolute scale is arbitrary.</p>
+<h3>The Merge-and-Reinitialize Algorithm</h3>
+<p>The key to fixing gradient flow (Algorithm 1 in the paper):</p>
+<div class="highlight"><pre><span></span><code><span class="nt">SFT</span><span class="w"> </span><span class="nt">adapter</span><span class="w"> </span><span class="nt">A_SFT</span><span class="o">,</span><span class="w"> </span><span class="nt">base</span><span class="w"> </span><span class="nt">model</span><span class="w"> </span><span class="nt">θ₀</span><span class="o">,</span><span class="w"> </span><span class="nt">output</span><span class="w"> </span><span class="nt">dir</span><span class="w"> </span><span class="nt">O</span>
+<span class="err">↓</span>
+<span class="nt">θ</span><span class="err">̂</span><span class="nt">_SFT</span><span class="w"> </span><span class="err">←</span><span class="w"> </span><span class="nt">Merge</span><span class="o">(</span><span class="nt">θ₀</span><span class="o">,</span><span class="w"> </span><span class="nt">A_SFT</span><span class="o">)</span><span class="w">        </span><span class="err">#</span><span class="w"> </span><span class="nt">fold</span><span class="w"> </span><span class="nt">SFT</span><span class="w"> </span><span class="nt">into</span><span class="w"> </span><span class="nt">base</span>
+<span class="nt">ℓ</span><span class="w"> </span><span class="err">←</span><span class="w"> </span><span class="nt">LoraConfig</span><span class="o">(</span><span class="nt">r</span><span class="o">,</span><span class="w"> </span><span class="nt">α</span><span class="o">,</span><span class="w"> </span><span class="nt">dropout</span><span class="o">=</span><span class="nt">0</span><span class="o">)</span><span class="w">  </span><span class="err">#</span><span class="w"> </span><span class="nt">fresh</span><span class="w"> </span><span class="nt">zero-init</span><span class="w"> </span><span class="nt">adapter</span>
+<span class="nt">π_θ</span><span class="w"> </span><span class="err">←</span><span class="w"> </span><span class="nt">InitPolicy</span><span class="o">(</span><span class="nt">θ</span><span class="err">̂</span><span class="nt">_SFT</span><span class="o">,</span><span class="w"> </span><span class="nt">ℓ</span><span class="o">)</span><span class="w">       </span><span class="err">#</span><span class="w"> </span><span class="nt">trainable</span><span class="w"> </span><span class="nt">policy</span>
+<span class="nt">π_ref</span><span class="w"> </span><span class="err">←</span><span class="w"> </span><span class="nt">InitPolicy</span><span class="o">(</span><span class="nt">θ</span><span class="err">̂</span><span class="nt">_SFT</span><span class="o">)</span><span class="w">         </span><span class="err">#</span><span class="w"> </span><span class="nt">frozen</span><span class="w"> </span><span class="nt">reference</span>
+<span class="nt">snapshot</span><span class="w"> </span><span class="err">←</span><span class="w"> </span><span class="nt">copy</span><span class="o">(</span><span class="nt">trainable</span><span class="w"> </span><span class="nt">params</span><span class="o">)</span>
+<span class="nt">for</span><span class="w"> </span><span class="nt">t</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nt">1</span><span class="w"> </span><span class="nt">to</span><span class="w"> </span><span class="nt">T_PPO</span><span class="o">:</span>
+<span class="w">    </span><span class="nt">sample</span><span class="w"> </span><span class="nt">rollouts</span><span class="o">,</span><span class="w"> </span><span class="nt">whiten</span><span class="w"> </span><span class="nt">rewards</span><span class="o">,</span><span class="w"> </span><span class="nt">clip</span><span class="w"> </span><span class="nt">to</span><span class="w"> </span><span class="cp">[</span><span class="o">-</span><span class="mi">3</span><span class="p">,</span><span class="mi">3</span><span class="cp">]</span>
+<span class="w">    </span><span class="nt">if</span><span class="w"> </span><span class="nt">mean_ρ_mini-batch</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="nt">5</span><span class="o">:</span><span class="w"> </span><span class="nt">skip</span><span class="w"> </span><span class="nt">mini-batch</span>
+<span class="w">    </span><span class="nt">update</span><span class="w"> </span><span class="nt">π_θ</span><span class="w"> </span><span class="nt">in</span><span class="w"> </span><span class="nt">float32</span>
+<span class="w">    </span><span class="nt">if</span><span class="w"> </span><span class="nt">any</span><span class="w"> </span><span class="nt">NaN</span><span class="o">/</span><span class="nt">Inf</span><span class="o">:</span><span class="w"> </span><span class="nt">π_θ</span><span class="w"> </span><span class="err">←</span><span class="w"> </span><span class="nt">snapshot</span><span class="o">;</span><span class="w"> </span><span class="nt">reset</span><span class="w"> </span><span class="nt">optimizer</span>
+<span class="w">    </span><span class="nt">else</span><span class="o">:</span><span class="w"> </span><span class="nt">snapshot</span><span class="w"> </span><span class="err">←</span><span class="w"> </span><span class="nt">copy</span><span class="o">(</span><span class="nt">trainable</span><span class="w"> </span><span class="nt">params</span><span class="o">)</span>
+</code></pre></div>
+
+<p>By merging the adapter first, the base model <em>is</em> the SFT model. The new zero-initialized LoRA adapter starts with no added computation (BA = 0), meaning the policy at step 0 of PPO is exactly π_SFT. The frozen reference π_ref is also exactly π_SFT, so the KL penalty starts at zero. This is the mathematically correct initialization for RLHF — any other approach introduces a phantom KL at the start of training.</p>
+<h2>Limitations</h2>
+<p>The paper explicitly acknowledges several constraints:</p>
+<ul>
+<li><strong>Single-turn evaluation only</strong>: The 15-configuration study uses T=1 (one-turn MDP). The multi-turn agentic framework is released as code but not evaluated empirically in this work.</li>
+<li><strong>Synthetic preference data</strong>: Preference pairs are generated by degradation strategies (truncation, shuffling, mismatch) rather than human raters. The reward model may not capture nuanced quality dimensions.</li>
+<li><strong>Fixed hyperparameters</strong>: The study deliberately holds hyperparameters constant across all 15 configurations to isolate model/corpus effects. Per-model tuning would likely yield better results but obscure the failure-mode analysis.</li>
+<li><strong>Two GPU architectures only</strong>: All experiments use Pythia (GPT-NeoX) and SmolLM2 (Llama). Whether the failure modes generalize to other architectures (Mistral-style, Mamba, etc.) is not verified.</li>
+</ul>
+<h2>Future Work</h2>
+<p>The authors suggest extending the framework to:
+- <strong>Multi-turn agentic interactions</strong>: Tool invocation, clarifying questions, and history-dependent state management
+- <strong>Richer preference signal</strong>: Human feedback or reward models trained on real quality judgments rather than synthetic degradation</p>
+<p>Additional promising directions this work opens up:
+- <strong>Heterogeneous mixed-precision PPO</strong>: Selective use of float32 only where overflow risk is highest, to reduce memory while maintaining stability
+- <strong>Adaptive LoRA rank during PPO</strong>: Starting with low rank and expanding as the policy improves — the merge-and-reinitialize trick could enable dynamic rank growth
+- <strong>Distillation warm-start before PPO</strong>: Using a teacher model to generate the SFT data, ensuring the fluency threshold is met before PPO begins, without extra human data</p>
+<h2>Implications for Edge / On-Device Deployment</h2>
+<p>The practical takeaways for anyone deploying SLMs on constrained hardware are clear and actionable:</p>
+<ol>
+<li><strong>PPO is viable for sub-500M models</strong> if you implement the three fixes. You do not need to give up the explicit reward signal in exchange for stability.</li>
+<li><strong>Check your SFT PPL before starting RLHF</strong>. The PPL &lt; 20 threshold is a practical go/no-go criterion. If your SFT model is still struggling with fluency, RL will not help — invest more in SFT data or a stronger base model first.</li>
+<li><strong>Use float32 for PPO tensors on small models</strong>. The memory cost of float32 vs bfloat16 is 2×, but for a 70–500M model this is 140MB–1GB difference, entirely manageable on modern edge devices or small GPU workloads.</li>
+<li><strong>The reward model is a monitoring instrument</strong>, not just a training tool. On-device agents that must adapt to new users or domains benefit from having an explicit reward signal that can be logged, debugged, and updated separately from the policy.</li>
+</ol>
+<p>The 16-GPU-hours compute budget (on 2× RTX A6000) is modest enough that this pipeline could be run in a university lab or small AI team — lowering the barrier for developing aligned on-device agents without billion-parameter infrastructure.</p>
+<h2>Links</h2>
+<p><a href="https://arxiv.org/abs/2607.25091">Original Paper</a></p>
+<script type="text/javascript">if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width < 768) ? "left" : align;
+        indent = (screen.width < 768) ? "0em" : indent;
+        linebreak = (screen.width < 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+
+    var configscript = document.createElement('script');
+    configscript.type = 'text/x-mathjax-config';
+    configscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'none' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        availableFonts: ['STIX', 'TeX']," +
+        "        preferredFont: 'STIX'," +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(configscript);
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+</script>
+    </article>
+
+        <div class="tags">
+            <p>tags: <a href="/tag/slm.html">SLM</a>, <a href="/tag/ai.html">AI</a>, <a href="/tag/paper-review.html">paper-review</a></p>
+        </div>
+
+    <hr>
+
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <ul class="list-inline text-center">
+                            <li>
+                                <a href="http://twitter.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-twitter fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="http://github.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-github fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                    </ul>
+<p class="copyright text-muted">
+    Blog powered by <a href="http://getpelican.com">Pelican</a>,
+    which takes great advantage of <a href="http://python.org">Python</a>. <br />        &copy;  toohsk
+</p>                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- jQuery -->
+    <script src="/theme/js/jquery.min.js"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="/theme/js/bootstrap.min.js"></script>
+
+        <!-- Custom Theme JavaScript -->
+        <script src="/theme/js/clean-blog.min.js"></script>
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-LR14KRYZ4L"></script>
+<script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-LR14KRYZ4L');
+</script>
+</body>
+
+</html>

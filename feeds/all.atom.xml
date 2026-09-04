@@ -1,5 +1,799 @@
 <?xml version="1.0" encoding="utf-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom"><title>Atsushi's blog</title><link href="/" rel="alternate"></link><link href="/feeds/all.atom.xml" rel="self"></link><id>/</id><updated>2026-07-18T00:00:00+09:00</updated><entry><title>凍結済み小型言語モデルを賢く・安くする：バイト完全KV状態グラフティング</title><link href="/dong-jie-ji-mixiao-xing-yan-yu-moderuwoxian-kuan-kusurubaitowan-quan-kvzhuang-tai-gurahuteingu.html" rel="alternate"></link><published>2026-07-18T00:00:00+09:00</published><updated>2026-07-18T00:00:00+09:00</updated><author><name>toohsk</name></author><id>tag:None,2026-07-18:/dong-jie-ji-mixiao-xing-yan-yu-moderuwoxian-kuan-kusurubaitowan-quan-kvzhuang-tai-gurahuteingu.html</id><summary type="html">&lt;p&gt;バイト完全なKVキャッシュグラフティングにより、勾配ゼロで凍結12Bモデルに検証済み知識を注入し、AIME 2025スコアを80%から93.3%に向上させながらトークン消費を6,574倍削減する新手法。&lt;/p&gt;</summary><content type="html">&lt;h2&gt;なぜこの研究が重要か&lt;/h2&gt;
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Atsushi's blog</title><link href="/" rel="alternate"></link><link href="/feeds/all.atom.xml" rel="self"></link><id>/</id><updated>2026-07-30T00:00:00+09:00</updated><entry><title>バトンを渡す：軌跡リレー型オンポリシー蒸留による小規模言語モデルの強化</title><link href="/batonwodu-sugui-ji-rire-xing-onporishi-zheng-liu-niyoruxiao-gui-mo-yan-yu-moderunoqiang-hua.html" rel="alternate"></link><published>2026-07-30T00:00:00+09:00</published><updated>2026-07-30T00:00:00+09:00</updated><author><name>toohsk</name></author><id>tag:None,2026-07-30:/batonwodu-sugui-ji-rire-xing-onporishi-zheng-liu-niyoruxiao-gui-mo-yan-yu-moderunoqiang-hua.html</id><summary type="html">&lt;p&gt;Relay-OPDはオンポリシー蒸留における「プレフィックス失敗」問題を、教師モデルが重要な発散ポイントで短時間引き継ぐ手法で解決し、標準OPDより+5.73%の精度向上と学習軌跡長の50%削減を達成した。&lt;/p&gt;</summary><content type="html">&lt;h2&gt;なぜこの研究が重要か&lt;/h2&gt;
+&lt;p&gt;知識蒸留は小規模言語モデルに推論能力を持たせるための中心的技術だ。目標はシンプル：高性能だが高コストな教師モデルの能力をコンパクトな生徒モデルに転移させること。数学的推論——おそらく最も圧縮が難しい能力——では、単なるパターンマッチングではなく真のステップバイステップの問題解決が必要だ。&lt;/p&gt;
+&lt;p&gt;オンポリシー蒸留（OPD）はこの課題のために設計された手法だ：生徒に自分自身の推論軌跡を生成させ、教師がその軌跡をトークンごとに監督する。これにより監督が生徒の実際の失敗パターンに基づいたものになり、理想化された教師生成の軌跡よりも現実的な学習が可能になる。&lt;/p&gt;
+&lt;p&gt;しかし OPD には長い推論において特に深刻な致命的欠陥がある：&lt;strong&gt;プレフィックス失敗&lt;/strong&gt;だ。生徒が一度間違った推論方向にコミットすると——20ステップの証明の第3ステップで間違った補題、代数問題の早い段階での誤った分解——以降のすべての生成がその間違いの上に構築される。脱線した軌跡の後のステップを監督するよう求められた教師は、到達を想定していなかったポジションからアドバイスを強いられる。そのアドバイスは最良の場合で信頼性が低く、最悪の場合は積極的に誤誘導する。&lt;/p&gt;
+&lt;p&gt;本論文はこの問題を定量化し、エレガントな解決策を提案する：教師が推論を方向転換したいが生徒は突き進もうとする瞬間に、数ステップだけ教師にバトンを渡す。この手法 &lt;strong&gt;Relay-OPD&lt;/strong&gt; は、1.7B の生徒で8つの数学ベンチマーク平均精度を OPD より +5.73% 向上させ、学習軌跡長を50%以上削減する。&lt;/p&gt;
+&lt;h2&gt;技術的なアプローチ&lt;/h2&gt;
+&lt;h3&gt;プレフィックス失敗問題&lt;/h3&gt;
+&lt;p&gt;生徒が軌跡 y = (y₁, ..., y_N) を生成する際、OPD は各位置で逆KL優位量を使って学習する：&lt;/p&gt;
+&lt;div class="math"&gt;$$A_t^\text{OPD} = \log\pi_T(y_t \mid h_t) - \log\pi_{\bar\theta}(y_t \mid h_t)$$&lt;/div&gt;
+&lt;p&gt;ここで h_t = (x, y_{&amp;lt;t}) は現在のプレフィックス。この優位量の符号は、サンプリングされたトークンの確率を増やすべきか減らすべきかを示す。生徒が正しく推論するとき教師は同意し、優位量はゼロに近い。生徒が間違い始めると教師は生徒のトークンに低い確率を与える——優位量が負になり、生徒は後退を学ぶ。&lt;/p&gt;
+&lt;p&gt;問題はここだ：生徒が間違った連鎖を5ステップ進んでしまった時、ステップ6での教師の監督は教師も生徒も「通常ここにいないはずの」プレフィックスを条件とする。教師は今や生徒が漂流してしまったコンテキストでは意味をなさない反省トークン（&lt;em&gt;But&lt;/em&gt;、&lt;em&gt;Wait&lt;/em&gt;、&lt;em&gt;However&lt;/em&gt;）を推薦するかもしれない。そのシグナルで学習することは助けになるどころか害になる。&lt;/p&gt;
+&lt;h3&gt;ハンドオフトリガー&lt;/h3&gt;
+&lt;p&gt;鍵となる洞察は、&lt;strong&gt;推論方向における教師-生徒の発散は外部監督なしに観測可能&lt;/strong&gt;だということだ：&lt;/p&gt;
+&lt;div class="math"&gt;$$\phi(h) = \mathbf{1}\bigl[a^T(h) \in \mathcal{R}\bigr] \cdot \mathbf{1}\bigl[\mathcal{K}_S(h) \cap \mathcal{R} = \varnothing\bigr]$$&lt;/div&gt;
+&lt;p&gt;ここで：
+- ℛ は&lt;strong&gt;反省トークンの集合&lt;/strong&gt; — &lt;em&gt;But&lt;/em&gt;、&lt;em&gt;Wait&lt;/em&gt;、&lt;em&gt;However&lt;/em&gt;、&lt;em&gt;No&lt;/em&gt; など推論の方向転換を示す語
+- a^T(h) は教師のトップ1次トークン（π_T(·|h) の argmax）
+- K_S(h) は生徒のトップ K サポートセット（π_̄θ(·|h) の上位 K トークン）&lt;/p&gt;
+&lt;p&gt;φ(h) = 1 は「教師は推論を方向転換したい（トップトークンが反省語）が、生徒は方向転換しない（確率上位 K 個の中に反省語がない）」を意味する。これはプレフィックス失敗が起きていることを示すラベルフリーの信号だ。&lt;/p&gt;
+&lt;h3&gt;リレー軌跡の構成&lt;/h3&gt;
+&lt;p&gt;トリガーが発火すると、Relay-OPD は軌跡に教師レッグを挿入する：
+1. 教師が短い修正セグメントを生成——デフォルトでは反省トークンの後に L=3 の推論段落（約70トークン）
+2. 修正されたプレフィックスから生徒が再開
+3. リレーバジェット (M=2, L=3) が介入の最大回数と各教師セグメントの長さを制限&lt;/p&gt;
+&lt;p&gt;リレーバジェットは重要だ。教師の介入が頻繁すぎるか長すぎると、軌跡が生徒自身の方策から大きく離れてしまう——オフライン蒸留（教師生成データでの学習）に近くなる。限られたバジェットにより、軌跡は生徒の分布に根ざしつつも、戦略的に失敗ポイントを修正する。&lt;/p&gt;
+&lt;h3&gt;投機的デコーディングによる効率的実装&lt;/h3&gt;
+&lt;p&gt;2 つのモデル間を切り替えながら生成することは、大きなスケジューリングオーバーヘッドを引き起こす。著者らはこれを巧みに回避するため、Relay-OPD を&lt;strong&gt;状態切替型の投機的デコーディングプロセス&lt;/strong&gt;として再定式化する。&lt;/p&gt;
+&lt;p&gt;デコーディング状態 s_t ∈ {S, T, ⊥} が位置ごとに生成者を決定する：&lt;/p&gt;
+&lt;div class="math"&gt;$$s_{t+1} = \begin{cases} \mathsf{T} &amp;amp; s_t=\mathsf{S},\ \phi(h_{t+1})=1,\ j_t &amp;lt; M \text{ の場合} \\ \mathsf{S} &amp;amp; s_t=\mathsf{T},\ \ell_t=L,\ j_t &amp;lt; M \text{ の場合} \\ \bot &amp;amp; s_t=\mathsf{T},\ \ell_t=L,\ j_t=M \text{ の場合} \\ s_t &amp;amp; それ以外 \end{cases}$$&lt;/div&gt;
+&lt;p&gt;生徒レッグでは全てのドラフトトークンが受理される（生徒は自分の出力を無条件に受け入れる）。教師レッグでは教師に対する標準的な投機的リジェクションサンプリングが実行される。検証中に計算された教師のロジットは同時にトリガー基準 φ を提供する——追加のフォワードパスは不要だ。&lt;/p&gt;
+&lt;p&gt;最適化目標は：&lt;/p&gt;
+&lt;div class="math"&gt;$$\mathcal{L}_\text{Relay} = -\mathbb{E}_{x,z}\!\left[\frac{1}{N}\sum_{t=1}^{N}\min\!\bigl(\rho_t A_t^\text{Relay},\, \text{clip}(\rho_t, 1-\epsilon, 1+\epsilon)\,A_t^\text{Relay}\bigr)\right]$$&lt;/div&gt;
+&lt;h2&gt;先行研究との比較&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;1.7B 生徒 Qwen3-1.7B-Non-Thinking（教師: Qwen3-4B-Instruct-2507）の主要結果:&lt;/strong&gt;&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;手法&lt;/th&gt;
+&lt;th&gt;AIME24&lt;/th&gt;
+&lt;th&gt;AIME25&lt;/th&gt;
+&lt;th&gt;AIME26&lt;/th&gt;
+&lt;th&gt;MATH&lt;/th&gt;
+&lt;th&gt;AMC&lt;/th&gt;
+&lt;th&gt;平均&lt;/th&gt;
+&lt;th&gt;学習長&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;Student&lt;/td&gt;
+&lt;td&gt;12.60&lt;/td&gt;
+&lt;td&gt;9.58&lt;/td&gt;
+&lt;td&gt;7.40&lt;/td&gt;
+&lt;td&gt;71.95&lt;/td&gt;
+&lt;td&gt;47.89&lt;/td&gt;
+&lt;td&gt;24.84&lt;/td&gt;
+&lt;td&gt;—&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;OPD&lt;/td&gt;
+&lt;td&gt;35.83&lt;/td&gt;
+&lt;td&gt;25.52&lt;/td&gt;
+&lt;td&gt;23.33&lt;/td&gt;
+&lt;td&gt;85.70&lt;/td&gt;
+&lt;td&gt;70.08&lt;/td&gt;
+&lt;td&gt;41.23&lt;/td&gt;
+&lt;td&gt;4658&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;FastOPD&lt;/td&gt;
+&lt;td&gt;42.29&lt;/td&gt;
+&lt;td&gt;30.42&lt;/td&gt;
+&lt;td&gt;26.35&lt;/td&gt;
+&lt;td&gt;87.95&lt;/td&gt;
+&lt;td&gt;74.30&lt;/td&gt;
+&lt;td&gt;45.47&lt;/td&gt;
+&lt;td&gt;2709&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;Relay-OPD&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;42.71&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;32.81&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;30.52&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;89.50&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;76.88&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;46.96&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;2296&lt;/strong&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;&lt;strong&gt;vs OPD: 平均 +5.73%（1.7B）、+3.01%（0.6B）&lt;/strong&gt;
+&lt;strong&gt;vs FastOPD: +1.49%（1.7B）、+0.62%（0.6B）&lt;/strong&gt;
+&lt;strong&gt;学習軌跡長: OPD比 50.7% 削減（1.7B）、63.9% 削減（0.6B）&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;競合手法の失敗原因も示唆に富む：
+- &lt;strong&gt;TRD&lt;/strong&gt;（オフライン書き換え）は逆効果——書き換えアーティファクトが軌跡を不自然にする
+- &lt;strong&gt;SKD&lt;/strong&gt;（トークンレベルの混合）はほとんど改善しない——推論方向の発散ではなく一般的な分布的不一致をシグナルとして使うため
+- &lt;strong&gt;FastOPD&lt;/strong&gt;（固定長切り詰め）は役立つが、失敗したプレフィックスからどう回復するかを示せない&lt;/p&gt;
+&lt;h2&gt;実験結果の読み方&lt;/h2&gt;
+&lt;p&gt;AIME ベンチマークの数字は注目に値する。AIME（アメリカ数学招待試験）は上位モデルでも苦戦する競技数学問題集だ。4B 教師からの蒸留で 1.7B モデルが AIME 2025 で 32.81%、AIME 2026 で 30.52% を達成するのは強力な結果だ。&lt;/p&gt;
+&lt;p&gt;最も重要な数字は絶対精度ではなく&lt;strong&gt;学習効率&lt;/strong&gt;だ。Relay-OPD は 1.7B で OPD がステップ 55 に対してステップ 35 で最良チェックポイントに到達する。平均ロールアウト長は 2,296 トークン vs OPD の 4,658。生徒はより短く、より良いキュレーションの軌跡からより速く学んでいる。&lt;/p&gt;
+&lt;p&gt;学習ダイナミクスが理由を明らかにする：教師トークン率は学習初期に約 13% から始まり、約 20 ステップ後に 2〜3% まで急低下する。生徒が改善するにつれて必要な修正が減る。この介入は自己制限的だ——生徒が良くなるほど教師の介入は減り、学習はよりオンポリシーになる。適応的蒸留手法として正しい振る舞いだ。&lt;/p&gt;
+&lt;h2&gt;アルゴリズムの重要部分の解説&lt;/h2&gt;
+&lt;h3&gt;ハンドオフトリガーの意味&lt;/h3&gt;
+&lt;p&gt;トリガー基準 φ(h) は：
+- &lt;strong&gt;ラベルフリー&lt;/strong&gt;: 正解ラベル、検証器の呼び出し、報酬モデルのクエリが不要
+- &lt;strong&gt;因果的に正確&lt;/strong&gt;: 教師が方向転換したいときにだけ発火。教師と生徒が一般的に不一致なときではない
+- &lt;strong&gt;感度調整可能&lt;/strong&gt;: K（トップ K）がトリガーの感度を制御。大きい K は保守的、小さい K は敏感&lt;/p&gt;
+&lt;p&gt;反省トークン集合 ℛ = {But, Wait, However, No, Actually, ...} は「間違いました、再考します」を意味するトークンを捉える。RL で学習した chain-of-thought モデルにおける推論の自己修正の言語的マーカーだ。これは「教師は現在の推論方向を変えるべきと思っている」のプロキシとして機能する。&lt;/p&gt;
+&lt;h3&gt;最適化目標の構造&lt;/h3&gt;
+&lt;p&gt;式 9 のクリップ付き PPO スタイル損失がリレー軌跡に適用される：&lt;/p&gt;
+&lt;div class="math"&gt;$$\mathcal{L}_\text{Relay} = -\mathbb{E}\!\left[\frac{1}{N}\sum_t \min\!\bigl(\rho_t A_t,\, \text{clip}(\rho_t, 1-\epsilon, 1+\epsilon) A_t\bigr)\right]$$&lt;/div&gt;
+&lt;p&gt;A_t^Relay = log π_T(z_t | h_t^z) - log π_̄θ(z_t | h_t^z) で、ρ_t = π_θ(z_t | h_t^z) / π_̄θ(z_t | h_t^z)。&lt;/p&gt;
+&lt;p&gt;クリッピングが重要だ：これがないと教師レッグ（z_t が教師に生成された）において、生徒が最初に非常に低い確率を割り当てたトークンに対して任意に大きな優位量が生じる可能性がある。1 ± ε でのクリッピングが各トークン更新の大きさを制限し、生徒が教師の修正にオーバーコミットするのを防ぐ。&lt;/p&gt;
+&lt;p&gt;核心的な洞察は、リレー軌跡全体——生徒レッグと教師レッグの両方——が最適化に参加するということだ。教師レッグは単なる足場ではない——生徒はそれを再現するよう直接学習する。これが「バトン渡し」が機能する理由だ：生徒は失敗したプレフィックスを避けることだけでなく、その後に続く修正的な推論ステップを生成することも学ぶ。&lt;/p&gt;
+&lt;h3&gt;統一ツールとしての投機的デコーディング&lt;/h3&gt;
+&lt;p&gt;投機的デコーディングを使って生徒と教師の生成を統一するのはエレガントだ。教師レッグでは標準的な投機的リジェクションサンプリングが実行されるが、検証中に計算された教師のロジットが同時にトリガー基準 φ を提供する——追加コストゼロで。これにより著者らは既存の投機的デコーディングフレームワーク内で教師介入軌跡を「無料で」取得できた。&lt;/p&gt;
+&lt;h2&gt;限界と課題&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;数学のみの評価&lt;/strong&gt;: すべての実験が数学的推論ベンチマーク。コード、科学的推論、マルチステップのツール使用への一般化は未検証&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;反省トークン語彙は経験的&lt;/strong&gt;: ℛ セットは手動指定。すべての推論方向転換シグナルを捉えているわけではない&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;4B 教師が必要&lt;/strong&gt;: 学習中に教師と生徒の両方に同時アクセスが必要。単一の消費者向けGPUでは 4B 教師と 1.7B 生徒を同時にロードするのは困難&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;単一エポックのみ&lt;/strong&gt;: より長い学習ダイナミクスは未探索&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;今後の展望&lt;/h2&gt;
+&lt;p&gt;著者が示唆する方向：
+- 非数学ドメインおよびエージェント的ツール使用タスクへの拡張
+- より困難な推論問題に対するオラクルラベルフリー評価の探索&lt;/p&gt;
+&lt;p&gt;この研究から派生する発展的方向性：
+- &lt;strong&gt;プログレッシブなリレーバジェット削減&lt;/strong&gt;: 生徒が弱い学習初期には高い M, L バジェット（多い介入）から始め、生徒の改善に伴いアニールする——自己制限的な振る舞いをより明示的に実装
+- &lt;strong&gt;コード生成への Relay-OPD&lt;/strong&gt;: 反省トークンのパラダイムはコードに自然な類似物を持つ——&lt;code&gt;# Error: this approach won't work&lt;/code&gt; のようなコメントがコードドメインのハンドオフトリガーとして機能しうる
+- &lt;strong&gt;マルチ教師リレー&lt;/strong&gt;: 異なる失敗タイプに異なる教師が介入——算術エラーには数学専門教師、演繹エラーには論理専門教師&lt;/p&gt;
+&lt;h2&gt;エッジ・オンデバイスへの示唆&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;50% の学習軌跡短縮はオンライン蒸留ステップの計算量が50% 削減&lt;/strong&gt;されることを意味する。ユーザーの行動に適応するためにデバイス上で定期的に蒸留を行う場合、適応コストが半減する&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Relay-OPD は学習中にラベルが不要&lt;/strong&gt;。ハンドオフトリガー φ(h) は教師と生徒のロジットのみを使用——正解、検証器、報酬モデルは不要。ラベル付きデータが高価または入手困難なドメインへの適用が可能&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;この手法は推論時の投機的デコーディングと互換性がある&lt;/strong&gt;。Relay-OPD で学習した生徒-教師システムは、展開時にも投機的デコーディングセットアップで教師と並んで動作する——生徒が失敗プレフィックスを認識して回復する能力を持つため、より良いドラフトモデルになる&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;学習効率の向上は 0.6B モデルで特に価値がある&lt;/strong&gt;: 0.6B 生徒では学習軌跡長が 6,900 から 2,490 トークンに低下——63.9% の削減。1B 未満のスケールでは、学習計算量を節約するごとにデバイス上での継続的学習の実現可能性が直接向上する&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;原文リンク&lt;/h2&gt;
+&lt;p&gt;&lt;a href="https://arxiv.org/abs/2607.26057"&gt;Original Paper&lt;/a&gt;&lt;/p&gt;
+&lt;script type="text/javascript"&gt;if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width &lt; 768) ? "left" : align;
+        indent = (screen.width &lt; 768) ? "0em" : indent;
+        linebreak = (screen.width &lt; 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+
+    var configscript = document.createElement('script');
+    configscript.type = 'text/x-mathjax-config';
+    configscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'none' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        availableFonts: ['STIX', 'TeX']," +
+        "        preferredFont: 'STIX'," +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(configscript);
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+&lt;/script&gt;</content><category term="AI/ML"></category><category term="SLM"></category><category term="AI"></category><category term="論文解説"></category></entry><entry><title>Pass the Baton: Trajectory-Relayed On-Policy Distillation for Small Language Models</title><link href="/pass-the-baton-trajectory-relayed-on-policy-distillation-for-small-language-models.html" rel="alternate"></link><published>2026-07-30T00:00:00+09:00</published><updated>2026-07-30T00:00:00+09:00</updated><author><name>toohsk</name></author><id>tag:None,2026-07-30:/pass-the-baton-trajectory-relayed-on-policy-distillation-for-small-language-models.html</id><summary type="html">&lt;p&gt;Relay-OPD fixes the "prefix failure" problem in on-policy distillation by having a teacher model briefly take over at critical divergence points, improving small model reasoning by +5.73% over standard OPD while cutting training trajectory length by 50%.&lt;/p&gt;</summary><content type="html">&lt;h2&gt;Why This Paper Matters&lt;/h2&gt;
+&lt;p&gt;Knowledge distillation is the central technique for making small language models that can reason. The goal: take a capable but expensive teacher model and transfer its capabilities into a compact student. For mathematical reasoning — arguably the hardest capability to compress — this requires not just pattern matching but genuine step-by-step problem solving.&lt;/p&gt;
+&lt;p&gt;On-policy distillation (OPD) was designed to address this: let the student generate its own reasoning trajectories, then use the teacher to supervise those trajectories token-by-token. This grounds the supervision in the student's actual failure modes rather than an idealized teacher-generated trace.&lt;/p&gt;
+&lt;p&gt;But OPD has a fatal flaw that becomes especially acute in long-horizon reasoning: &lt;strong&gt;prefix failure&lt;/strong&gt;. Once a student commits to the wrong reasoning direction — a wrong lemma at step 3 of a 20-step proof, a wrong decomposition early in an algebra problem — every subsequent generation builds on that mistake. The teacher, asked to supervise later steps of this derailed trajectory, is forced to provide guidance from a position it never expected to reach. That guidance is unreliable at best and actively misleading at worst.&lt;/p&gt;
+&lt;p&gt;This paper quantifies the problem and proposes an elegant solution: at the precise moments when the teacher would redirect the reasoning but the student would barrel ahead, hand the baton to the teacher for a few steps. The resulting method — &lt;strong&gt;Relay-OPD&lt;/strong&gt; — improves average accuracy on 8 math benchmarks by +5.73% over OPD for a 1.7B student and reduces training trajectory length by over 50%.&lt;/p&gt;
+&lt;h2&gt;Core Technical Contribution&lt;/h2&gt;
+&lt;h3&gt;The Prefix Failure Problem&lt;/h3&gt;
+&lt;p&gt;When a student generates a trajectory y = (y₁, ..., y_N), OPD trains on the reverse-KL advantage at each position:&lt;/p&gt;
+&lt;div class="math"&gt;$$A_t^\text{OPD} = \log\pi_T(y_t \mid h_t) - \log\pi_{\bar\theta}(y_t \mid h_t)$$&lt;/div&gt;
+&lt;p&gt;where h_t = (x, y_{&amp;lt;t}) is the current prefix and π_T, π_̄θ are teacher and old student policies.&lt;/p&gt;
+&lt;p&gt;The sign of this advantage tells the student whether to increase or decrease the probability of the sampled token. When the student reasons correctly, the teacher agrees and the advantage is near zero. When the student starts going wrong, the teacher assigns lower probability to the student's tokens — the advantage is negative and the student learns to backtrack.&lt;/p&gt;
+&lt;p&gt;But here's the problem: by the time the student is 5 wrong steps into a misdirected chain, the teacher's supervision at step 6 is conditioned on a prefix neither the teacher nor the student "would normally be at." The teacher might recommend a reflection token (&lt;em&gt;But&lt;/em&gt;, &lt;em&gt;Wait&lt;/em&gt;, &lt;em&gt;However&lt;/em&gt;) that makes no sense in the context the student has now drifted into. Training on that signal harms rather than helps.&lt;/p&gt;
+&lt;h3&gt;The Handoff Trigger&lt;/h3&gt;
+&lt;p&gt;The key insight is that &lt;strong&gt;teacher-student divergence in reasoning direction is observable without external supervision&lt;/strong&gt;. Specifically:&lt;/p&gt;
+&lt;div class="math"&gt;$$\phi(h) = \mathbf{1}\bigl[a^T(h) \in \mathcal{R}\bigr] \cdot \mathbf{1}\bigl[\mathcal{K}_S(h) \cap \mathcal{R} = \varnothing\bigr]$$&lt;/div&gt;
+&lt;p&gt;where:
+- R is the set of &lt;strong&gt;reflection tokens&lt;/strong&gt; — words like &lt;em&gt;But&lt;/em&gt;, &lt;em&gt;Wait&lt;/em&gt;, &lt;em&gt;However&lt;/em&gt;, &lt;em&gt;No&lt;/em&gt; that signal a reasoning redirect
+- a^T(h) is the teacher's top-1 next token (argmax of π_T(·|h))
+- K_S(h) is the student's top-K support set (top-K tokens by probability under π_̄θ(·|h))&lt;/p&gt;
+&lt;p&gt;φ(h) = 1 means: the teacher wants to redirect the reasoning (its top token is a reflection), but the student would not redirect (none of its K most probable tokens are reflections). This is a label-free signal that prefix failure is occurring.&lt;/p&gt;
+&lt;p&gt;The trigger is intentionally asymmetric: it fires only when the teacher &lt;em&gt;wants&lt;/em&gt; to redirect and the student &lt;em&gt;does not&lt;/em&gt;. If the student also recognizes the need to redirect, there is no failure requiring intervention.&lt;/p&gt;
+&lt;h3&gt;Relay Trajectory Construction&lt;/h3&gt;
+&lt;p&gt;When the trigger fires, Relay-OPD inserts a teacher leg into the trajectory:
+1. The teacher generates a short corrective segment — by default, a reflection token followed by L=3 reasoning paragraphs (~70 tokens)
+2. Control returns to the student, which continues from the corrected prefix
+3. A relay budget (M=2, L=3) caps the maximum number of takeovers and length of each teacher segment&lt;/p&gt;
+&lt;p&gt;The relay budget is critical. A teacher that takes over too frequently or too long pulls the trajectory far from the student's own policy — the resulting training signal becomes closer to offline distillation (training on teacher-generated data) than on-policy learning. The limited budget ensures the trajectory remains anchored to the student's distribution while strategically fixing the failure points.&lt;/p&gt;
+&lt;h3&gt;Efficient Implementation via Speculative Decoding&lt;/h3&gt;
+&lt;p&gt;Alternating between two models during generation would require constant model switching, creating massive scheduling overhead. The authors cleverly avoid this by recasting Relay-OPD as a &lt;strong&gt;state-switched speculative decoding process&lt;/strong&gt;.&lt;/p&gt;
+&lt;p&gt;The student acts as the draft model and the teacher as the target model. At each position, the decoding state s_t ∈ {S, T, ⊥} determines who is generating:&lt;/p&gt;
+&lt;div class="math"&gt;$$s_{t+1} = \begin{cases} \mathsf{T} &amp;amp; \text{if } s_t=\mathsf{S},\ \phi(h_{t+1})=1,\ j_t &amp;lt; M \\ \mathsf{S} &amp;amp; \text{if } s_t=\mathsf{T},\ \ell_t=L,\ j_t &amp;lt; M \\ \bot &amp;amp; \text{if } s_t=\mathsf{T},\ \ell_t=L,\ j_t=M \\ s_t &amp;amp; \text{otherwise} \end{cases}$$&lt;/div&gt;
+&lt;p&gt;In student legs, every draft token is accepted (the student accepts its own output unconditionally). In teacher legs, standard speculative rejection sampling runs against the teacher. The teacher logits computed during verification simultaneously provide the trigger criterion φ — no additional forward pass required.&lt;/p&gt;
+&lt;p&gt;This is exact: teacher legs are distributionally identical to the teacher generating from the corrected prefix, and student legs are ordinary student sampling. The two-model interleaving is replicated by a single engine.&lt;/p&gt;
+&lt;p&gt;The optimization objective across the entire relay trajectory z = (z₁, ..., z_N) is:&lt;/p&gt;
+&lt;div class="math"&gt;$$\mathcal{L}_\text{Relay} = -\mathbb{E}_{x,z}\!\left[\frac{1}{N}\sum_{t=1}^{N}\min\!\bigl(\rho_t A_t^\text{Relay},\, \text{clip}(\rho_t, 1-\epsilon, 1+\epsilon)\,A_t^\text{Relay}\bigr)\right]$$&lt;/div&gt;
+&lt;p&gt;This is a clipped PPO-style objective applied to the relay trajectory, with the advantage defined as the log-ratio between teacher and old student probabilities at each generated token.&lt;/p&gt;
+&lt;h2&gt;Comparison to Prior Work&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;Baselines tested:&lt;/strong&gt;
+- SFT: standard supervised fine-tuning
+- KD: token-level offline knowledge distillation
+- GRPO: outcome-reward RL
+- OPD: standard on-policy distillation
+- TRD: offline trajectory rewriting by the teacher
+- FastOPD: fixed-length truncation of student rollouts
+- SKD: token-level mixing of teacher and student generation&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Results for Qwen3-1.7B-Non-Thinking (teacher: Qwen3-4B-Instruct-2507):&lt;/strong&gt;&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Method&lt;/th&gt;
+&lt;th&gt;AIME 24&lt;/th&gt;
+&lt;th&gt;AIME 25&lt;/th&gt;
+&lt;th&gt;AIME 26&lt;/th&gt;
+&lt;th&gt;MATH&lt;/th&gt;
+&lt;th&gt;AMC&lt;/th&gt;
+&lt;th&gt;Olympiad&lt;/th&gt;
+&lt;th&gt;HMMT-F&lt;/th&gt;
+&lt;th&gt;HMMT-N&lt;/th&gt;
+&lt;th&gt;Avg&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;Student&lt;/td&gt;
+&lt;td&gt;12.60&lt;/td&gt;
+&lt;td&gt;9.58&lt;/td&gt;
+&lt;td&gt;7.40&lt;/td&gt;
+&lt;td&gt;71.95&lt;/td&gt;
+&lt;td&gt;47.89&lt;/td&gt;
+&lt;td&gt;38.54&lt;/td&gt;
+&lt;td&gt;6.34&lt;/td&gt;
+&lt;td&gt;4.38&lt;/td&gt;
+&lt;td&gt;24.84&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;OPD&lt;/td&gt;
+&lt;td&gt;35.83&lt;/td&gt;
+&lt;td&gt;25.52&lt;/td&gt;
+&lt;td&gt;23.33&lt;/td&gt;
+&lt;td&gt;85.70&lt;/td&gt;
+&lt;td&gt;70.08&lt;/td&gt;
+&lt;td&gt;55.27&lt;/td&gt;
+&lt;td&gt;20.08&lt;/td&gt;
+&lt;td&gt;14.06&lt;/td&gt;
+&lt;td&gt;41.23&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;FastOPD&lt;/td&gt;
+&lt;td&gt;42.29&lt;/td&gt;
+&lt;td&gt;30.42&lt;/td&gt;
+&lt;td&gt;26.35&lt;/td&gt;
+&lt;td&gt;87.95&lt;/td&gt;
+&lt;td&gt;74.30&lt;/td&gt;
+&lt;td&gt;58.16&lt;/td&gt;
+&lt;td&gt;23.58&lt;/td&gt;
+&lt;td&gt;20.73&lt;/td&gt;
+&lt;td&gt;45.47&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;Relay-OPD&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;42.71&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;32.81&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;30.52&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;89.50&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;76.88&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;58.79&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;24.72&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;19.79&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;46.96&lt;/strong&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;&lt;strong&gt;Results for Qwen3-0.6B-Non-Thinking:&lt;/strong&gt;&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Method&lt;/th&gt;
+&lt;th&gt;Avg&lt;/th&gt;
+&lt;th&gt;Train Len&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;OPD&lt;/td&gt;
+&lt;td&gt;28.03&lt;/td&gt;
+&lt;td&gt;6900 tokens&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;FastOPD&lt;/td&gt;
+&lt;td&gt;30.42&lt;/td&gt;
+&lt;td&gt;3302 tokens&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;Relay-OPD&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;31.04&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;2490 tokens&lt;/strong&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;Key comparisons:
+- vs OPD: +5.73% avg (1.7B), +3.01% (0.6B)
+- vs FastOPD (best prior trajectory intervention): +1.49% (1.7B), +0.62% (0.6B)
+- Training trajectory length: 50.7% reduction vs OPD for 1.7B; 63.9% for 0.6B&lt;/p&gt;
+&lt;p&gt;The failure modes of competing methods are informative:
+- &lt;strong&gt;TRD&lt;/strong&gt; (offline rewriting) actually hurts — 30.69 vs 41.23 for 1.7B. Rewriting artifacts make trajectories look unnatural and harm learning
+- &lt;strong&gt;SKD&lt;/strong&gt; (token-level mixing) barely improves over OPD — it uses generic distributional disagreement as the mixing signal, not reasoning-direction divergence
+- &lt;strong&gt;FastOPD&lt;/strong&gt; (fixed truncation) helps but cannot demonstrate &lt;em&gt;how to recover&lt;/em&gt; from a failed reasoning prefix — it just discards late supervision&lt;/p&gt;
+&lt;h2&gt;Reading the Results&lt;/h2&gt;
+&lt;p&gt;The numbers on AIME benchmarks are striking. AIME (American Invitational Mathematics Examination) problems are competitive-math problems that even top-tier models struggle with; a 1.7B model reaching 32.81% on AIME 2025 and 30.52% on AIME 2026 via distillation from a 4B teacher is a strong result.&lt;/p&gt;
+&lt;p&gt;The most important number is not the absolute accuracy but the &lt;strong&gt;trajectory efficiency&lt;/strong&gt;: Relay-OPD reaches its best checkpoint at step 35 for 1.7B, versus step 55 for OPD. It does so with average rollout length 2,296 tokens vs OPD's 4,658. The student is learning faster from shorter, better-curated trajectories.&lt;/p&gt;
+&lt;p&gt;The training dynamics reveal why: teacher token ratio starts at ~13% early in training but drops to 2–3% after ~20 steps. As the student improves, it needs less correction. The intervention is self-limiting — the better the student gets, the less the teacher intervenes, and the more on-policy the training becomes. This is the correct behavior for an adaptive distillation method.&lt;/p&gt;
+&lt;p&gt;The higher &lt;strong&gt;policy entropy&lt;/strong&gt; of Relay-OPD versus OPD and FastOPD is also meaningful: teacher intervention at failure points exposes the student to different trajectory prefixes than it would have generated alone, increasing exploration of the reasoning space.&lt;/p&gt;
+&lt;h2&gt;Key Notes of This Paper&lt;/h2&gt;
+&lt;h3&gt;The Handoff Trigger in Detail&lt;/h3&gt;
+&lt;p&gt;The trigger criterion φ(h) is designed to be:
+- &lt;strong&gt;Label-free&lt;/strong&gt;: no ground truth labels, verifier calls, or reward model queries required
+- &lt;strong&gt;Causally correct&lt;/strong&gt;: it fires only when the teacher would change direction, not generically whenever teacher and student disagree
+- &lt;strong&gt;Symmetric in design&lt;/strong&gt;: K in K_S(h) controls the sensitivity. Large K (student needs most of its top tokens to not be reflection tokens) makes the trigger more conservative; small K makes it hair-trigger&lt;/p&gt;
+&lt;p&gt;The choice of reflection tokens ℛ = {But, Wait, However, No, Actually, ...} captures a specific semantic category: tokens that signal "I was wrong, let me reconsider." These are the linguistic markers of reasoning self-correction in chain-of-thought models trained with RL. They serve as a proxy for "the teacher thinks the current reasoning direction should change."&lt;/p&gt;
+&lt;h3&gt;The Optimization Objective&lt;/h3&gt;
+&lt;p&gt;Equation 9 is the PPO-style clipped loss applied to relay trajectories:&lt;/p&gt;
+&lt;div class="math"&gt;$$\mathcal{L}_\text{Relay} = -\mathbb{E}\!\left[\frac{1}{N}\sum_t \min\!\bigl(\rho_t A_t,\, \text{clip}(\rho_t, 1-\epsilon, 1+\epsilon) A_t\bigr)\right]$$&lt;/div&gt;
+&lt;p&gt;where A_t^Relay = log π_T(z_t | h_t^z) - log π_̄θ(z_t | h_t^z) and ρ_t = π_θ(z_t | h_t^z) / π_̄θ(z_t | h_t^z).&lt;/p&gt;
+&lt;p&gt;The clipping is critical: without it, teacher legs (where z_t is generated by the teacher) could produce arbitrarily large advantages for tokens the student initially assigns very low probability. Clipping at 1 ± ε limits the magnitude of each per-token update, preventing the student from overcommitting to the teacher's correction.&lt;/p&gt;
+&lt;p&gt;The key insight is that the entire relay trajectory — both student legs and teacher legs — participates in optimization. Teacher legs are not just scaffolding; the student is directly trained to reproduce them. This is what makes "baton passing" work: the student learns not just to avoid the failed prefix, but to generate the corrective reasoning step that follows it.&lt;/p&gt;
+&lt;h3&gt;Speculative Decoding as a Unification Tool&lt;/h3&gt;
+&lt;p&gt;The use of speculative decoding to unify student and teacher generation is elegant. In standard speculative decoding:
+- Student (draft model) generates a candidate token
+- Teacher (target model) verifies with acceptance probability α_t = min(1, π_T(a^S_t) / π_̄θ(a^S_t))
+- On rejection, resample from the residual: q_t(v) ∝ [π_T(v) - π_̄θ(v)]₊&lt;/p&gt;
+&lt;p&gt;In student legs, the target is the student itself (π^tgt = π_̄θ), so α_t = 1 always — every draft is accepted, reducing to ordinary sampling. In teacher legs, standard speculative rejection sampling runs. The state machine switches between these modes based on φ(h). This means the authors got teacher-intervention trajectories "for free" within an existing speculative decoding framework.&lt;/p&gt;
+&lt;h2&gt;Limitations&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Math-only evaluation&lt;/strong&gt;: All experiments are on mathematical reasoning benchmarks. Whether the handoff trigger generalizes to code, scientific reasoning, or multi-step tool use is unknown&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Reflection token vocabulary is heuristic&lt;/strong&gt;: The ℛ set is manually specified and may not capture all reasoning-redirect signals, or may capture some non-redirect uses of these tokens&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;4B teacher required&lt;/strong&gt;: The method needs simultaneous access to both teacher and student during training. For very memory-constrained pipelines (single consumer GPU), keeping a 4B teacher loaded alongside a 1.7B student in float32 may be impractical&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Single training epoch&lt;/strong&gt;: All methods train for 1 epoch; longer training dynamics are not explored&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;No ablation of reflection token vocabulary&lt;/strong&gt;: The sensitivity to the exact composition of ℛ is not tested&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Future Work&lt;/h2&gt;
+&lt;p&gt;Authors' suggested directions:
+- Extending to non-math domains and agentic tool-use tasks
+- Exploring oracle-label-free evaluation for harder reasoning problems&lt;/p&gt;
+&lt;p&gt;Promising directions this work opens:
+- &lt;strong&gt;Progressive relay budget reduction&lt;/strong&gt;: Start with a high M, L budget early in training (high intervention when student is weak) and anneal toward lower budget as the student improves — implementing the self-limiting behavior more explicitly
+- &lt;strong&gt;Cross-scale trigger calibration&lt;/strong&gt;: The threshold K in the trigger criterion could be adapted based on the student's current policy entropy, creating a fully adaptive intervention rate
+- &lt;strong&gt;Relay-OPD for code generation&lt;/strong&gt;: The reflection-token paradigm has a natural analogue in code — comments like &lt;code&gt;# Error: this approach won't work&lt;/code&gt; could serve as code-domain handoff triggers
+- &lt;strong&gt;Multi-teacher relay&lt;/strong&gt;: Different teachers could take over at different failure types — a math specialist for arithmetic failures, a logic specialist for deduction failures&lt;/p&gt;
+&lt;h2&gt;Implications for Edge / On-Device Deployment&lt;/h2&gt;
+&lt;p&gt;The implications for small model deployment are significant:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;50% shorter training trajectories directly translates to 50% less compute&lt;/strong&gt; for an online distillation step. If distillation is done periodically on-device to adapt to user behavior, this halves the adaptation cost.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Relay-OPD does not require labels during training&lt;/strong&gt;. The handoff trigger φ(h) uses only teacher and student logits — no ground-truth answer, no verifier, no reward model. This makes it applicable in domains where labeled data is expensive or unavailable.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;The method is compatible with speculative decoding at inference time&lt;/strong&gt;. A student-teacher system trained with Relay-OPD naturally produces a student that can work alongside the teacher in a speculative decoding setup at deployment — the student's ability to recognize and recover from failure prefixes makes it a better draft model.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;The training efficiency gains are especially valuable for 0.6B models&lt;/strong&gt;: For the smaller student (0.6B), training trajectory length drops from 6,900 to 2,490 tokens — a 63.9% reduction. At the sub-1B scale, every token of training compute saved directly extends the feasibility of on-device continuous learning.&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2&gt;Links&lt;/h2&gt;
+&lt;p&gt;&lt;a href="https://arxiv.org/abs/2607.26057"&gt;Original Paper&lt;/a&gt;&lt;/p&gt;
+&lt;script type="text/javascript"&gt;if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width &lt; 768) ? "left" : align;
+        indent = (screen.width &lt; 768) ? "0em" : indent;
+        linebreak = (screen.width &lt; 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+
+    var configscript = document.createElement('script');
+    configscript.type = 'text/x-mathjax-config';
+    configscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'none' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        availableFonts: ['STIX', 'TeX']," +
+        "        preferredFont: 'STIX'," +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(configscript);
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+&lt;/script&gt;</content><category term="AI/ML"></category><category term="SLM"></category><category term="AI"></category><category term="paper-review"></category></entry><entry><title>Towards Robust Reinforcement Learning for Small-Scale Language Model Agents</title><link href="/towards-robust-reinforcement-learning-for-small-scale-language-model-agents.html" rel="alternate"></link><published>2026-07-30T00:00:00+09:00</published><updated>2026-07-30T00:00:00+09:00</updated><author><name>toohsk</name></author><id>tag:None,2026-07-30:/towards-robust-reinforcement-learning-for-small-scale-language-model-agents.html</id><summary type="html">&lt;p&gt;A systematic study of PPO training failures in 70–500M parameter SLMs reveals three reproducible failure modes and fixes them with a three-layer safety framework, making classical RLHF viable for on-device language models.&lt;/p&gt;</summary><content type="html">&lt;h2&gt;Why This Paper Matters&lt;/h2&gt;
+&lt;p&gt;Reinforcement Learning from Human Feedback (RLHF) with Proximal Policy Optimization (PPO) is the dominant alignment recipe for large language models. But at the small-model end — models with 70 to 500 million parameters that fit on a smartphone or embedded device — PPO has long been treated as "too unstable to use," and practitioners fall back to supervised fine-tuning (SFT) or preference-learning methods like DPO that sidestep the explicit RL loop.&lt;/p&gt;
+&lt;p&gt;The problem with that workaround is diagnostic transparency. When you remove the reward model from the pipeline, you lose the explicit scalar signal that tells you &lt;em&gt;why&lt;/em&gt; the model is or isn't improving. For agentic systems deployed on constrained hardware, that feedback loop matters: a reward model is both a training tool and a monitoring instrument.&lt;/p&gt;
+&lt;p&gt;This paper does not propose a new optimizer. Instead, it asks: &lt;strong&gt;why does PPO actually fail at the SLM scale, and can those failures be fixed?&lt;/strong&gt; The answer is yes — and the paper delivers three concrete, reproducible engineering fixes that make classical PPO work on models as small as 135M parameters.&lt;/p&gt;
+&lt;h2&gt;Core Technical Contribution&lt;/h2&gt;
+&lt;h3&gt;Three Failure Modes, Three Fixes&lt;/h3&gt;
+&lt;p&gt;The authors train 15 (model, corpus) configurations through a full SFT → reward model → PPO pipeline, holding all hyperparameters constant. This controlled sweep reveals three failure modes that are specific to the small-scale regime.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Failure Mode I: Silent LoRA Gradient Freezing&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;When using PEFT (Parameter-Efficient Fine-Tuning) with LoRA in the TRL (Transformer Reinforcement Learning) library, adapter parameters can be silently marked as non-trainable during the PPO training loop. The model generates rollouts, computes the loss, and appears to run — but the underlying distribution never changes because no gradients flow to the LoRA weights.&lt;/p&gt;
+&lt;p&gt;The fix is a &lt;strong&gt;merge-and-reinitialize&lt;/strong&gt; procedure:
+1. Merge the SFT LoRA adapter into the base model weights
+2. Attach a fresh, zero-initialized LoRA adapter
+3. Use the merged weights as both the trainable policy and the frozen reference policy π_SFT&lt;/p&gt;
+&lt;p&gt;This ensures all LoRA parameters are properly trainable from the start of PPO.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Failure Mode II: bfloat16 Numerical Overflow in Importance Ratios&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;PPO's core signal is the importance ratio:&lt;/p&gt;
+&lt;div class="math"&gt;$$\rho_t = \exp\!\bigl(\log\pi_\theta(a_t|s_t) - \log\pi_{\text{ref}}(a_t|s_t)\bigr)$$&lt;/div&gt;
+&lt;p&gt;When the policy and reference policy assign similar probabilities (which is common early in PPO), the two log-probabilities are close in magnitude. In bfloat16 (7-bit mantissa), their difference suffers catastrophic cancellation — the precision is simply insufficient to represent small differences between similar large values. The result: importance ratios that overflow to 10^6 or beyond, causing hardware-level exceptions.&lt;/p&gt;
+&lt;p&gt;This only manifests in models with fewer than ~200M parameters, where the shallower networks produce sharper, more concentrated probability distributions, making the cancellation problem worse.&lt;/p&gt;
+&lt;p&gt;The fix is simple: &lt;strong&gt;use float32 precision for all PPO loop tensors&lt;/strong&gt; — policy, reference model, value head, and reward model. SFT and reward model training can remain in bfloat16.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Failure Mode III: Catastrophic Policy Collapse&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;Long-tailed reward distributions combined with unclipped KL penalties can drive the policy toward regions where the reference model assigns near-zero probability, producing incoherent output. Advantage estimates that far exceed the PPO clip range ε = 0.2 give the optimizer room to make extreme policy updates.&lt;/p&gt;
+&lt;p&gt;The fix is a &lt;strong&gt;three-layer safety mechanism&lt;/strong&gt;:
+- Reward whitening with 3σ clipping: normalize rewards within each batch and clip outliers
+- Importance-ratio threshold guard: skip any mini-batch where the mean importance ratio exceeds 5.0
+- Weight rollback: save trainable parameters before each optimizer step and restore from the last-good snapshot on any NaN/Inf detection&lt;/p&gt;
+&lt;h3&gt;The Capacity-Headroom Hypothesis&lt;/h3&gt;
+&lt;p&gt;Beyond fixing the failure modes, the paper proposes and validates a principled criterion for predicting when PPO will succeed at the SLM scale: &lt;strong&gt;PPO improves performance if and only if the SFT prior is fluent (PPL &amp;lt; 20) and the reward signal is discriminative.&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;Model parameter count alone does not predict PPO success. A 135M SmolLM2 model (Llama architecture, RoPE, SwiGLU) with PPL = 7.0 on TinyStories succeeds. A 160M Pythia model with PPL = 70.3 on CNN/DailyMail fails. The key variable is whether the SFT checkpoint already generates fluent text — the "headroom" for RL to refine preferences without fighting language fluency at the same time.&lt;/p&gt;
+&lt;h2&gt;Comparison to Prior Work&lt;/h2&gt;
+&lt;p&gt;Prior alignment research at the SLM scale has almost exclusively used SFT or preference-learning methods (DPO, KTO, GRPO) that replace the explicit reward model. Papers on PPO stability at large scale exist (InstructGPT, Llama 2 RLHF), but systematic investigation of failure mechanisms at the sub-500M scale had not been conducted.&lt;/p&gt;
+&lt;p&gt;Against the publicly available instruction-tuned baselines:&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Model class&lt;/th&gt;
+&lt;th&gt;Baseline&lt;/th&gt;
+&lt;th&gt;PPO (this work)&lt;/th&gt;
+&lt;th&gt;Training data&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;~135M&lt;/td&gt;
+&lt;td&gt;SmolLM2-135M-Instruct&lt;/td&gt;
+&lt;td&gt;Competitive&lt;/td&gt;
+&lt;td&gt;10K examples&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;~360M&lt;/td&gt;
+&lt;td&gt;SmolLM2-360M-Instruct&lt;/td&gt;
+&lt;td&gt;Competitive&lt;/td&gt;
+&lt;td&gt;10K examples&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;~360M&lt;/td&gt;
+&lt;td&gt;Qwen2.5-Instruct&lt;/td&gt;
+&lt;td&gt;Competitive&lt;/td&gt;
+&lt;td&gt;10K examples&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;The proposed PPO pipeline reaches comparable performance to these instruction-tuned checkpoints while using significantly less training data, because the RL signal concentrates improvement exactly where the reward model detects preference gaps.&lt;/p&gt;
+&lt;h2&gt;Reading the Results&lt;/h2&gt;
+&lt;p&gt;The main table reports 15 configurations. The headline numbers for successful runs:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Pythia-410M on TinyStories&lt;/strong&gt;: Δ = +1.355 reward units, win rate 59.9%, 95% CI [+0.61, +2.10], p &amp;lt; 0.001&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;SmolLM2-360M on TinyStories&lt;/strong&gt;: Δ = +0.724, win rate 59.7%, 95% CI [+0.32, +1.13], p &amp;lt; 0.001&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;SmolLM2-360M on Wikitext-103&lt;/strong&gt;: Δ = +0.274, p &amp;lt; 0.05&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Three results are statistically significant improvements. The only significant regression is Pythia-410M on Wikitext-103 (Δ = -1.043, p &amp;lt; 0.001), where the SFT PPL of 25.4 exceeds the PPL &amp;lt; 20 fluency threshold — consistent with the capacity-headroom hypothesis.&lt;/p&gt;
+&lt;p&gt;Pythia-70M (6 transformer layers) shows near-zero or negative changes across all domains: it lacks enough capacity to produce fluent SFT output (PPL = 51.4 on TinyStories), so PPO has nothing to refine.&lt;/p&gt;
+&lt;p&gt;The win rate is computed analytically as Φ(Δ / √(σ²_PPO + σ²_SFT)), where Φ is the standard normal CDF. A win rate of 59.9% means that in a head-to-head comparison, the PPO model produces a higher-scoring response than the SFT model roughly 60% of the time — a meaningful but modest margin, appropriate for the scale of data used.&lt;/p&gt;
+&lt;h2&gt;Key Notes of This Paper&lt;/h2&gt;
+&lt;h3&gt;The PPO Objective at the SLM Scale&lt;/h3&gt;
+&lt;p&gt;The optimization target is:&lt;/p&gt;
+&lt;div class="math"&gt;$$J(\theta) = \mathbb{E}_{p \sim \mathcal{D},\, y \sim \pi_\theta(\cdot|p)}\!\bigl[r_\phi(p, y) - \beta\,\mathrm{KL}\!\bigl(\pi_\theta(\cdot|p)\,\|\,\pi_\text{SFT}(\cdot|p)\bigr)\bigr]$$&lt;/div&gt;
+&lt;p&gt;The first term rewards responses that score well under the learned reward model r_φ. The second term penalizes deviation from the SFT prior, preventing the policy from optimizing the reward model in unexpected ways (reward hacking).&lt;/p&gt;
+&lt;p&gt;The KL term uses the &lt;strong&gt;reverse (mode-seeking) KL&lt;/strong&gt; direction: it penalizes the new policy for assigning mass to regions where the SFT prior has low probability. This is the standard choice in language model RLHF. At the SLM scale, the key insight is that β must be carefully tuned because SLM policies are less smooth — a too-small β allows catastrophic collapse, and a too-large β prevents meaningful learning.&lt;/p&gt;
+&lt;h3&gt;The Bradley–Terry Reward Model&lt;/h3&gt;
+&lt;p&gt;The reward model is trained with the &lt;strong&gt;Bradley–Terry&lt;/strong&gt; loss:&lt;/p&gt;
+&lt;div class="math"&gt;$$\mathcal{L}_\text{RM}(\phi) = -\mathbb{E}_{(p, y^w, y^l) \sim \mathcal{D}_\text{RM}}\!\bigl[\log \sigma\bigl(r_\phi(p, y^w) - r_\phi(p, y^l)\bigr)\bigr]$$&lt;/div&gt;
+&lt;p&gt;Here y^w is the "chosen" (winning) response and y^l the "rejected" (losing) one. The sigmoid function σ converts a scalar score difference into a probability that y^w is preferred. The loss maximizes the probability of the preference ordering.&lt;/p&gt;
+&lt;p&gt;One important property of this loss: it has &lt;strong&gt;additive invariance&lt;/strong&gt; — shifting all reward scores by a constant c does not change the loss, because only &lt;em&gt;differences&lt;/em&gt; between scores matter. This is why the paper reports absolute reward values only within configurations, not across them: the absolute scale is arbitrary.&lt;/p&gt;
+&lt;h3&gt;The Merge-and-Reinitialize Algorithm&lt;/h3&gt;
+&lt;p&gt;The key to fixing gradient flow (Algorithm 1 in the paper):&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="nt"&gt;SFT&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;adapter&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;A_SFT&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;base&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;model&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;θ₀&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;output&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;dir&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;O&lt;/span&gt;
+&lt;span class="err"&gt;↓&lt;/span&gt;
+&lt;span class="nt"&gt;θ&lt;/span&gt;&lt;span class="err"&gt;̂&lt;/span&gt;&lt;span class="nt"&gt;_SFT&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="err"&gt;←&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;Merge&lt;/span&gt;&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="nt"&gt;θ₀&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;A_SFT&lt;/span&gt;&lt;span class="o"&gt;)&lt;/span&gt;&lt;span class="w"&gt;        &lt;/span&gt;&lt;span class="err"&gt;#&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;fold&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;SFT&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;into&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;base&lt;/span&gt;
+&lt;span class="nt"&gt;ℓ&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="err"&gt;←&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;LoraConfig&lt;/span&gt;&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="nt"&gt;r&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;α&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;dropout&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="nt"&gt;0&lt;/span&gt;&lt;span class="o"&gt;)&lt;/span&gt;&lt;span class="w"&gt;  &lt;/span&gt;&lt;span class="err"&gt;#&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;fresh&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;zero-init&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;adapter&lt;/span&gt;
+&lt;span class="nt"&gt;π_θ&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="err"&gt;←&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;InitPolicy&lt;/span&gt;&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="nt"&gt;θ&lt;/span&gt;&lt;span class="err"&gt;̂&lt;/span&gt;&lt;span class="nt"&gt;_SFT&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;ℓ&lt;/span&gt;&lt;span class="o"&gt;)&lt;/span&gt;&lt;span class="w"&gt;       &lt;/span&gt;&lt;span class="err"&gt;#&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;trainable&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;policy&lt;/span&gt;
+&lt;span class="nt"&gt;π_ref&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="err"&gt;←&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;InitPolicy&lt;/span&gt;&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="nt"&gt;θ&lt;/span&gt;&lt;span class="err"&gt;̂&lt;/span&gt;&lt;span class="nt"&gt;_SFT&lt;/span&gt;&lt;span class="o"&gt;)&lt;/span&gt;&lt;span class="w"&gt;         &lt;/span&gt;&lt;span class="err"&gt;#&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;frozen&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;reference&lt;/span&gt;
+&lt;span class="nt"&gt;snapshot&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="err"&gt;←&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;copy&lt;/span&gt;&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="nt"&gt;trainable&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;params&lt;/span&gt;&lt;span class="o"&gt;)&lt;/span&gt;
+&lt;span class="nt"&gt;for&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;t&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;1&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;to&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;T_PPO&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="nt"&gt;sample&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;rollouts&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;whiten&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;rewards&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;clip&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;to&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="cp"&gt;[&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="mi"&gt;3&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="mi"&gt;3&lt;/span&gt;&lt;span class="cp"&gt;]&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="nt"&gt;if&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;mean_ρ_mini-batch&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;&amp;gt;&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;5&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;skip&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;mini-batch&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="nt"&gt;update&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;π_θ&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;in&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;float32&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="nt"&gt;if&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;any&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;NaN&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="nt"&gt;Inf&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;π_θ&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="err"&gt;←&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;snapshot&lt;/span&gt;&lt;span class="o"&gt;;&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;reset&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;optimizer&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="nt"&gt;else&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;snapshot&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="err"&gt;←&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;copy&lt;/span&gt;&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="nt"&gt;trainable&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;params&lt;/span&gt;&lt;span class="o"&gt;)&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;By merging the adapter first, the base model &lt;em&gt;is&lt;/em&gt; the SFT model. The new zero-initialized LoRA adapter starts with no added computation (BA = 0), meaning the policy at step 0 of PPO is exactly π_SFT. The frozen reference π_ref is also exactly π_SFT, so the KL penalty starts at zero. This is the mathematically correct initialization for RLHF — any other approach introduces a phantom KL at the start of training.&lt;/p&gt;
+&lt;h2&gt;Limitations&lt;/h2&gt;
+&lt;p&gt;The paper explicitly acknowledges several constraints:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Single-turn evaluation only&lt;/strong&gt;: The 15-configuration study uses T=1 (one-turn MDP). The multi-turn agentic framework is released as code but not evaluated empirically in this work.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Synthetic preference data&lt;/strong&gt;: Preference pairs are generated by degradation strategies (truncation, shuffling, mismatch) rather than human raters. The reward model may not capture nuanced quality dimensions.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Fixed hyperparameters&lt;/strong&gt;: The study deliberately holds hyperparameters constant across all 15 configurations to isolate model/corpus effects. Per-model tuning would likely yield better results but obscure the failure-mode analysis.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Two GPU architectures only&lt;/strong&gt;: All experiments use Pythia (GPT-NeoX) and SmolLM2 (Llama). Whether the failure modes generalize to other architectures (Mistral-style, Mamba, etc.) is not verified.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Future Work&lt;/h2&gt;
+&lt;p&gt;The authors suggest extending the framework to:
+- &lt;strong&gt;Multi-turn agentic interactions&lt;/strong&gt;: Tool invocation, clarifying questions, and history-dependent state management
+- &lt;strong&gt;Richer preference signal&lt;/strong&gt;: Human feedback or reward models trained on real quality judgments rather than synthetic degradation&lt;/p&gt;
+&lt;p&gt;Additional promising directions this work opens up:
+- &lt;strong&gt;Heterogeneous mixed-precision PPO&lt;/strong&gt;: Selective use of float32 only where overflow risk is highest, to reduce memory while maintaining stability
+- &lt;strong&gt;Adaptive LoRA rank during PPO&lt;/strong&gt;: Starting with low rank and expanding as the policy improves — the merge-and-reinitialize trick could enable dynamic rank growth
+- &lt;strong&gt;Distillation warm-start before PPO&lt;/strong&gt;: Using a teacher model to generate the SFT data, ensuring the fluency threshold is met before PPO begins, without extra human data&lt;/p&gt;
+&lt;h2&gt;Implications for Edge / On-Device Deployment&lt;/h2&gt;
+&lt;p&gt;The practical takeaways for anyone deploying SLMs on constrained hardware are clear and actionable:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;PPO is viable for sub-500M models&lt;/strong&gt; if you implement the three fixes. You do not need to give up the explicit reward signal in exchange for stability.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Check your SFT PPL before starting RLHF&lt;/strong&gt;. The PPL &amp;lt; 20 threshold is a practical go/no-go criterion. If your SFT model is still struggling with fluency, RL will not help — invest more in SFT data or a stronger base model first.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Use float32 for PPO tensors on small models&lt;/strong&gt;. The memory cost of float32 vs bfloat16 is 2×, but for a 70–500M model this is 140MB–1GB difference, entirely manageable on modern edge devices or small GPU workloads.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;The reward model is a monitoring instrument&lt;/strong&gt;, not just a training tool. On-device agents that must adapt to new users or domains benefit from having an explicit reward signal that can be logged, debugged, and updated separately from the policy.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;The 16-GPU-hours compute budget (on 2× RTX A6000) is modest enough that this pipeline could be run in a university lab or small AI team — lowering the barrier for developing aligned on-device agents without billion-parameter infrastructure.&lt;/p&gt;
+&lt;h2&gt;Links&lt;/h2&gt;
+&lt;p&gt;&lt;a href="https://arxiv.org/abs/2607.25091"&gt;Original Paper&lt;/a&gt;&lt;/p&gt;
+&lt;script type="text/javascript"&gt;if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width &lt; 768) ? "left" : align;
+        indent = (screen.width &lt; 768) ? "0em" : indent;
+        linebreak = (screen.width &lt; 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+
+    var configscript = document.createElement('script');
+    configscript.type = 'text/x-mathjax-config';
+    configscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'none' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        availableFonts: ['STIX', 'TeX']," +
+        "        preferredFont: 'STIX'," +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(configscript);
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+&lt;/script&gt;</content><category term="AI/ML"></category><category term="SLM"></category><category term="AI"></category><category term="paper-review"></category></entry><entry><title>小規模言語モデルエージェントに対するロバストな強化学習</title><link href="/xiao-gui-mo-yan-yu-moderue-zientonidui-sururobasutonaqiang-hua-xue-xi.html" rel="alternate"></link><published>2026-07-30T00:00:00+09:00</published><updated>2026-07-30T00:00:00+09:00</updated><author><name>toohsk</name></author><id>tag:None,2026-07-30:/xiao-gui-mo-yan-yu-moderue-zientonidui-sururobasutonaqiang-hua-xue-xi.html</id><summary type="html">&lt;p&gt;70〜500Mパラメータ規模のSLMにおけるPPOの失敗原因を体系的に特定し、3層の安全機構で解決することで、オンデバイスLLMへの古典的RLHF適用を可能にした研究。&lt;/p&gt;</summary><content type="html">&lt;h2&gt;なぜこの研究が重要か&lt;/h2&gt;
+&lt;p&gt;RLHF（人間のフィードバックによる強化学習）における PPO（Proximal Policy Optimization）は、大規模言語モデルのアライメントの定番手法だ。しかし 70〜500M パラメータ規模——スマートフォンや組み込みデバイスで動作する SLM（Small Language Model）——においては、「PPO は不安定すぎて使えない」という通説があり、現場では SFT（教師ありファインチューニング）や DPO などの手法に逃げるのが通例だった。&lt;/p&gt;
+&lt;p&gt;問題は診断の透明性だ。報酬モデルをパイプラインから外すと、「なぜモデルが改善しているのか、していないのか」を示すスカラー信号が失われる。制約のあるハードウェアに展開するエージェントシステムでは、このフィードバックループは学習ツールであると同時にモニタリング手段でもある。&lt;/p&gt;
+&lt;p&gt;この論文は新しいオプティマイザを提案しない。代わりに「PPO が SLM スケールで実際に失敗する理由は何か、そしてその失敗は修正できるか？」という問いに答える。答えは「はい」——3つの具体的かつ再現可能なエンジニアリング修正によって、135M パラメータ程度のモデルでも古典的な PPO が機能するようになる。&lt;/p&gt;
+&lt;h2&gt;技術的なアプローチ&lt;/h2&gt;
+&lt;h3&gt;3つの失敗モードと3つの修正&lt;/h3&gt;
+&lt;p&gt;著者らは 15 の（モデル、コーパス）組み合わせを SFT → 報酬モデル → PPO の完全なパイプラインで学習し、すべてのハイパーパラメータを固定して実験を行う。この制御されたスイープによって、SLM スケール特有の 3 つの失敗モードが明らかになった。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;失敗モード I: LoRA 勾配フローのサイレントな遮断&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;TRL（Transformer Reinforcement Learning）ライブラリで LoRA と PEFT を組み合わせると、アダプタパラメータが PPO 学習ループ中にサイレントに非学習可能とマークされる場合がある。モデルはロールアウトを生成して損失を計算するが、LoRA 重みへの勾配が流れないため、方策分布は変化しない。&lt;/p&gt;
+&lt;p&gt;修正は&lt;strong&gt;マージ・再初期化法&lt;/strong&gt;：
+1. SFT LoRA アダプタをベースモデルの重みにマージ
+2. ゼロ初期化の新しい LoRA アダプタをアタッチ
+3. マージ済み重みを学習可能な方策と冷凍参照方策 π_SFT の両方として使用&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;失敗モード II: 重要度比計算における bfloat16 の数値オーバーフロー&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;PPO の核心信号は重要度比だ：&lt;/p&gt;
+&lt;div class="math"&gt;$$\rho_t = \exp\!\bigl(\log\pi_\theta(a_t|s_t) - \log\pi_{\text{ref}}(a_t|s_t)\bigr)$$&lt;/div&gt;
+&lt;p&gt;方策と参照方策が近い確率を割り当てる場合（PPO 初期には頻繁に起きる）、2 つの対数確率は絶対値が大きく互いに近い値になる。bfloat16（仮数部 7 ビット）ではその差の精度が失われ——&lt;strong&gt;桁落ち（catastrophic cancellation）&lt;/strong&gt;——重要度比が 10^6 を超えてハードウェア例外が発生する。&lt;/p&gt;
+&lt;p&gt;この問題は特に 200M パラメータ未満のモデルで顕著に現れる。浅いネットワークはより集中した確率分布を生成するため、桁落ち問題が悪化する。&lt;/p&gt;
+&lt;p&gt;修正はシンプル：&lt;strong&gt;PPO ループのすべてのテンソルを float32 で演算する&lt;/strong&gt;。SFT と報酬モデルの学習は bfloat16 のままでよい。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;失敗モード III: 分布的崩壊&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;長い裾を持つ報酬分布にクリッピングされていない KL ペナルティが組み合わさると、方策が参照モデルの確率がほぼゼロの領域に押しやられ、非整合な出力を生成するようになる。&lt;/p&gt;
+&lt;p&gt;修正は&lt;strong&gt;3 層の安全機構&lt;/strong&gt;：
+- 報酬のホワイトニング（バッチ内正規化 + 3σクリッピング）
+- 重要度比しきい値ガード（ミニバッチの平均 ρ &amp;gt; 5 なら更新をスキップ）
+- 重みロールバック（オプティマイザステップ前にスナップショットを保存、NaN/Inf 検出時に復元）&lt;/p&gt;
+&lt;h3&gt;キャパシティ・ヘッドルーム仮説&lt;/h3&gt;
+&lt;p&gt;論文の理論的貢献として、&lt;strong&gt;「SFT 事前分布が流暢（PPL &amp;lt; 20）かつ報酬信号が識別的である場合にのみ PPO は改善をもたらす」&lt;/strong&gt; というキャパシティ・ヘッドルーム仮説が提案される。&lt;/p&gt;
+&lt;p&gt;モデルのパラメータ数だけでは PPO の成功を予測できない。TinyStories で PPL = 7.0 の 135M SmolLM2 は成功し、CNN/DailyMail で PPL = 70.3 の 160M Pythia は失敗する。鍵となるのは SFT チェックポイントがすでに流暢なテキストを生成しているかどうか——RL が言語流暢性と同時に戦わずに済む「ヘッドルーム」が必要だということだ。&lt;/p&gt;
+&lt;h2&gt;先行研究との比較&lt;/h2&gt;
+&lt;p&gt;SLM スケールのアライメント研究は SFT または DPO/KTO/GRPO などの報酬モデルを排除した手法に偏っている。PPO の安定性に関する大規模での研究（InstructGPT、Llama 2 RLHF）は存在するが、500M 未満のスケールでの失敗メカニズムの体系的調査はこれが初めてだ。&lt;/p&gt;
+&lt;p&gt;公開されているインストラクション調整済みベースラインとの比較では、提案パイプラインは SmolLM2-Instruct や Qwen2.5-Instruct と同等の性能をわずか 10K サンプルで達成する——報酬信号が嗜好のギャップを正確に検出して改善を集中させるからだ。&lt;/p&gt;
+&lt;h2&gt;実験結果の読み方&lt;/h2&gt;
+&lt;p&gt;主要な結果：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Pythia-410M（TinyStories）&lt;/strong&gt;: Δ = +1.355、勝率 59.9%、95% CI [+0.61, +2.10]、p &amp;lt; 0.001&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;SmolLM2-360M（TinyStories）&lt;/strong&gt;: Δ = +0.724、勝率 59.7%、95% CI [+0.32, +1.13]、p &amp;lt; 0.001&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;SmolLM2-360M（Wikitext-103）&lt;/strong&gt;: Δ = +0.274、p &amp;lt; 0.05&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;3 つの設定で統計的に有意な改善が確認された。唯一の有意な回帰は Pythia-410M（Wikitext-103）の Δ = -1.043（p &amp;lt; 0.001）。この設定の SFT PPL = 25.4 は流暢性閾値 PPL &amp;lt; 20 を超えており、キャパシティ・ヘッドルーム仮説と一致する。&lt;/p&gt;
+&lt;p&gt;勝率は Φ(Δ / √(σ²_PPO + σ²_SFT)) として解析的に計算される。勝率 59.9% は、ヘッドトゥヘッドの比較で PPO モデルが SFT モデルより高いスコアの回答を生成する確率が約 60% であることを意味する。&lt;/p&gt;
+&lt;h2&gt;アルゴリズムの重要部分の解説&lt;/h2&gt;
+&lt;h3&gt;PPO 目標関数の構造&lt;/h3&gt;
+&lt;div class="math"&gt;$$J(\theta) = \mathbb{E}_{p \sim \mathcal{D},\, y \sim \pi_\theta(\cdot|p)}\!\bigl[r_\phi(p, y) - \beta\,\mathrm{KL}\!\bigl(\pi_\theta(\cdot|p)\,\|\,\pi_\text{SFT}(\cdot|p)\bigr)\bigr]$$&lt;/div&gt;
+&lt;p&gt;第一項は学習した報酬モデル r_φ の下で高スコアを獲得する報酬。第二項は SFT 事前分布からの逸脱にペナルティを与え、報酬ハッキング（報酬モデルを予期しない方法で最適化すること）を防ぐ。&lt;/p&gt;
+&lt;p&gt;KL 項には&lt;strong&gt;逆方向（モード探索）KL&lt;/strong&gt;が使われる。これは新しい方策が SFT 事前確率の低い領域にマスを割り当てることにペナルティを与える。SLM スケールでは、β が小さすぎると崩壊が起き、大きすぎると学習が止まる——このバランスが SLM 特有の困難さだ。&lt;/p&gt;
+&lt;h3&gt;Bradley–Terry 報酬モデル&lt;/h3&gt;
+&lt;div class="math"&gt;$$\mathcal{L}_\text{RM}(\phi) = -\mathbb{E}_{(p, y^w, y^l) \sim \mathcal{D}_\text{RM}}\!\bigl[\log \sigma\bigl(r_\phi(p, y^w) - r_\phi(p, y^l)\bigr)\bigr]$$&lt;/div&gt;
+&lt;p&gt;この損失はシンプルだが深い意味を持つ。σ はシグモイド関数で、スコア差をスコア yʷ が好まれる確率に変換する。重要なのは&lt;strong&gt;加法的不変性&lt;/strong&gt;：すべてのスコアを定数 c だけシフトしても損失は変わらない。なぜなら差だけが重要だから。これが異なる設定間で絶対スコアを比較できない理由だ。&lt;/p&gt;
+&lt;h3&gt;マージ・再初期化アルゴリズムの意味&lt;/h3&gt;
+&lt;p&gt;アルゴリズム 1 の核心的な洞察：SFT アダプタをベースモデルにマージした後、ゼロ初期化の新しい LoRA（BA = 0）を取り付ける。PPO の第 0 ステップでは新アダプタは何も加算しないので、方策は正確に π_SFT となる。冷凍参照方策も同じく π_SFT であるため、PPO 開始時の KL ペナルティはゼロから始まる。これは RLHF の数学的に正しい初期化であり、他のアプローチは学習開始時に「幻のKL」を導入してしまう。&lt;/p&gt;
+&lt;h2&gt;限界と課題&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;シングルターン評価のみ&lt;/strong&gt;: 15 設定の研究は T=1（1 ターン MDP）を使用。マルチターンのエージェント的フレームワークはコードとして公開されているが、本論文では評価されていない&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;合成嗜好データ&lt;/strong&gt;: 嗜好ペアは人間の評価者ではなく劣化戦略（切り詰め、シャッフル、不一致）で生成&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;固定ハイパーパラメータ&lt;/strong&gt;: 失敗モード分析のためにすべての設定で意図的に固定。モデルごとのチューニングはより良い結果をもたらすが分析が難しくなる&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;2 つのアーキテクチャのみ&lt;/strong&gt;: Pythia（GPT-NeoX）と SmolLM2（Llama）のみ。他のアーキテクチャへの一般化は未検証&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;今後の展望&lt;/h2&gt;
+&lt;p&gt;著者が示唆する方向：
+- マルチターンエージェント的インタラクション（ツール呼び出し、多段対話）への拡張
+- 合成劣化ではなく実際の品質判断に基づく報酬モデル&lt;/p&gt;
+&lt;p&gt;この研究から派生する発展的方向性：
+- &lt;strong&gt;選択的混合精度 PPO&lt;/strong&gt;: オーバーフローリスクが高い箇所だけ float32 を使用し、メモリを節約しつつ安定性を維持
+- &lt;strong&gt;PPO 中の適応的 LoRA ランク拡張&lt;/strong&gt;: マージ・再初期化トリックを応用してランクを動的に増加させる機構
+- &lt;strong&gt;蒸留ウォームスタートから PPO へ&lt;/strong&gt;: 教師モデルで SFT データを生成して流暢性閾値を確実に満たしてから RLHF を開始する&lt;/p&gt;
+&lt;h2&gt;エッジ・オンデバイスへの示唆&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;PPO は 500M 未満のモデルでも実用的&lt;/strong&gt;——3 つの修正を実装すれば。明示的な報酬信号を諦める必要はない&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;RLHF 開始前に SFT PPL を確認する&lt;/strong&gt;。PPL &amp;lt; 20 の閾値が実用的な go/no-go 基準。SFT モデルがまだ流暢性に苦しんでいるなら、RL は助けにならない&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;PPO テンソルには float32 を使う&lt;/strong&gt;。70〜500M モデルでは float32 vs bfloat16 のメモリコストは 140MB〜1GB の差——現代のエッジデバイスで十分管理可能&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;報酬モデルは監視手段でもある&lt;/strong&gt;。新しいユーザーやドメインに適応する必要があるオンデバイスエージェントには、方策とは独立してログ取得・デバッグ・更新できる明示的な報酬信号が有効&lt;/li&gt;
+&lt;li&gt;計算コストは &lt;strong&gt;2× RTX A6000 で約 16 GPU 時間&lt;/strong&gt;——大学の研究室や小規模な AI チームでも実行可能&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;原文リンク&lt;/h2&gt;
+&lt;p&gt;&lt;a href="https://arxiv.org/abs/2607.25091"&gt;Original Paper&lt;/a&gt;&lt;/p&gt;
+&lt;script type="text/javascript"&gt;if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width &lt; 768) ? "left" : align;
+        indent = (screen.width &lt; 768) ? "0em" : indent;
+        linebreak = (screen.width &lt; 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+
+    var configscript = document.createElement('script');
+    configscript.type = 'text/x-mathjax-config';
+    configscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'none' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        availableFonts: ['STIX', 'TeX']," +
+        "        preferredFont: 'STIX'," +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(configscript);
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+&lt;/script&gt;</content><category term="AI/ML"></category><category term="SLM"></category><category term="AI"></category><category term="論文解説"></category></entry><entry><title>凍結済み小型言語モデルを賢く・安くする：バイト完全KV状態グラフティング</title><link href="/dong-jie-ji-mixiao-xing-yan-yu-moderuwoxian-kuan-kusurubaitowan-quan-kvzhuang-tai-gurahuteingu.html" rel="alternate"></link><published>2026-07-18T00:00:00+09:00</published><updated>2026-07-18T00:00:00+09:00</updated><author><name>toohsk</name></author><id>tag:None,2026-07-18:/dong-jie-ji-mixiao-xing-yan-yu-moderuwoxian-kuan-kusurubaitowan-quan-kvzhuang-tai-gurahuteingu.html</id><summary type="html">&lt;p&gt;バイト完全なKVキャッシュグラフティングにより、勾配ゼロで凍結12Bモデルに検証済み知識を注入し、AIME 2025スコアを80%から93.3%に向上させながらトークン消費を6,574倍削減する新手法。&lt;/p&gt;</summary><content type="html">&lt;h2&gt;なぜこの研究が重要か&lt;/h2&gt;
 &lt;p&gt;LLMがクエリに答えるたびに、プロンプト内のすべてのトークンを最初から再計算している。同じ数学的証明、参照実装、ドメイン知識が数百万のクエリに埋め込まれている場合、それは数百万回再計算される — 静かに積み重なる巨大な無駄である。&lt;/p&gt;
 &lt;p&gt;この論文はその無駄を、一見シンプルな観察で攻略する：モデルがプロンプトを読む際に計算するKVキャッシュは、入力・重み・数値精度の&lt;strong&gt;決定論的な関数&lt;/strong&gt;である。もしそのキャッシュ状態をビット完全にキャプチャし、ディスクに保存し、後から損失ゼロで別の推論コンテキストに復元できれば：&lt;/p&gt;
 &lt;ol&gt;

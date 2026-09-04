@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+            <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+        <title>バトンを渡す：軌跡リレー型オンポリシー蒸留による小規模言語モデルの強化</title>
+
+            <link href="/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Full Atom Feed" />
+            <link href="/feeds/{slug}.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Categories Atom Feed" />
+        <!-- Bootstrap Core CSS -->
+        <link href="/theme/css/bootstrap.min.css" rel="stylesheet">
+
+        <!-- Custom CSS -->
+        <link href="/theme/css/clean-blog.min.css" rel="stylesheet">
+
+        <!-- Code highlight color scheme -->
+            <link href="/theme/css/code_blocks/github.css" rel="stylesheet">
+
+
+        <!-- Custom Fonts -->
+        <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+        <link href='https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+        <link href='https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/css'>
+
+        <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+        <!--[if lt IE 9]>
+            <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+            <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+
+
+        <meta name="description" content="Relay-OPDはオンポリシー蒸留における「プレフィックス失敗」問題を、教師モデルが重要な発散ポイントで短時間引き継ぐ手法で解決し、標準OPDより+5.73%の精度向上と学習軌跡長の50%削減を達成した。">
+
+        <meta name="author" content="toohsk">
+
+        <meta name="tags" content="SLM">
+        <meta name="tags" content="AI">
+        <meta name="tags" content="論文解説">
+
+	                <meta property="og:locale" content="">
+		<meta property="og:site_name" content="Atsushi's blog">
+
+	<meta property="og:type" content="article">
+            <meta property="article:author" content="/author/toohsk.html">
+	<meta property="og:url" content="/batonwodu-sugui-ji-rire-xing-onporishi-zheng-liu-niyoruxiao-gui-mo-yan-yu-moderunoqiang-hua.html">
+	<meta property="og:title" content="バトンを渡す：軌跡リレー型オンポリシー蒸留による小規模言語モデルの強化">
+	<meta property="article:published_time" content="2026-07-30 00:00:00+09:00">
+            <meta property="og:description" content="Relay-OPDはオンポリシー蒸留における「プレフィックス失敗」問題を、教師モデルが重要な発散ポイントで短時間引き継ぐ手法で解決し、標準OPDより+5.73%の精度向上と学習軌跡長の50%削減を達成した。">
+
+            <meta property="og:image" content="/images/blog_cover.jpg">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:site" content="@toohsk">
+        <meta name="twitter:title" content="バトンを渡す：軌跡リレー型オンポリシー蒸留による小規模言語モデルの強化">
+
+            <meta name="twitter:image" content="/images/blog_cover.jpg">
+
+            <meta name="twitter:description" content="Relay-OPDはオンポリシー蒸留における「プレフィックス失敗」問題を、教師モデルが重要な発散ポイントで短時間引き継ぐ手法で解決し、標準OPDより+5.73%の精度向上と学習軌跡長の50%削減を達成した。">
+</head>
+
+<body class="article-batonwodu-sugui-ji-rire-xing-onporishi-zheng-liu-niyoruxiao-gui-mo-yan-yu-moderunoqiang-hua">
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+        <div class="container-fluid">
+            <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header page-scroll">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="/">Atsushi's blog</a>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav navbar-right">
+
+                </ul>
+            </div>
+            <!-- /.navbar-collapse -->
+        </div>
+        <!-- /.container -->
+    </nav>
+
+    <!-- Page Header -->
+        <header class="intro-header" style="background-image: url('/images/blog_cover.jpg')">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <div class="post-heading">
+                        <h1>バトンを渡す：軌跡リレー型オンポリシー蒸留による小規模言語モデルの強化</h1>
+                        <span class="meta">Posted by
+                                <a href="/author/toohsk.html">toohsk</a>
+                             on 木 30 7月 2026
+                        </span>
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+    <!-- Post Content -->
+    <article>
+        <h2>なぜこの研究が重要か</h2>
+<p>知識蒸留は小規模言語モデルに推論能力を持たせるための中心的技術だ。目標はシンプル：高性能だが高コストな教師モデルの能力をコンパクトな生徒モデルに転移させること。数学的推論——おそらく最も圧縮が難しい能力——では、単なるパターンマッチングではなく真のステップバイステップの問題解決が必要だ。</p>
+<p>オンポリシー蒸留（OPD）はこの課題のために設計された手法だ：生徒に自分自身の推論軌跡を生成させ、教師がその軌跡をトークンごとに監督する。これにより監督が生徒の実際の失敗パターンに基づいたものになり、理想化された教師生成の軌跡よりも現実的な学習が可能になる。</p>
+<p>しかし OPD には長い推論において特に深刻な致命的欠陥がある：<strong>プレフィックス失敗</strong>だ。生徒が一度間違った推論方向にコミットすると——20ステップの証明の第3ステップで間違った補題、代数問題の早い段階での誤った分解——以降のすべての生成がその間違いの上に構築される。脱線した軌跡の後のステップを監督するよう求められた教師は、到達を想定していなかったポジションからアドバイスを強いられる。そのアドバイスは最良の場合で信頼性が低く、最悪の場合は積極的に誤誘導する。</p>
+<p>本論文はこの問題を定量化し、エレガントな解決策を提案する：教師が推論を方向転換したいが生徒は突き進もうとする瞬間に、数ステップだけ教師にバトンを渡す。この手法 <strong>Relay-OPD</strong> は、1.7B の生徒で8つの数学ベンチマーク平均精度を OPD より +5.73% 向上させ、学習軌跡長を50%以上削減する。</p>
+<h2>技術的なアプローチ</h2>
+<h3>プレフィックス失敗問題</h3>
+<p>生徒が軌跡 y = (y₁, ..., y_N) を生成する際、OPD は各位置で逆KL優位量を使って学習する：</p>
+<div class="math">$$A_t^\text{OPD} = \log\pi_T(y_t \mid h_t) - \log\pi_{\bar\theta}(y_t \mid h_t)$$</div>
+<p>ここで h_t = (x, y_{&lt;t}) は現在のプレフィックス。この優位量の符号は、サンプリングされたトークンの確率を増やすべきか減らすべきかを示す。生徒が正しく推論するとき教師は同意し、優位量はゼロに近い。生徒が間違い始めると教師は生徒のトークンに低い確率を与える——優位量が負になり、生徒は後退を学ぶ。</p>
+<p>問題はここだ：生徒が間違った連鎖を5ステップ進んでしまった時、ステップ6での教師の監督は教師も生徒も「通常ここにいないはずの」プレフィックスを条件とする。教師は今や生徒が漂流してしまったコンテキストでは意味をなさない反省トークン（<em>But</em>、<em>Wait</em>、<em>However</em>）を推薦するかもしれない。そのシグナルで学習することは助けになるどころか害になる。</p>
+<h3>ハンドオフトリガー</h3>
+<p>鍵となる洞察は、<strong>推論方向における教師-生徒の発散は外部監督なしに観測可能</strong>だということだ：</p>
+<div class="math">$$\phi(h) = \mathbf{1}\bigl[a^T(h) \in \mathcal{R}\bigr] \cdot \mathbf{1}\bigl[\mathcal{K}_S(h) \cap \mathcal{R} = \varnothing\bigr]$$</div>
+<p>ここで：
+- ℛ は<strong>反省トークンの集合</strong> — <em>But</em>、<em>Wait</em>、<em>However</em>、<em>No</em> など推論の方向転換を示す語
+- a^T(h) は教師のトップ1次トークン（π_T(·|h) の argmax）
+- K_S(h) は生徒のトップ K サポートセット（π_̄θ(·|h) の上位 K トークン）</p>
+<p>φ(h) = 1 は「教師は推論を方向転換したい（トップトークンが反省語）が、生徒は方向転換しない（確率上位 K 個の中に反省語がない）」を意味する。これはプレフィックス失敗が起きていることを示すラベルフリーの信号だ。</p>
+<h3>リレー軌跡の構成</h3>
+<p>トリガーが発火すると、Relay-OPD は軌跡に教師レッグを挿入する：
+1. 教師が短い修正セグメントを生成——デフォルトでは反省トークンの後に L=3 の推論段落（約70トークン）
+2. 修正されたプレフィックスから生徒が再開
+3. リレーバジェット (M=2, L=3) が介入の最大回数と各教師セグメントの長さを制限</p>
+<p>リレーバジェットは重要だ。教師の介入が頻繁すぎるか長すぎると、軌跡が生徒自身の方策から大きく離れてしまう——オフライン蒸留（教師生成データでの学習）に近くなる。限られたバジェットにより、軌跡は生徒の分布に根ざしつつも、戦略的に失敗ポイントを修正する。</p>
+<h3>投機的デコーディングによる効率的実装</h3>
+<p>2 つのモデル間を切り替えながら生成することは、大きなスケジューリングオーバーヘッドを引き起こす。著者らはこれを巧みに回避するため、Relay-OPD を<strong>状態切替型の投機的デコーディングプロセス</strong>として再定式化する。</p>
+<p>デコーディング状態 s_t ∈ {S, T, ⊥} が位置ごとに生成者を決定する：</p>
+<div class="math">$$s_{t+1} = \begin{cases} \mathsf{T} &amp; s_t=\mathsf{S},\ \phi(h_{t+1})=1,\ j_t &lt; M \text{ の場合} \\ \mathsf{S} &amp; s_t=\mathsf{T},\ \ell_t=L,\ j_t &lt; M \text{ の場合} \\ \bot &amp; s_t=\mathsf{T},\ \ell_t=L,\ j_t=M \text{ の場合} \\ s_t &amp; それ以外 \end{cases}$$</div>
+<p>生徒レッグでは全てのドラフトトークンが受理される（生徒は自分の出力を無条件に受け入れる）。教師レッグでは教師に対する標準的な投機的リジェクションサンプリングが実行される。検証中に計算された教師のロジットは同時にトリガー基準 φ を提供する——追加のフォワードパスは不要だ。</p>
+<p>最適化目標は：</p>
+<div class="math">$$\mathcal{L}_\text{Relay} = -\mathbb{E}_{x,z}\!\left[\frac{1}{N}\sum_{t=1}^{N}\min\!\bigl(\rho_t A_t^\text{Relay},\, \text{clip}(\rho_t, 1-\epsilon, 1+\epsilon)\,A_t^\text{Relay}\bigr)\right]$$</div>
+<h2>先行研究との比較</h2>
+<p><strong>1.7B 生徒 Qwen3-1.7B-Non-Thinking（教師: Qwen3-4B-Instruct-2507）の主要結果:</strong></p>
+<table>
+<thead>
+<tr>
+<th>手法</th>
+<th>AIME24</th>
+<th>AIME25</th>
+<th>AIME26</th>
+<th>MATH</th>
+<th>AMC</th>
+<th>平均</th>
+<th>学習長</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Student</td>
+<td>12.60</td>
+<td>9.58</td>
+<td>7.40</td>
+<td>71.95</td>
+<td>47.89</td>
+<td>24.84</td>
+<td>—</td>
+</tr>
+<tr>
+<td>OPD</td>
+<td>35.83</td>
+<td>25.52</td>
+<td>23.33</td>
+<td>85.70</td>
+<td>70.08</td>
+<td>41.23</td>
+<td>4658</td>
+</tr>
+<tr>
+<td>FastOPD</td>
+<td>42.29</td>
+<td>30.42</td>
+<td>26.35</td>
+<td>87.95</td>
+<td>74.30</td>
+<td>45.47</td>
+<td>2709</td>
+</tr>
+<tr>
+<td><strong>Relay-OPD</strong></td>
+<td><strong>42.71</strong></td>
+<td><strong>32.81</strong></td>
+<td><strong>30.52</strong></td>
+<td><strong>89.50</strong></td>
+<td><strong>76.88</strong></td>
+<td><strong>46.96</strong></td>
+<td><strong>2296</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>vs OPD: 平均 +5.73%（1.7B）、+3.01%（0.6B）</strong>
+<strong>vs FastOPD: +1.49%（1.7B）、+0.62%（0.6B）</strong>
+<strong>学習軌跡長: OPD比 50.7% 削減（1.7B）、63.9% 削減（0.6B）</strong></p>
+<p>競合手法の失敗原因も示唆に富む：
+- <strong>TRD</strong>（オフライン書き換え）は逆効果——書き換えアーティファクトが軌跡を不自然にする
+- <strong>SKD</strong>（トークンレベルの混合）はほとんど改善しない——推論方向の発散ではなく一般的な分布的不一致をシグナルとして使うため
+- <strong>FastOPD</strong>（固定長切り詰め）は役立つが、失敗したプレフィックスからどう回復するかを示せない</p>
+<h2>実験結果の読み方</h2>
+<p>AIME ベンチマークの数字は注目に値する。AIME（アメリカ数学招待試験）は上位モデルでも苦戦する競技数学問題集だ。4B 教師からの蒸留で 1.7B モデルが AIME 2025 で 32.81%、AIME 2026 で 30.52% を達成するのは強力な結果だ。</p>
+<p>最も重要な数字は絶対精度ではなく<strong>学習効率</strong>だ。Relay-OPD は 1.7B で OPD がステップ 55 に対してステップ 35 で最良チェックポイントに到達する。平均ロールアウト長は 2,296 トークン vs OPD の 4,658。生徒はより短く、より良いキュレーションの軌跡からより速く学んでいる。</p>
+<p>学習ダイナミクスが理由を明らかにする：教師トークン率は学習初期に約 13% から始まり、約 20 ステップ後に 2〜3% まで急低下する。生徒が改善するにつれて必要な修正が減る。この介入は自己制限的だ——生徒が良くなるほど教師の介入は減り、学習はよりオンポリシーになる。適応的蒸留手法として正しい振る舞いだ。</p>
+<h2>アルゴリズムの重要部分の解説</h2>
+<h3>ハンドオフトリガーの意味</h3>
+<p>トリガー基準 φ(h) は：
+- <strong>ラベルフリー</strong>: 正解ラベル、検証器の呼び出し、報酬モデルのクエリが不要
+- <strong>因果的に正確</strong>: 教師が方向転換したいときにだけ発火。教師と生徒が一般的に不一致なときではない
+- <strong>感度調整可能</strong>: K（トップ K）がトリガーの感度を制御。大きい K は保守的、小さい K は敏感</p>
+<p>反省トークン集合 ℛ = {But, Wait, However, No, Actually, ...} は「間違いました、再考します」を意味するトークンを捉える。RL で学習した chain-of-thought モデルにおける推論の自己修正の言語的マーカーだ。これは「教師は現在の推論方向を変えるべきと思っている」のプロキシとして機能する。</p>
+<h3>最適化目標の構造</h3>
+<p>式 9 のクリップ付き PPO スタイル損失がリレー軌跡に適用される：</p>
+<div class="math">$$\mathcal{L}_\text{Relay} = -\mathbb{E}\!\left[\frac{1}{N}\sum_t \min\!\bigl(\rho_t A_t,\, \text{clip}(\rho_t, 1-\epsilon, 1+\epsilon) A_t\bigr)\right]$$</div>
+<p>A_t^Relay = log π_T(z_t | h_t^z) - log π_̄θ(z_t | h_t^z) で、ρ_t = π_θ(z_t | h_t^z) / π_̄θ(z_t | h_t^z)。</p>
+<p>クリッピングが重要だ：これがないと教師レッグ（z_t が教師に生成された）において、生徒が最初に非常に低い確率を割り当てたトークンに対して任意に大きな優位量が生じる可能性がある。1 ± ε でのクリッピングが各トークン更新の大きさを制限し、生徒が教師の修正にオーバーコミットするのを防ぐ。</p>
+<p>核心的な洞察は、リレー軌跡全体——生徒レッグと教師レッグの両方——が最適化に参加するということだ。教師レッグは単なる足場ではない——生徒はそれを再現するよう直接学習する。これが「バトン渡し」が機能する理由だ：生徒は失敗したプレフィックスを避けることだけでなく、その後に続く修正的な推論ステップを生成することも学ぶ。</p>
+<h3>統一ツールとしての投機的デコーディング</h3>
+<p>投機的デコーディングを使って生徒と教師の生成を統一するのはエレガントだ。教師レッグでは標準的な投機的リジェクションサンプリングが実行されるが、検証中に計算された教師のロジットが同時にトリガー基準 φ を提供する——追加コストゼロで。これにより著者らは既存の投機的デコーディングフレームワーク内で教師介入軌跡を「無料で」取得できた。</p>
+<h2>限界と課題</h2>
+<ul>
+<li><strong>数学のみの評価</strong>: すべての実験が数学的推論ベンチマーク。コード、科学的推論、マルチステップのツール使用への一般化は未検証</li>
+<li><strong>反省トークン語彙は経験的</strong>: ℛ セットは手動指定。すべての推論方向転換シグナルを捉えているわけではない</li>
+<li><strong>4B 教師が必要</strong>: 学習中に教師と生徒の両方に同時アクセスが必要。単一の消費者向けGPUでは 4B 教師と 1.7B 生徒を同時にロードするのは困難</li>
+<li><strong>単一エポックのみ</strong>: より長い学習ダイナミクスは未探索</li>
+</ul>
+<h2>今後の展望</h2>
+<p>著者が示唆する方向：
+- 非数学ドメインおよびエージェント的ツール使用タスクへの拡張
+- より困難な推論問題に対するオラクルラベルフリー評価の探索</p>
+<p>この研究から派生する発展的方向性：
+- <strong>プログレッシブなリレーバジェット削減</strong>: 生徒が弱い学習初期には高い M, L バジェット（多い介入）から始め、生徒の改善に伴いアニールする——自己制限的な振る舞いをより明示的に実装
+- <strong>コード生成への Relay-OPD</strong>: 反省トークンのパラダイムはコードに自然な類似物を持つ——<code># Error: this approach won't work</code> のようなコメントがコードドメインのハンドオフトリガーとして機能しうる
+- <strong>マルチ教師リレー</strong>: 異なる失敗タイプに異なる教師が介入——算術エラーには数学専門教師、演繹エラーには論理専門教師</p>
+<h2>エッジ・オンデバイスへの示唆</h2>
+<ul>
+<li><strong>50% の学習軌跡短縮はオンライン蒸留ステップの計算量が50% 削減</strong>されることを意味する。ユーザーの行動に適応するためにデバイス上で定期的に蒸留を行う場合、適応コストが半減する</li>
+<li><strong>Relay-OPD は学習中にラベルが不要</strong>。ハンドオフトリガー φ(h) は教師と生徒のロジットのみを使用——正解、検証器、報酬モデルは不要。ラベル付きデータが高価または入手困難なドメインへの適用が可能</li>
+<li><strong>この手法は推論時の投機的デコーディングと互換性がある</strong>。Relay-OPD で学習した生徒-教師システムは、展開時にも投機的デコーディングセットアップで教師と並んで動作する——生徒が失敗プレフィックスを認識して回復する能力を持つため、より良いドラフトモデルになる</li>
+<li><strong>学習効率の向上は 0.6B モデルで特に価値がある</strong>: 0.6B 生徒では学習軌跡長が 6,900 から 2,490 トークンに低下——63.9% の削減。1B 未満のスケールでは、学習計算量を節約するごとにデバイス上での継続的学習の実現可能性が直接向上する</li>
+</ul>
+<h2>原文リンク</h2>
+<p><a href="https://arxiv.org/abs/2607.26057">Original Paper</a></p>
+<script type="text/javascript">if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width < 768) ? "left" : align;
+        indent = (screen.width < 768) ? "0em" : indent;
+        linebreak = (screen.width < 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+
+    var configscript = document.createElement('script');
+    configscript.type = 'text/x-mathjax-config';
+    configscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'none' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        availableFonts: ['STIX', 'TeX']," +
+        "        preferredFont: 'STIX'," +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(configscript);
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+</script>
+    </article>
+
+        <div class="tags">
+            <p>tags: <a href="/tag/slm.html">SLM</a>, <a href="/tag/ai.html">AI</a>, <a href="/tag/lun-wen-jie-shuo.html">論文解説</a></p>
+        </div>
+
+    <hr>
+
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <ul class="list-inline text-center">
+                            <li>
+                                <a href="http://twitter.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-twitter fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="http://github.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-github fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                    </ul>
+<p class="copyright text-muted">
+    Blog powered by <a href="http://getpelican.com">Pelican</a>,
+    which takes great advantage of <a href="http://python.org">Python</a>. <br />        &copy;  toohsk
+</p>                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- jQuery -->
+    <script src="/theme/js/jquery.min.js"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="/theme/js/bootstrap.min.js"></script>
+
+        <!-- Custom Theme JavaScript -->
+        <script src="/theme/js/clean-blog.min.js"></script>
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-LR14KRYZ4L"></script>
+<script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-LR14KRYZ4L');
+</script>
+</body>
+
+</html>

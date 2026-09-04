@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+            <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+        <title>Pass the Baton: Trajectory-Relayed On-Policy Distillation for Small Language Models</title>
+
+            <link href="/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Full Atom Feed" />
+            <link href="/feeds/{slug}.atom.xml" type="application/atom+xml" rel="alternate" title="Atsushi's blog Categories Atom Feed" />
+        <!-- Bootstrap Core CSS -->
+        <link href="/theme/css/bootstrap.min.css" rel="stylesheet">
+
+        <!-- Custom CSS -->
+        <link href="/theme/css/clean-blog.min.css" rel="stylesheet">
+
+        <!-- Code highlight color scheme -->
+            <link href="/theme/css/code_blocks/github.css" rel="stylesheet">
+
+
+        <!-- Custom Fonts -->
+        <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+        <link href='https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+        <link href='https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/css'>
+
+        <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+        <!--[if lt IE 9]>
+            <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+            <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+
+
+        <meta name="description" content="Relay-OPD fixes the "prefix failure" problem in on-policy distillation by having a teacher model briefly take over at critical...">
+
+        <meta name="author" content="toohsk">
+
+        <meta name="tags" content="SLM">
+        <meta name="tags" content="AI">
+        <meta name="tags" content="paper-review">
+
+	                <meta property="og:locale" content="">
+		<meta property="og:site_name" content="Atsushi's blog">
+
+	<meta property="og:type" content="article">
+            <meta property="article:author" content="/author/toohsk.html">
+	<meta property="og:url" content="/pass-the-baton-trajectory-relayed-on-policy-distillation-for-small-language-models.html">
+	<meta property="og:title" content="Pass the Baton: Trajectory-Relayed On-Policy Distillation for Small Language Models">
+	<meta property="article:published_time" content="2026-07-30 00:00:00+09:00">
+            <meta property="og:description" content="Relay-OPD fixes the "prefix failure" problem in on-policy distillation by having a teacher model briefly take over at critical...">
+
+            <meta property="og:image" content="/images/blog_cover.jpg">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:site" content="@toohsk">
+        <meta name="twitter:title" content="Pass the Baton: Trajectory-Relayed On-Policy Distillation for Small Language Models">
+
+            <meta name="twitter:image" content="/images/blog_cover.jpg">
+
+            <meta name="twitter:description" content="Relay-OPD fixes the "prefix failure" problem in on-policy distillation by having a teacher model briefly take over at critical...">
+</head>
+
+<body class="article-pass-the-baton-trajectory-relayed-on-policy-distillation-for-small-language-models">
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+        <div class="container-fluid">
+            <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header page-scroll">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="/">Atsushi's blog</a>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav navbar-right">
+
+                </ul>
+            </div>
+            <!-- /.navbar-collapse -->
+        </div>
+        <!-- /.container -->
+    </nav>
+
+    <!-- Page Header -->
+        <header class="intro-header" style="background-image: url('/images/blog_cover.jpg')">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <div class="post-heading">
+                        <h1>Pass the Baton: Trajectory-Relayed On-Policy Distillation for Small Language Models</h1>
+                        <span class="meta">Posted by
+                                <a href="/author/toohsk.html">toohsk</a>
+                             on 木 30 7月 2026
+                        </span>
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+    <!-- Post Content -->
+    <article>
+        <h2>Why This Paper Matters</h2>
+<p>Knowledge distillation is the central technique for making small language models that can reason. The goal: take a capable but expensive teacher model and transfer its capabilities into a compact student. For mathematical reasoning — arguably the hardest capability to compress — this requires not just pattern matching but genuine step-by-step problem solving.</p>
+<p>On-policy distillation (OPD) was designed to address this: let the student generate its own reasoning trajectories, then use the teacher to supervise those trajectories token-by-token. This grounds the supervision in the student's actual failure modes rather than an idealized teacher-generated trace.</p>
+<p>But OPD has a fatal flaw that becomes especially acute in long-horizon reasoning: <strong>prefix failure</strong>. Once a student commits to the wrong reasoning direction — a wrong lemma at step 3 of a 20-step proof, a wrong decomposition early in an algebra problem — every subsequent generation builds on that mistake. The teacher, asked to supervise later steps of this derailed trajectory, is forced to provide guidance from a position it never expected to reach. That guidance is unreliable at best and actively misleading at worst.</p>
+<p>This paper quantifies the problem and proposes an elegant solution: at the precise moments when the teacher would redirect the reasoning but the student would barrel ahead, hand the baton to the teacher for a few steps. The resulting method — <strong>Relay-OPD</strong> — improves average accuracy on 8 math benchmarks by +5.73% over OPD for a 1.7B student and reduces training trajectory length by over 50%.</p>
+<h2>Core Technical Contribution</h2>
+<h3>The Prefix Failure Problem</h3>
+<p>When a student generates a trajectory y = (y₁, ..., y_N), OPD trains on the reverse-KL advantage at each position:</p>
+<div class="math">$$A_t^\text{OPD} = \log\pi_T(y_t \mid h_t) - \log\pi_{\bar\theta}(y_t \mid h_t)$$</div>
+<p>where h_t = (x, y_{&lt;t}) is the current prefix and π_T, π_̄θ are teacher and old student policies.</p>
+<p>The sign of this advantage tells the student whether to increase or decrease the probability of the sampled token. When the student reasons correctly, the teacher agrees and the advantage is near zero. When the student starts going wrong, the teacher assigns lower probability to the student's tokens — the advantage is negative and the student learns to backtrack.</p>
+<p>But here's the problem: by the time the student is 5 wrong steps into a misdirected chain, the teacher's supervision at step 6 is conditioned on a prefix neither the teacher nor the student "would normally be at." The teacher might recommend a reflection token (<em>But</em>, <em>Wait</em>, <em>However</em>) that makes no sense in the context the student has now drifted into. Training on that signal harms rather than helps.</p>
+<h3>The Handoff Trigger</h3>
+<p>The key insight is that <strong>teacher-student divergence in reasoning direction is observable without external supervision</strong>. Specifically:</p>
+<div class="math">$$\phi(h) = \mathbf{1}\bigl[a^T(h) \in \mathcal{R}\bigr] \cdot \mathbf{1}\bigl[\mathcal{K}_S(h) \cap \mathcal{R} = \varnothing\bigr]$$</div>
+<p>where:
+- R is the set of <strong>reflection tokens</strong> — words like <em>But</em>, <em>Wait</em>, <em>However</em>, <em>No</em> that signal a reasoning redirect
+- a^T(h) is the teacher's top-1 next token (argmax of π_T(·|h))
+- K_S(h) is the student's top-K support set (top-K tokens by probability under π_̄θ(·|h))</p>
+<p>φ(h) = 1 means: the teacher wants to redirect the reasoning (its top token is a reflection), but the student would not redirect (none of its K most probable tokens are reflections). This is a label-free signal that prefix failure is occurring.</p>
+<p>The trigger is intentionally asymmetric: it fires only when the teacher <em>wants</em> to redirect and the student <em>does not</em>. If the student also recognizes the need to redirect, there is no failure requiring intervention.</p>
+<h3>Relay Trajectory Construction</h3>
+<p>When the trigger fires, Relay-OPD inserts a teacher leg into the trajectory:
+1. The teacher generates a short corrective segment — by default, a reflection token followed by L=3 reasoning paragraphs (~70 tokens)
+2. Control returns to the student, which continues from the corrected prefix
+3. A relay budget (M=2, L=3) caps the maximum number of takeovers and length of each teacher segment</p>
+<p>The relay budget is critical. A teacher that takes over too frequently or too long pulls the trajectory far from the student's own policy — the resulting training signal becomes closer to offline distillation (training on teacher-generated data) than on-policy learning. The limited budget ensures the trajectory remains anchored to the student's distribution while strategically fixing the failure points.</p>
+<h3>Efficient Implementation via Speculative Decoding</h3>
+<p>Alternating between two models during generation would require constant model switching, creating massive scheduling overhead. The authors cleverly avoid this by recasting Relay-OPD as a <strong>state-switched speculative decoding process</strong>.</p>
+<p>The student acts as the draft model and the teacher as the target model. At each position, the decoding state s_t ∈ {S, T, ⊥} determines who is generating:</p>
+<div class="math">$$s_{t+1} = \begin{cases} \mathsf{T} &amp; \text{if } s_t=\mathsf{S},\ \phi(h_{t+1})=1,\ j_t &lt; M \\ \mathsf{S} &amp; \text{if } s_t=\mathsf{T},\ \ell_t=L,\ j_t &lt; M \\ \bot &amp; \text{if } s_t=\mathsf{T},\ \ell_t=L,\ j_t=M \\ s_t &amp; \text{otherwise} \end{cases}$$</div>
+<p>In student legs, every draft token is accepted (the student accepts its own output unconditionally). In teacher legs, standard speculative rejection sampling runs against the teacher. The teacher logits computed during verification simultaneously provide the trigger criterion φ — no additional forward pass required.</p>
+<p>This is exact: teacher legs are distributionally identical to the teacher generating from the corrected prefix, and student legs are ordinary student sampling. The two-model interleaving is replicated by a single engine.</p>
+<p>The optimization objective across the entire relay trajectory z = (z₁, ..., z_N) is:</p>
+<div class="math">$$\mathcal{L}_\text{Relay} = -\mathbb{E}_{x,z}\!\left[\frac{1}{N}\sum_{t=1}^{N}\min\!\bigl(\rho_t A_t^\text{Relay},\, \text{clip}(\rho_t, 1-\epsilon, 1+\epsilon)\,A_t^\text{Relay}\bigr)\right]$$</div>
+<p>This is a clipped PPO-style objective applied to the relay trajectory, with the advantage defined as the log-ratio between teacher and old student probabilities at each generated token.</p>
+<h2>Comparison to Prior Work</h2>
+<p><strong>Baselines tested:</strong>
+- SFT: standard supervised fine-tuning
+- KD: token-level offline knowledge distillation
+- GRPO: outcome-reward RL
+- OPD: standard on-policy distillation
+- TRD: offline trajectory rewriting by the teacher
+- FastOPD: fixed-length truncation of student rollouts
+- SKD: token-level mixing of teacher and student generation</p>
+<p><strong>Results for Qwen3-1.7B-Non-Thinking (teacher: Qwen3-4B-Instruct-2507):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>AIME 24</th>
+<th>AIME 25</th>
+<th>AIME 26</th>
+<th>MATH</th>
+<th>AMC</th>
+<th>Olympiad</th>
+<th>HMMT-F</th>
+<th>HMMT-N</th>
+<th>Avg</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Student</td>
+<td>12.60</td>
+<td>9.58</td>
+<td>7.40</td>
+<td>71.95</td>
+<td>47.89</td>
+<td>38.54</td>
+<td>6.34</td>
+<td>4.38</td>
+<td>24.84</td>
+</tr>
+<tr>
+<td>OPD</td>
+<td>35.83</td>
+<td>25.52</td>
+<td>23.33</td>
+<td>85.70</td>
+<td>70.08</td>
+<td>55.27</td>
+<td>20.08</td>
+<td>14.06</td>
+<td>41.23</td>
+</tr>
+<tr>
+<td>FastOPD</td>
+<td>42.29</td>
+<td>30.42</td>
+<td>26.35</td>
+<td>87.95</td>
+<td>74.30</td>
+<td>58.16</td>
+<td>23.58</td>
+<td>20.73</td>
+<td>45.47</td>
+</tr>
+<tr>
+<td><strong>Relay-OPD</strong></td>
+<td><strong>42.71</strong></td>
+<td><strong>32.81</strong></td>
+<td><strong>30.52</strong></td>
+<td><strong>89.50</strong></td>
+<td><strong>76.88</strong></td>
+<td><strong>58.79</strong></td>
+<td><strong>24.72</strong></td>
+<td>19.79</td>
+<td><strong>46.96</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Results for Qwen3-0.6B-Non-Thinking:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Avg</th>
+<th>Train Len</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OPD</td>
+<td>28.03</td>
+<td>6900 tokens</td>
+</tr>
+<tr>
+<td>FastOPD</td>
+<td>30.42</td>
+<td>3302 tokens</td>
+</tr>
+<tr>
+<td><strong>Relay-OPD</strong></td>
+<td><strong>31.04</strong></td>
+<td><strong>2490 tokens</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Key comparisons:
+- vs OPD: +5.73% avg (1.7B), +3.01% (0.6B)
+- vs FastOPD (best prior trajectory intervention): +1.49% (1.7B), +0.62% (0.6B)
+- Training trajectory length: 50.7% reduction vs OPD for 1.7B; 63.9% for 0.6B</p>
+<p>The failure modes of competing methods are informative:
+- <strong>TRD</strong> (offline rewriting) actually hurts — 30.69 vs 41.23 for 1.7B. Rewriting artifacts make trajectories look unnatural and harm learning
+- <strong>SKD</strong> (token-level mixing) barely improves over OPD — it uses generic distributional disagreement as the mixing signal, not reasoning-direction divergence
+- <strong>FastOPD</strong> (fixed truncation) helps but cannot demonstrate <em>how to recover</em> from a failed reasoning prefix — it just discards late supervision</p>
+<h2>Reading the Results</h2>
+<p>The numbers on AIME benchmarks are striking. AIME (American Invitational Mathematics Examination) problems are competitive-math problems that even top-tier models struggle with; a 1.7B model reaching 32.81% on AIME 2025 and 30.52% on AIME 2026 via distillation from a 4B teacher is a strong result.</p>
+<p>The most important number is not the absolute accuracy but the <strong>trajectory efficiency</strong>: Relay-OPD reaches its best checkpoint at step 35 for 1.7B, versus step 55 for OPD. It does so with average rollout length 2,296 tokens vs OPD's 4,658. The student is learning faster from shorter, better-curated trajectories.</p>
+<p>The training dynamics reveal why: teacher token ratio starts at ~13% early in training but drops to 2–3% after ~20 steps. As the student improves, it needs less correction. The intervention is self-limiting — the better the student gets, the less the teacher intervenes, and the more on-policy the training becomes. This is the correct behavior for an adaptive distillation method.</p>
+<p>The higher <strong>policy entropy</strong> of Relay-OPD versus OPD and FastOPD is also meaningful: teacher intervention at failure points exposes the student to different trajectory prefixes than it would have generated alone, increasing exploration of the reasoning space.</p>
+<h2>Key Notes of This Paper</h2>
+<h3>The Handoff Trigger in Detail</h3>
+<p>The trigger criterion φ(h) is designed to be:
+- <strong>Label-free</strong>: no ground truth labels, verifier calls, or reward model queries required
+- <strong>Causally correct</strong>: it fires only when the teacher would change direction, not generically whenever teacher and student disagree
+- <strong>Symmetric in design</strong>: K in K_S(h) controls the sensitivity. Large K (student needs most of its top tokens to not be reflection tokens) makes the trigger more conservative; small K makes it hair-trigger</p>
+<p>The choice of reflection tokens ℛ = {But, Wait, However, No, Actually, ...} captures a specific semantic category: tokens that signal "I was wrong, let me reconsider." These are the linguistic markers of reasoning self-correction in chain-of-thought models trained with RL. They serve as a proxy for "the teacher thinks the current reasoning direction should change."</p>
+<h3>The Optimization Objective</h3>
+<p>Equation 9 is the PPO-style clipped loss applied to relay trajectories:</p>
+<div class="math">$$\mathcal{L}_\text{Relay} = -\mathbb{E}\!\left[\frac{1}{N}\sum_t \min\!\bigl(\rho_t A_t,\, \text{clip}(\rho_t, 1-\epsilon, 1+\epsilon) A_t\bigr)\right]$$</div>
+<p>where A_t^Relay = log π_T(z_t | h_t^z) - log π_̄θ(z_t | h_t^z) and ρ_t = π_θ(z_t | h_t^z) / π_̄θ(z_t | h_t^z).</p>
+<p>The clipping is critical: without it, teacher legs (where z_t is generated by the teacher) could produce arbitrarily large advantages for tokens the student initially assigns very low probability. Clipping at 1 ± ε limits the magnitude of each per-token update, preventing the student from overcommitting to the teacher's correction.</p>
+<p>The key insight is that the entire relay trajectory — both student legs and teacher legs — participates in optimization. Teacher legs are not just scaffolding; the student is directly trained to reproduce them. This is what makes "baton passing" work: the student learns not just to avoid the failed prefix, but to generate the corrective reasoning step that follows it.</p>
+<h3>Speculative Decoding as a Unification Tool</h3>
+<p>The use of speculative decoding to unify student and teacher generation is elegant. In standard speculative decoding:
+- Student (draft model) generates a candidate token
+- Teacher (target model) verifies with acceptance probability α_t = min(1, π_T(a^S_t) / π_̄θ(a^S_t))
+- On rejection, resample from the residual: q_t(v) ∝ [π_T(v) - π_̄θ(v)]₊</p>
+<p>In student legs, the target is the student itself (π^tgt = π_̄θ), so α_t = 1 always — every draft is accepted, reducing to ordinary sampling. In teacher legs, standard speculative rejection sampling runs. The state machine switches between these modes based on φ(h). This means the authors got teacher-intervention trajectories "for free" within an existing speculative decoding framework.</p>
+<h2>Limitations</h2>
+<ul>
+<li><strong>Math-only evaluation</strong>: All experiments are on mathematical reasoning benchmarks. Whether the handoff trigger generalizes to code, scientific reasoning, or multi-step tool use is unknown</li>
+<li><strong>Reflection token vocabulary is heuristic</strong>: The ℛ set is manually specified and may not capture all reasoning-redirect signals, or may capture some non-redirect uses of these tokens</li>
+<li><strong>4B teacher required</strong>: The method needs simultaneous access to both teacher and student during training. For very memory-constrained pipelines (single consumer GPU), keeping a 4B teacher loaded alongside a 1.7B student in float32 may be impractical</li>
+<li><strong>Single training epoch</strong>: All methods train for 1 epoch; longer training dynamics are not explored</li>
+<li><strong>No ablation of reflection token vocabulary</strong>: The sensitivity to the exact composition of ℛ is not tested</li>
+</ul>
+<h2>Future Work</h2>
+<p>Authors' suggested directions:
+- Extending to non-math domains and agentic tool-use tasks
+- Exploring oracle-label-free evaluation for harder reasoning problems</p>
+<p>Promising directions this work opens:
+- <strong>Progressive relay budget reduction</strong>: Start with a high M, L budget early in training (high intervention when student is weak) and anneal toward lower budget as the student improves — implementing the self-limiting behavior more explicitly
+- <strong>Cross-scale trigger calibration</strong>: The threshold K in the trigger criterion could be adapted based on the student's current policy entropy, creating a fully adaptive intervention rate
+- <strong>Relay-OPD for code generation</strong>: The reflection-token paradigm has a natural analogue in code — comments like <code># Error: this approach won't work</code> could serve as code-domain handoff triggers
+- <strong>Multi-teacher relay</strong>: Different teachers could take over at different failure types — a math specialist for arithmetic failures, a logic specialist for deduction failures</p>
+<h2>Implications for Edge / On-Device Deployment</h2>
+<p>The implications for small model deployment are significant:</p>
+<ol>
+<li>
+<p><strong>50% shorter training trajectories directly translates to 50% less compute</strong> for an online distillation step. If distillation is done periodically on-device to adapt to user behavior, this halves the adaptation cost.</p>
+</li>
+<li>
+<p><strong>Relay-OPD does not require labels during training</strong>. The handoff trigger φ(h) uses only teacher and student logits — no ground-truth answer, no verifier, no reward model. This makes it applicable in domains where labeled data is expensive or unavailable.</p>
+</li>
+<li>
+<p><strong>The method is compatible with speculative decoding at inference time</strong>. A student-teacher system trained with Relay-OPD naturally produces a student that can work alongside the teacher in a speculative decoding setup at deployment — the student's ability to recognize and recover from failure prefixes makes it a better draft model.</p>
+</li>
+<li>
+<p><strong>The training efficiency gains are especially valuable for 0.6B models</strong>: For the smaller student (0.6B), training trajectory length drops from 6,900 to 2,490 tokens — a 63.9% reduction. At the sub-1B scale, every token of training compute saved directly extends the feasibility of on-device continuous learning.</p>
+</li>
+</ol>
+<h2>Links</h2>
+<p><a href="https://arxiv.org/abs/2607.26057">Original Paper</a></p>
+<script type="text/javascript">if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width < 768) ? "left" : align;
+        indent = (screen.width < 768) ? "0em" : indent;
+        linebreak = (screen.width < 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+
+    var configscript = document.createElement('script');
+    configscript.type = 'text/x-mathjax-config';
+    configscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'none' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        availableFonts: ['STIX', 'TeX']," +
+        "        preferredFont: 'STIX'," +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(configscript);
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+</script>
+    </article>
+
+        <div class="tags">
+            <p>tags: <a href="/tag/slm.html">SLM</a>, <a href="/tag/ai.html">AI</a>, <a href="/tag/paper-review.html">paper-review</a></p>
+        </div>
+
+    <hr>
+
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <ul class="list-inline text-center">
+                            <li>
+                                <a href="http://twitter.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-twitter fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="http://github.com/toohsk">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fa fa-circle fa-stack-2x"></i>
+                                        <i class="fa fa-github fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                    </ul>
+<p class="copyright text-muted">
+    Blog powered by <a href="http://getpelican.com">Pelican</a>,
+    which takes great advantage of <a href="http://python.org">Python</a>. <br />        &copy;  toohsk
+</p>                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- jQuery -->
+    <script src="/theme/js/jquery.min.js"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="/theme/js/bootstrap.min.js"></script>
+
+        <!-- Custom Theme JavaScript -->
+        <script src="/theme/js/clean-blog.min.js"></script>
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-LR14KRYZ4L"></script>
+<script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-LR14KRYZ4L');
+</script>
+</body>
+
+</html>
